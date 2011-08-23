@@ -2,6 +2,7 @@
 
 import gtk
 import pango
+import os
 
 
 class Group(object):
@@ -38,11 +39,11 @@ class RunManager(object):
         self.window.show_all()
         
         area=self.builder.get_object('drawingarea1')
-        pixbuf=gtk.gdk.pixbuf_new_from_file('assets/grey.png')
+        pixbuf=gtk.gdk.pixbuf_new_from_file(os.path.join('assets','grey.png'))
         pixmap, mask=pixbuf.render_pixmap_and_mask()
         area.window.set_back_pixmap(pixmap, False)
         self.output_view.modify_font(pango.FontDescription("monospace 10"))
-        
+        self.window.set_icon_from_file(os.path.join('assets','icon.png'))
         self.builder.connect_signals(self)
         
         

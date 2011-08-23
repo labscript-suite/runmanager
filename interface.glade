@@ -5,7 +5,6 @@
   <!-- interface-local-resource-path assets -->
   <object class="GtkWindow" id="window1">
     <property name="title" translatable="yes">labscript run manager</property>
-    <property name="icon">assets/icon.png</property>
     <child>
       <object class="GtkVBox" id="vbox1">
         <property name="visible">True</property>
