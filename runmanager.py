@@ -5,6 +5,7 @@ class RunManager(object):
         builder = gtk.Builder()
         builder.add_from_file('interface.glade')
         window = builder.get_object('window1')
+#        window.maximize()
         window.show()
         
     def run(self):
