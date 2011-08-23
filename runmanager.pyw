@@ -17,9 +17,9 @@ class RunManager(object):
     def __init__(self):
         builder = gtk.Builder()
         builder.add_from_file('interface.glade')
-        window = builder.get_object('window1')
-        window.show()
-        
+        self.window = builder.get_object('window1')
+        self.window.show()
+        builder.connect_signals(self)
         self.output_view = builder.get_object('textview1')
         self.output_buffer = self.output_view.get_buffer()
         self.output_view.modify_font(pango.FontDescription("monospace 10"))
@@ -27,6 +27,14 @@ class RunManager(object):
     def run(self):
         output('\n\n\n\n\n\n\n\n\n\n\nready')
         gtk.main()
-      
+        
+    def page_switched(self,notebook, page, page_num):
+        if page_num == notebook.get_n_pages() - 2:
+            print 'was plus one!'
+            notebook.insert_page(gtk.Label('hello!'),position = notebook.get_n_pages() - 2)
+            notebook.show_all()
+    def do_it(*args):
+        print 'do it'
+         
 app = RunManager()
 app.run()
