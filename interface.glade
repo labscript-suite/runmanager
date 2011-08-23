@@ -45,7 +45,6 @@
                 <property name="visible">True</property>
                 <property name="border_width">30</property>
                 <property name="label_xalign">0</property>
-                <property name="shadow_type">in</property>
                 <child>
                   <object class="GtkAlignment" id="alignment5">
                     <property name="visible">True</property>
@@ -212,7 +211,6 @@
                     <property name="visible">True</property>
                     <property name="border_width">15</property>
                     <property name="label_xalign">0</property>
-                    <property name="shadow_type">in</property>
                     <child>
                       <object class="GtkAlignment" id="alignment1">
                         <property name="visible">True</property>
@@ -290,7 +288,6 @@
                         <property name="visible">True</property>
                         <property name="border_width">15</property>
                         <property name="label_xalign">0</property>
-                        <property name="shadow_type">in</property>
                         <child>
                           <object class="GtkAlignment" id="alignment2">
                             <property name="visible">True</property>
@@ -449,7 +446,6 @@
                         <property name="visible">True</property>
                         <property name="border_width">15</property>
                         <property name="label_xalign">0</property>
-                        <property name="shadow_type">in</property>
                         <child>
                           <object class="GtkAlignment" id="alignment3">
                             <property name="visible">True</property>
