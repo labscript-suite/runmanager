@@ -466,6 +466,63 @@
                 <property name="tab_fill">False</property>
               </packing>
             </child>
+            <child>
+              <object class="GtkLabel" id="label18">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">label</property>
+              </object>
+              <packing>
+                <property name="position">3</property>
+              </packing>
+            </child>
+            <child type="tab">
+              <object class="GtkLabel" id="label15">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">page 4</property>
+              </object>
+              <packing>
+                <property name="position">3</property>
+                <property name="tab_fill">False</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="label19">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">label</property>
+              </object>
+              <packing>
+                <property name="position">4</property>
+              </packing>
+            </child>
+            <child type="tab">
+              <object class="GtkLabel" id="label16">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">page 5</property>
+              </object>
+              <packing>
+                <property name="position">4</property>
+                <property name="tab_fill">False</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="label20">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">label</property>
+              </object>
+              <packing>
+                <property name="position">5</property>
+              </packing>
+            </child>
+            <child type="tab">
+              <object class="GtkLabel" id="label17">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">page 6</property>
+              </object>
+              <packing>
+                <property name="position">5</property>
+                <property name="tab_fill">False</property>
+              </packing>
+            </child>
           </object>
           <packing>
             <property name="position">1</property>
