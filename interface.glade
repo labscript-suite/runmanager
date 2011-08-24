@@ -432,6 +432,9 @@
                   </packing>
                 </child>
               </object>
+              <packing>
+                <property name="tab_fill">False</property>
+              </packing>
             </child>
             <child type="tab">
               <object class="GtkLabel" id="label16">
@@ -794,6 +797,7 @@
               </object>
               <packing>
                 <property name="position">1</property>
+                <property name="tab_fill">False</property>
               </packing>
             </child>
             <child type="tab">
