@@ -5,8 +5,10 @@ import pango
 import os
 
 if os.name == 'nt':
+    # Have Windows consider this program to be a separate app, and not
+    # group it with other Python programs in the taskbar:
     import ctypes
-    myappid = 'monashbec.labscriptt.runmanager.1-0' # arbitrary string
+    myappid = 'monashbec.labscript.runmanager.1-0' # arbitrary string
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 class Group(object):
@@ -74,7 +76,8 @@ class RunManager(object):
         self.output_view = self.builder.get_object('textview1')
         self.output_buffer = self.output_view.get_buffer()
         self.use_globals_vbox = self.builder.get_object('use_globals_vbox')
-        
+        self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
+        self.no_file_opened = self.builder.get_object('label_no_file_opened')
         self.window.show_all()
         
         area=self.builder.get_object('drawingarea1')
@@ -83,6 +86,9 @@ class RunManager(object):
         area.window.set_back_pixmap(pixmap, False)
         self.output_view.modify_font(pango.FontDescription("monospace 10"))
         self.window.set_icon_from_file(os.path.join('assets','icon.png'))
+        self.builder.get_object('filefilter1').add_pattern('*.h5')
+        self.builder.get_object('filefilter2').add_pattern('*.py')
+        self.grouplist_vbox.hide()
         self.builder.connect_signals(self)
         
         
@@ -121,7 +127,11 @@ class RunManager(object):
             filepath = dialog.get_filename()
         dialog.destroy()
         self.builder.get_object('entry_tabfilepath').set_text(filepath)
-           
+    
+    def on_file_chosen(self,*args):
+        self.grouplist_vbox.show()
+        self.no_file_opened.hide()
+              
     def do_it(self,*args):
         self.output('do it')
          
