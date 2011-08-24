@@ -44,7 +44,7 @@ class Group(object):
         label.set_ellipsize(pango.ELLIPSIZE_END)
         label.set_tooltip_text(self.name)
         self.tab.pack_start(label)
-        self.tab.pack_start(btn, False, False)
+#        self.tab.pack_start(btn, False, False)
         self.tab.show_all()
         notebook.append_page(self.toplevel, tab_label = self.tab)
 #        notebook.set_tab_label_packing(self.toplevel, expand=True, fill=True, pack_type=gtk.PACK_START)        
