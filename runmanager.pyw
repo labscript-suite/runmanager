@@ -47,7 +47,8 @@ class Group(object):
         self.tab.pack_start(btn, False, False)
         self.tab.show_all()
         notebook.append_page(self.toplevel, tab_label = self.tab)
-                             
+#        notebook.set_tab_label_packing(self.toplevel, expand=True, fill=True, pack_type=gtk.PACK_START)        
+                     
         self.checkbox = gtk.CheckButton(self.name)
         self.vbox.pack_start(self.checkbox,expand=False,fill=False)
         self.vbox.show_all()
