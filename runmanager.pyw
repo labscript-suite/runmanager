@@ -41,7 +41,7 @@ class Group(object):
         btn.modify_style(style)
         
         label = gtk.Label(self.name)
-        label.set_ellipsize(pango.ELLIPSIZE_END)
+#        label.set_ellipsize(pango.ELLIPSIZE_END)
         label.set_tooltip_text(self.name)
         self.tab.pack_start(label)
         self.tab.pack_start(btn, False, False)
