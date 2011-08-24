@@ -434,32 +434,13 @@
               </object>
             </child>
             <child type="tab">
-              <object class="GtkHBox" id="hbox9">
+              <object class="GtkLabel" id="label16">
                 <property name="visible">True</property>
-                <child>
-                  <object class="GtkImage" id="image4">
-                    <property name="visible">True</property>
-                    <property name="stock">gtk-media-play</property>
-                  </object>
-                  <packing>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="label16">
-                    <property name="visible">True</property>
-                    <property name="label" translatable="yes">Run Manager</property>
-                    <property name="use_markup">True</property>
-                  </object>
-                  <packing>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
+                <property name="label" translatable="yes">Run Manager</property>
+                <property name="use_markup">True</property>
               </object>
               <packing>
-                <property name="tab_expand">True</property>
                 <property name="tab_fill">False</property>
-                <property name="reorderable">True</property>
               </packing>
             </child>
             <child>
@@ -816,33 +797,14 @@
               </packing>
             </child>
             <child type="tab">
-              <object class="GtkHBox" id="hbox8">
+              <object class="GtkLabel" id="label18">
                 <property name="visible">True</property>
-                <child>
-                  <object class="GtkImage" id="image3">
-                    <property name="visible">True</property>
-                    <property name="stock">gtk-add</property>
-                  </object>
-                  <packing>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="label18">
-                    <property name="visible">True</property>
-                    <property name="label" translatable="yes">Import/export</property>
-                    <property name="use_markup">True</property>
-                  </object>
-                  <packing>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
+                <property name="label" translatable="yes">Import/export</property>
+                <property name="use_markup">True</property>
               </object>
               <packing>
                 <property name="position">1</property>
-                <property name="tab_expand">True</property>
                 <property name="tab_fill">False</property>
-                <property name="reorderable">True</property>
               </packing>
             </child>
           </object>
