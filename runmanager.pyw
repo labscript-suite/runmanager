@@ -4,12 +4,18 @@ import gtk
 import pango
 import os
 
+if os.name == 'nt':
+    import ctypes
+    myappid = 'monashbec.labscriptt.runmanager.1-0' # arbitrary string
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 class Group(object):
     
     def __init__(self,name,filepath,notebook,vbox):
         self.name = name
         self.filepath = filepath
+        self.notebook = notebook
+        self.vbox = vbox
         
         self.builder = gtk.Builder()
         self.builder.add_from_file('interface.glade')
@@ -32,18 +38,30 @@ class Group(object):
         style.ythickness = 0
         btn.modify_style(style)
         
-        self.tab.pack_start(gtk.Label(self.name))
+        label = gtk.Label(self.name)
+        label.set_ellipsize(pango.ELLIPSIZE_END)
+        label.set_tooltip_text(self.name)
+        self.tab.pack_start(label)
         self.tab.pack_start(btn, False, False)
         self.tab.show_all()
         notebook.append_page(self.toplevel, tab_label = self.tab)
                              
         self.checkbox = gtk.CheckButton(self.name)
-        vbox.pack_start(self.checkbox,expand=False,fill=False)
+        self.vbox.pack_start(self.checkbox,expand=False,fill=False)
         notebook.set_tab_reorderable(self.toplevel,True)
         
         notebook.show_all()
-#        notebook.set_current_page(-1)
-        
+
+        #connect the close button
+        btn.connect('clicked', self.on_closetab_button_clicked)
+
+    def on_closetab_button_clicked(self, *args):
+        #get the page number of the tab we wanted to close
+        pagenum = self.notebook.page_num(self.toplevel)
+        #and close it
+        self.notebook.remove_page(pagenum)
+        self.checkbox.destroy()
+                
         
         
 class RunManager(object):
