@@ -14,14 +14,35 @@ class Group(object):
         self.builder = gtk.Builder()
         self.builder.add_from_file('interface.glade')
         self.toplevel = self.builder.get_object('tab_toplevel')
-        notebook.append_page(self.toplevel, tab_label = gtk.Label(self.name))
+        self.tab = gtk.HBox()
+        
+        #get a stock close button image
+        close_image = gtk.image_new_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
+        image_w, image_h = gtk.icon_size_lookup(gtk.ICON_SIZE_MENU)
+        
+        #make the close button
+        btn = gtk.Button()
+        btn.set_relief(gtk.RELIEF_NONE)
+        btn.set_focus_on_click(False)
+        btn.add(close_image)
+        
+        #this reduces the size of the button
+        style = gtk.RcStyle()
+        style.xthickness = 0
+        style.ythickness = 0
+        btn.modify_style(style)
+        
+        self.tab.pack_start(gtk.Label(self.name))
+        self.tab.pack_start(btn, False, False)
+        self.tab.show_all()
+        notebook.append_page(self.toplevel, tab_label = self.tab)
                              
         self.checkbox = gtk.CheckButton(self.name)
         vbox.pack_start(self.checkbox,expand=False,fill=False)
         notebook.set_tab_reorderable(self.toplevel,True)
         
         notebook.show_all()
-        notebook.set_current_page(-1)
+#        notebook.set_current_page(-1)
         
         
         

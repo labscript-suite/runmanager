@@ -654,7 +654,7 @@
                 <child>
                   <object class="GtkLabel" id="label18">
                     <property name="visible">True</property>
-                    <property name="label" translatable="yes">Import/new</property>
+                    <property name="label" translatable="yes">Import/export</property>
                     <property name="use_markup">True</property>
                   </object>
                   <packing>
