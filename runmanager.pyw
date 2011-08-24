@@ -50,9 +50,10 @@ class Group(object):
                              
         self.checkbox = gtk.CheckButton(self.name)
         self.vbox.pack_start(self.checkbox,expand=False,fill=False)
+        self.vbox.show_all()
         notebook.set_tab_reorderable(self.toplevel,True)
         
-        notebook.show_all()
+        notebook.show()
 
         #connect the close button
         btn.connect('clicked', self.on_closetab_button_clicked)
@@ -78,6 +79,7 @@ class RunManager(object):
         self.use_globals_vbox = self.builder.get_object('use_globals_vbox')
         self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
         self.no_file_opened = self.builder.get_object('label_no_file_opened')
+        self.chooser_h5_file = self.builder.get_object('chooser_h5_file')
         self.window.show_all()
         
         area=self.builder.get_object('drawingarea1')
@@ -113,24 +115,18 @@ class RunManager(object):
         entry_name = self.builder.get_object('entry_tabname')
         entry_path = self.builder.get_object('entry_tabfilepath')
         name = entry_name.get_text()
-        filepath = entry_path.get_text()
+        filepath = self.chooser_h5_file.get_filenames()[0]
         self.groups.append(Group(name,filepath,self.notebook,self.use_globals_vbox))
         entry_name.set_text('')
-        entry_path.set_text('')
     
-    def button_open_h5file(self,*args):
-        dialog =  gtk.FileChooserDialog('Create new or open existing globals HDF5 file', action=gtk.FILE_CHOOSER_ACTION_OPEN,
-                                        buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN,gtk.RESPONSE_OK)) 
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            filepath = dialog.get_filename()
-        dialog.destroy()
-        self.builder.get_object('entry_tabfilepath').set_text(filepath)
-    
-    def on_file_chosen(self,*args):
+    def on_file_chosen(self,chooser):
         self.grouplist_vbox.show()
         self.no_file_opened.hide()
+        
+    def on_selection_changed(self,chooser):
+        if not self.chooser_h5_file.get_filenames():
+            self.grouplist_vbox.hide()
+            self.no_file_opened.show()
               
     def do_it(self,*args):
         self.output('do it')
