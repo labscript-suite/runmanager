@@ -172,7 +172,7 @@
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
                                         <property name="invisible_char">•</property>
-                                        <property name="text" translatable="yes">w-cl27-g46-krb-control:8000</property>
+                                        <property name="text" translatable="yes">w-cl27-g46-krb-control</property>
                                       </object>
                                       <packing>
                                         <property name="position">2</property>
@@ -431,7 +431,7 @@
                 <child>
                   <object class="GtkLabel" id="label16">
                     <property name="visible">True</property>
-                    <property name="label" translatable="yes">&lt;small&gt;Run Manager&lt;/small&gt;</property>
+                    <property name="label" translatable="yes">Run Manager</property>
                     <property name="use_markup">True</property>
                   </object>
                   <packing>
@@ -461,6 +461,7 @@
                         <child>
                           <object class="GtkVBox" id="vbox9">
                             <property name="visible">True</property>
+                            <property name="border_width">15</property>
                             <child>
                               <object class="GtkVBox" id="vbox10">
                                 <property name="visible">True</property>
@@ -539,6 +540,7 @@
                                             <property name="can_focus">True</property>
                                             <property name="receives_default">True</property>
                                             <property name="image_position">right</property>
+                                            <signal name="clicked" handler="button_open_h5file"/>
                                             <child>
                                               <object class="GtkImage" id="image2">
                                                 <property name="visible">True</property>
@@ -565,8 +567,6 @@
                                     </child>
                                   </object>
                                   <packing>
-                                    <property name="expand">False</property>
-                                    <property name="fill">False</property>
                                     <property name="position">0</property>
                                   </packing>
                                 </child>
@@ -618,6 +618,8 @@
                             <property name="visible">True</property>
                           </object>
                           <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
                             <property name="position">1</property>
                           </packing>
                         </child>
@@ -652,7 +654,7 @@
                 <child>
                   <object class="GtkLabel" id="label18">
                     <property name="visible">True</property>
-                    <property name="label" translatable="yes">&lt;small&gt;Import/new&lt;/small&gt;</property>
+                    <property name="label" translatable="yes">Import/new</property>
                     <property name="use_markup">True</property>
                   </object>
                   <packing>

@@ -72,8 +72,18 @@ class RunManager(object):
         self.groups.append(Group(name,filepath,self.notebook,self.use_globals_vbox))
         entry_name.set_text('')
         entry_path.set_text('')
-        
-    def do_it(*args):
+    
+    def button_open_h5file(self,*args):
+        dialog =  gtk.FileChooserDialog('Create new or open existing globals HDF5 file', action=gtk.FILE_CHOOSER_ACTION_OPEN,
+                                        buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN,gtk.RESPONSE_OK)) 
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            filepath = dialog.get_filename()
+        dialog.destroy()
+        self.builder.get_object('entry_tabfilepath').set_text(filepath)
+           
+    def do_it(self,*args):
         self.output('do it')
          
 app = RunManager()
