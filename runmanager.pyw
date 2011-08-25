@@ -245,6 +245,7 @@ class RunManager(object):
         self.window = self.builder.get_object('window1')
         self.notebook = self.builder.get_object('notebook1')
         self.output_view = self.builder.get_object('textview1')
+        self.output_adjustment = self.output_view.get_vadjustment()
         self.output_buffer = self.output_view.get_buffer()
         self.use_globals_vbox = self.builder.get_object('use_globals_vbox')
         self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
@@ -267,16 +268,19 @@ class RunManager(object):
         self.groups = []
     
     def output(self,text):
-        """Prints text to the output textbox"""
-        print text,
-        self.output_buffer.insert_at_cursor(text)
-        # Automatically keep the textbox scrolled to the bottom:
-        self.output_view.scroll_to_mark(app.output_buffer.get_insert(),0)
-        # Make sure that GTK renders the text right away, without waiting
-        # for callbacks to finish:
-        while gtk.events_pending():
-            gtk.main_iteration()
-            
+        """Prints text to the output textbox and to stdout"""
+        print text, 
+        text_iter = self.output_buffer.get_end_iter()
+        # Check if the scrollbar is at the bottom of the textview:
+        scrolling = self.output_adjustment.value == self.output_adjustment.upper - self.output_adjustment.page_size
+        # Insert the text at the end:
+        self.output_buffer.insert(text_iter, text)
+        # Automatically keep the textbox scrolled to the bottom, but
+        # only if it was at the bottom to begin with. If the user has
+        # scrolled up we won't jump them back to the bottom:
+        if scrolling:
+            self.output_adjustment.value = self.output_adjustment.upper
+
     def run(self):
         self.output('ready\n')
         gtk.main()
