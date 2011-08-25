@@ -6,12 +6,11 @@
     <property name="visible">True</property>
     <child>
       <object class="GtkLabel" id="label_name">
-        <property name="xalign">0</property>
+        <property name="xalign">1</property>
         <property name="xpad">10</property>
-        <property name="label" translatable="yes">&lt;Varname&gt;</property>
+        <property name="label" translatable="yes">&lt;Variable_name&gt;</property>
       </object>
       <packing>
-        <property name="expand">False</property>
         <property name="fill">False</property>
         <property name="position">0</property>
       </packing>
@@ -21,6 +20,8 @@
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="invisible_char">•</property>
+        <property name="text" translatable="yes">&lt;Variable_name&gt;</property>
+        <signal name="key_press_event" handler="on_entry_keypress"/>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -38,7 +39,6 @@
         <property name="label" translatable="yes">&lt;Units&gt;</property>
       </object>
       <packing>
-        <property name="expand">False</property>
         <property name="fill">False</property>
         <property name="position">0</property>
       </packing>
@@ -48,6 +48,7 @@
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="invisible_char">•</property>
+        <signal name="key_press_event" handler="on_entry_keypress"/>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -63,6 +64,7 @@
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="invisible_char">•</property>
+        <signal name="key_press_event" handler="on_entry_keypress"/>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -83,6 +85,7 @@
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <property name="active">True</property>
+            <signal name="toggled" handler="on_edit_toggled"/>
             <child>
               <object class="GtkImage" id="image6">
                 <property name="visible">True</property>
@@ -102,6 +105,7 @@
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
+            <signal name="clicked" handler="on_remove_clicked"/>
             <child>
               <object class="GtkImage" id="image7">
                 <property name="visible">True</property>

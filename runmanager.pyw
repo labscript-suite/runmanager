@@ -20,7 +20,7 @@ class Global(object):
         self.builder.add_from_file('global.glade')
         
         self.entry_name = self.builder.get_object('entry_name')
-        self.entry_units = self.builder.get_object('entry_value')
+        self.entry_units = self.builder.get_object('entry_units')
         self.label_name = self.builder.get_object('label_name')
         self.label_units = self.builder.get_object('label_units')
         self.entry_value = self.builder.get_object('entry_value')
@@ -31,7 +31,16 @@ class Global(object):
         self.button_remove = self.builder.get_object('button_remove')
         self.vbox_name = self.builder.get_object('vbox_name')
         self.vbox_units = self.builder.get_object('vbox_units')
+        
+        for widget in [self.entry_name,self.label_name,self.entry_value]:
+            widget.modify_font(pango.FontDescription("monospace 10"))
+        
         self.insert_at_position(n_globals + 1)
+        
+        self.entry_name.select_region(0, -1)
+        self.entry_name.grab_focus()
+            
+        self.builder.connect_signals(self)
         
     def insert_at_position(self,n):
         self.table.attach(self.vbox_name,0,1,n,n+1)
@@ -43,8 +52,47 @@ class Global(object):
         self.vbox_units.show()
         self.vbox_buttons.show()
         self.vbox_value.show()
+        
+    def on_edit_toggled(self,widget):
+        if widget.get_active():
+            self.entry_name.show()
+            self.entry_units.show()
+            self.button_remove.show()
+            self.label_name.hide()
+            self.label_units.hide()
+            self.entry_name.select_region(0, -1)
+            self.entry_name.grab_focus()
+        else:
+            self.entry_name.hide()
+            self.entry_units.hide()
+            self.button_remove.hide()
+            self.label_units.set_text(self.entry_units.get_text())
+            self.label_name.set_text(self.entry_name.get_text())
+            self.label_name.show()
+            self.label_units.show()
     
-    
+       
+    def on_entry_keypress(self,widget,event):
+        widget.set_width_chars(len(widget.get_text()))
+        if event.keyval == 65307: #escape
+            self.entry_units.set_text(self.label_units.get_text())
+            self.entry_name.set_text(self.label_name.get_text())
+            self.toggle_edit.set_active(False)
+            self.toggle_edit.toggled()
+        elif event.keyval == 65293 or event.keyval == 65421: #enter
+            self.toggle_edit.set_active(False)
+            self.toggle_edit.toggled()
+        
+    def on_remove_clicked(self,widget):
+        # TODO "Are you sure? This will remove the global from the h5
+        # file and cannot be undone."
+        self.table.remove(self.vbox_name)
+        self.table.remove(self.vbox_value)
+        self.table.remove(self.vbox_units)
+        self.table.remove(self.vbox_buttons)
+        del self
+        
+        
 class Group(object):
     
     def __init__(self,name,filepath,notebook,vbox):
@@ -58,6 +106,10 @@ class Group(object):
         self.toplevel = self.builder.get_object('tab_toplevel')
         self.global_table = self.builder.get_object('global_table')
         self.scrolledwindow_globals = self.builder.get_object('scrolledwindow_globals')
+        self.label_groupname = self.builder.get_object('label_groupname')
+        self.entry_groupname = self.builder.get_object('entry_groupname')
+        self.label_h5_path = self.builder.get_object('label_h5_path')
+        self.toggle_group_name_edit = self.builder.get_object('toggle_group_name_edit')
         self.adjustment = self.scrolledwindow_globals.get_vadjustment()
         self.tab = gtk.HBox()
         
@@ -77,10 +129,10 @@ class Group(object):
         style.ythickness = 0
         btn.modify_style(style)
         
-        label = gtk.Label(self.name)
-        label.set_ellipsize(pango.ELLIPSIZE_END)
-        label.set_tooltip_text(self.name)
-        self.tab.pack_start(label)
+        self.tablabel = gtk.Label(self.name)
+        self.tablabel.set_ellipsize(pango.ELLIPSIZE_END)
+        self.tablabel.set_tooltip_text(self.name)
+        self.tab.pack_start(self.tablabel)
         self.tab.pack_start(btn, False, False)
         self.tab.show_all()
         notebook.append_page(self.toplevel, tab_label = self.tab)
@@ -89,6 +141,10 @@ class Group(object):
         self.vbox.pack_start(self.checkbox,expand=False,fill=False)
         self.vbox.show_all()
         notebook.set_tab_reorderable(self.toplevel,True)
+        
+        self.label_groupname.set_text(self.name)
+        self.entry_groupname.set_text(self.name)
+        self.label_h5_path.set_text(self.filepath)
         
         notebook.show()
 
@@ -105,9 +161,33 @@ class Group(object):
         #and close it
         self.notebook.remove_page(pagenum)
         self.checkbox.destroy()
-                
-    def on_groupname_edit_toggle(self,button):
-        print 'toggled!'        
+    
+    def changename(self, newname):
+        self.name = newname
+        self.label_groupname.set_text(self.name)
+        self.tablabel.set_text(self.name)
+        self.checkbox.get_children()[0].set_text(self.name) 
+              
+    def on_groupname_edit_toggle(self,widget):
+        if widget.get_active():
+            self.entry_groupname.set_text(self.name)
+            self.entry_groupname.show()
+            self.label_groupname.hide()
+            self.entry_groupname.select_region(0, -1)
+            self.entry_groupname.grab_focus()
+        else:
+            self.changename(self.entry_groupname.get_text())
+            self.entry_groupname.hide()
+            self.label_groupname.show() 
+            
+    def on_entry_keypress(self,widget,event):
+        if event.keyval == 65307: #escape
+            widget.set_text(self.label_groupname.get_text())
+            self.toggle_group_name_edit.set_active(False)
+            self.toggle_group_name_edit.toggled()
+        elif event.keyval == 65293 or event.keyval == 65421: #enter
+            self.toggle_group_name_edit.set_active(False)
+            self.toggle_group_name_edit.toggled()
         
     def on_new_global_clicked(self,button):
         self.globals.append(Global(self.global_table, len(self.globals)))  
@@ -154,7 +234,7 @@ class RunManager(object):
             gtk.main_iteration()
             
     def run(self):
-        self.output('ready')
+        self.output('ready\n')
         gtk.main()
             
     def button_create_new_group(self,*args):
@@ -174,7 +254,7 @@ class RunManager(object):
             self.no_file_opened.show()
               
     def do_it(self,*args):
-        self.output('do it')
+        self.output('do it\n')
          
 app = RunManager()
 app.run()
