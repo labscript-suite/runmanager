@@ -11,6 +11,43 @@ if os.name == 'nt':
     myappid = 'monashbec.labscript.runmanager.1-0' # arbitrary string
 #    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
+
+class Global(object):
+    def __init__(self, table, n_globals):
+        
+        self.table = table
+        self.builder = gtk.Builder()
+        self.builder.add_from_file('global.glade')
+        
+        self.entry_name = self.builder.get_object('entry_name')
+        self.entry_units = self.builder.get_object('entry_value')
+        self.label_name = self.builder.get_object('label_name')
+        self.label_units = self.builder.get_object('label_units')
+        self.entry_value = self.builder.get_object('entry_value')
+        self.vbox_value = self.builder.get_object('vbox_value')
+        self.hbox_buttons = self.builder.get_object('hbox_buttons')
+        self.vbox_buttons = self.builder.get_object('vbox_buttons')
+        self.toggle_edit = self.builder.get_object('toggle_edit')
+        self.button_remove = self.builder.get_object('button_remove')
+        self.vbox_name = self.builder.get_object('vbox_name')
+        self.vbox_units = self.builder.get_object('vbox_units')
+        
+        self.insert_at_position(n_globals + 2)
+        
+        self.editing = True
+        
+    def insert_at_position(self,n):
+        self.table.attach(self.vbox_name,0,1,3,4)
+        self.table.attach(self.vbox_value,1,2,3,4)
+        self.table.attach(self.vbox_units,2,3,3,4)
+        self.table.attach(self.vbox_buttons,3,4,3,4)
+        
+        self.vbox_name.show()
+        self.vbox_units.show()
+        self.vbox_buttons.show()
+        self.vbox_value.show()
+    
+    
 class Group(object):
     
     def __init__(self,name,filepath,notebook,vbox):
@@ -22,6 +59,7 @@ class Group(object):
         self.builder = gtk.Builder()
         self.builder.add_from_file('grouptab.glade')
         self.toplevel = self.builder.get_object('tab_toplevel')
+        self.global_table = self.builder.get_object('global_table')
         self.tab = gtk.HBox()
         
         #get a stock close button image
@@ -58,6 +96,10 @@ class Group(object):
         #connect the close button
         btn.connect('clicked', self.on_closetab_button_clicked)
 
+        self.builder.connect_signals(self)
+        
+        self.globals = []
+        
     def on_closetab_button_clicked(self, *args):
         #get the page number of the tab we wanted to close
         pagenum = self.notebook.page_num(self.toplevel)
@@ -67,6 +109,9 @@ class Group(object):
                 
     def on_groupname_edit_toggle(self,button):
         print 'toggled!'        
+        
+    def on_new_global_clicked(self,button):
+        self.globals.append(Global(self.global_table, len(self.globals)))       
         
 class RunManager(object):
     def __init__(self):
@@ -92,8 +137,8 @@ class RunManager(object):
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
         self.grouplist_vbox.hide()
-        self.builder.connect_signals(self)
         
+        self.builder.connect_signals(self)
         
         self.groups = []
     
