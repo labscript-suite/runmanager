@@ -1,17 +1,61 @@
 #!/usr/bin/env python
 
-import gtk
-import pango
 import os
 
+import gtk
+import pango
+import h5py
+
 if os.name == 'nt':
-    # Have Windows consider this program to be a separate app, and not
+    # Have Windows 7 consider this program to be a separate app, and not
     # group it with other Python programs in the taskbar:
     import ctypes
     myappid = 'monashbec.labscript.runmanager.1-0' # arbitrary string
-#    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except:
+        pass
 
-
+class FileOps:
+    
+    def new_file(self,filename):
+        with h5py.File(filename,'w') as f:
+            f.create_group('globals')
+    
+    def get_grouplist(self,filename):
+        with h5py.File(filename,'r') as f:
+            try:
+                grouplist = f['globals']
+                # File closes after this function call, so have to
+                # convert the grouplist generator to a list of strings
+                # before its file gets dereferenced:
+                return list(grouplist), True
+            except:
+                raise
+                return [], False
+        
+    def new_group(self,filename,groupname):
+        pass
+    
+    def delete_group(self,filename,groupname):
+        pass
+    
+    def get_globals_list(self,filename,groupname):
+        pass
+    
+    def new_global(self,filename,groupname,globalname):
+        pass
+    
+    def get_value(self,filename,groupname,globalname):
+        pass
+    
+    def set_value(self,filename,groupname,globalname):
+        pass
+    
+    def delete_global(self,filenmae,groupname,globalname):
+        pass
+    
+    
 class Global(object):
     def __init__(self, table, n_globals):
         
@@ -247,14 +291,28 @@ class RunManager(object):
     def on_file_chosen(self,chooser):
         self.grouplist_vbox.show()
         self.no_file_opened.hide()
+        filename = self.chooser_h5_file.get_filenames()[0]
+        grouplist, success = file_ops.get_grouplist(filename) 
+        if success:
+            for group in grouplist:
+                print group
+                #TODO: populate vbox with groups
+        else:
+            chooser.set_current_folder('')
+            self.on_selection_changed(chooser)           
         
     def on_selection_changed(self,chooser):
+        """This is just to detect when the h5 file chooser comes back
+        without a file so we can put the 'no file open' label back'"""
         if not self.chooser_h5_file.get_filenames():
             self.grouplist_vbox.hide()
+            #TODO: remove existing entries from vbox
             self.no_file_opened.show()
               
     def do_it(self,*args):
         self.output('do it\n')
-         
-app = RunManager()
-app.run()
+ 
+if __name__ == '__main__':        
+    app = RunManager()
+    file_ops = FileOps()
+    app.run()
