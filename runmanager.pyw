@@ -20,7 +20,7 @@ class Group(object):
         self.vbox = vbox
         
         self.builder = gtk.Builder()
-        self.builder.add_from_file('interface.glade')
+        self.builder.add_from_file('grouptab.glade')
         self.toplevel = self.builder.get_object('tab_toplevel')
         self.tab = gtk.HBox()
         
@@ -47,7 +47,6 @@ class Group(object):
         self.tab.pack_start(btn, False, False)
         self.tab.show_all()
         notebook.append_page(self.toplevel, tab_label = self.tab)
-#        notebook.set_tab_label_packing(self.toplevel, expand=True, fill=True, pack_type=gtk.PACK_START)        
                      
         self.checkbox = gtk.CheckButton(self.name)
         self.vbox.pack_start(self.checkbox,expand=False,fill=False)
@@ -66,7 +65,8 @@ class Group(object):
         self.notebook.remove_page(pagenum)
         self.checkbox.destroy()
                 
-        
+    def on_groupname_edit_toggle(self,button):
+        print 'toggled!'        
         
 class RunManager(object):
     def __init__(self):
@@ -114,7 +114,6 @@ class RunManager(object):
             
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
-        entry_path = self.builder.get_object('entry_tabfilepath')
         name = entry_name.get_text()
         filepath = self.chooser_h5_file.get_filenames()[0]
         self.groups.append(Group(name,filepath,self.notebook,self.use_globals_vbox))
