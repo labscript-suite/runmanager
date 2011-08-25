@@ -258,6 +258,9 @@ class RunManager(object):
         pixmap, mask=pixbuf.render_pixmap_and_mask()
         area.window.set_back_pixmap(pixmap, False)
         self.output_view.modify_font(pango.FontDescription("monospace 10"))
+        self.output_view.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse('black'))
+        self.output_view.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse('white'))
+
         self.window.set_icon_from_file(os.path.join('assets','icon.png'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')

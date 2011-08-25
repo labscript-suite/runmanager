@@ -420,7 +420,7 @@
                                     <property name="can_focus">True</property>
                                     <property name="hscrollbar_policy">automatic</property>
                                     <property name="vscrollbar_policy">automatic</property>
-                                    <property name="shadow_type">etched-in</property>
+                                    <property name="shadow_type">in</property>
                                     <child>
                                       <object class="GtkTextView" id="textview1">
                                         <property name="visible">True</property>
@@ -428,6 +428,7 @@
                                         <property name="editable">False</property>
                                         <property name="wrap_mode">word</property>
                                         <property name="indent">1</property>
+                                        <property name="cursor_visible">False</property>
                                       </object>
                                     </child>
                                   </object>
