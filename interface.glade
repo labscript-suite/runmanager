@@ -48,6 +48,7 @@
               <object class="GtkHPaned" id="main_pane">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="border_width">15</property>
                 <child>
                   <object class="GtkFrame" id="frame1">
                     <property name="visible">True</property>

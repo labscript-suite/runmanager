@@ -31,16 +31,13 @@ class Global(object):
         self.button_remove = self.builder.get_object('button_remove')
         self.vbox_name = self.builder.get_object('vbox_name')
         self.vbox_units = self.builder.get_object('vbox_units')
-        
-        self.insert_at_position(n_globals + 2)
-        
-        self.editing = True
+        self.insert_at_position(n_globals + 1)
         
     def insert_at_position(self,n):
-        self.table.attach(self.vbox_name,0,1,3,4)
-        self.table.attach(self.vbox_value,1,2,3,4)
-        self.table.attach(self.vbox_units,2,3,3,4)
-        self.table.attach(self.vbox_buttons,3,4,3,4)
+        self.table.attach(self.vbox_name,0,1,n,n+1)
+        self.table.attach(self.vbox_value,1,2,n,n+1)
+        self.table.attach(self.vbox_units,2,3,n,n+1)
+        self.table.attach(self.vbox_buttons,3,4,n,n+1)
         
         self.vbox_name.show()
         self.vbox_units.show()
@@ -60,6 +57,8 @@ class Group(object):
         self.builder.add_from_file('grouptab.glade')
         self.toplevel = self.builder.get_object('tab_toplevel')
         self.global_table = self.builder.get_object('global_table')
+        self.scrolledwindow_globals = self.builder.get_object('scrolledwindow_globals')
+        self.adjustment = self.scrolledwindow_globals.get_vadjustment()
         self.tab = gtk.HBox()
         
         #get a stock close button image
@@ -111,7 +110,8 @@ class Group(object):
         print 'toggled!'        
         
     def on_new_global_clicked(self,button):
-        self.globals.append(Global(self.global_table, len(self.globals)))       
+        self.globals.append(Global(self.global_table, len(self.globals)))  
+        self.adjustment.value = self.adjustment.upper     
         
 class RunManager(object):
     def __init__(self):

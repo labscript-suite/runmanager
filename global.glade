@@ -6,7 +6,6 @@
     <property name="visible">True</property>
     <child>
       <object class="GtkLabel" id="label_name">
-        <property name="visible">True</property>
         <property name="xalign">0</property>
         <property name="xpad">10</property>
         <property name="label" translatable="yes">&lt;Varname&gt;</property>
@@ -34,7 +33,6 @@
     <property name="visible">True</property>
     <child>
       <object class="GtkLabel" id="label_units">
-        <property name="visible">True</property>
         <property name="xalign">0</property>
         <property name="xpad">10</property>
         <property name="label" translatable="yes">&lt;Units&gt;</property>
@@ -79,25 +77,6 @@
       <object class="GtkHBox" id="hbox_buttons">
         <property name="visible">True</property>
         <child>
-          <object class="GtkButton" id="button_remove">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="relief">none</property>
-            <child>
-              <object class="GtkImage" id="image7">
-                <property name="visible">True</property>
-                <property name="stock">gtk-remove</property>
-              </object>
-            </child>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">False</property>
-            <property name="position">0</property>
-          </packing>
-        </child>
-        <child>
           <object class="GtkToggleButton" id="toggle_edit">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
@@ -108,6 +87,25 @@
               <object class="GtkImage" id="image6">
                 <property name="visible">True</property>
                 <property name="stock">gtk-edit</property>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="button_remove">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="relief">none</property>
+            <child>
+              <object class="GtkImage" id="image7">
+                <property name="visible">True</property>
+                <property name="stock">gtk-remove</property>
               </object>
             </child>
           </object>
