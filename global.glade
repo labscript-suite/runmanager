@@ -90,6 +90,7 @@
               <object class="GtkImage" id="image6">
                 <property name="visible">True</property>
                 <property name="stock">gtk-edit</property>
+                <property name="icon-size">1</property>
               </object>
             </child>
           </object>
@@ -110,6 +111,7 @@
               <object class="GtkImage" id="image7">
                 <property name="visible">True</property>
                 <property name="stock">gtk-remove</property>
+                <property name="icon-size">1</property>
               </object>
             </child>
           </object>
