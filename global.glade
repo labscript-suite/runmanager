@@ -6,6 +6,7 @@
     <property name="visible">True</property>
     <child>
       <object class="GtkLabel" id="label_name">
+        <property name="visible">True</property>
         <property name="xalign">1</property>
         <property name="xpad">10</property>
         <property name="label" translatable="yes">&lt;Variable_name&gt;</property>
@@ -17,10 +18,10 @@
     </child>
     <child>
       <object class="GtkEntry" id="entry_name">
-        <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="invisible_char">•</property>
         <property name="text" translatable="yes">&lt;Variable_name&gt;</property>
+        <property name="xalign">1</property>
         <signal name="key_press_event" handler="on_entry_keypress"/>
       </object>
       <packing>
@@ -34,6 +35,7 @@
     <property name="visible">True</property>
     <child>
       <object class="GtkLabel" id="label_units">
+        <property name="visible">True</property>
         <property name="xalign">0</property>
         <property name="xpad">10</property>
         <property name="label" translatable="yes">&lt;Units&gt;</property>
@@ -45,7 +47,6 @@
     </child>
     <child>
       <object class="GtkEntry" id="entry_units">
-        <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="invisible_char">•</property>
         <signal name="key_press_event" handler="on_entry_keypress"/>
@@ -60,12 +61,32 @@
   <object class="GtkVBox" id="vbox_value">
     <property name="visible">True</property>
     <child>
-      <object class="GtkEntry" id="entry_value">
+      <object class="GtkHBox" id="hbox1">
         <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="invisible_char">•</property>
-        <property name="xalign">1</property>
-        <signal name="key_press_event" handler="on_entry_keypress"/>
+        <child>
+          <object class="GtkLabel" id="label1">
+            <property name="visible">True</property>
+          </object>
+          <packing>
+            <property name="padding">10</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkEntry" id="entry_value">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="invisible_char">•</property>
+            <property name="width_chars">11</property>
+            <property name="xalign">1</property>
+            <signal name="key_press_event" handler="on_entry_keypress"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -85,7 +106,6 @@
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
-            <property name="active">True</property>
             <signal name="toggled" handler="on_edit_toggled"/>
             <child>
               <object class="GtkImage" id="image6">
@@ -103,7 +123,6 @@
         </child>
         <child>
           <object class="GtkButton" id="button_remove">
-            <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>

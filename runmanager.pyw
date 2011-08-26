@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 import os
+import random
 
 import gtk
 import pango
 import h5py
+
 
 if os.name == 'nt':
     # Have Windows 7 consider this program to be a separate app, and not
@@ -16,6 +18,46 @@ if os.name == 'nt':
     except:
         pass
 
+funny_units = ['attoparsecs',
+               'light-nanoseconds',
+               'metric inches',
+               'cars',
+               'buses',
+               'blocks',
+               'barns',
+               'nanoacres',
+               'bags of sugar',
+               'elephants',
+               'Jupiters',
+               'jiffies',
+               'microfortninghts',
+               'dog years',
+               'galactic years',
+               'binary radians',
+               'tons of TNT',
+               'Sagans',
+               'nibbles',
+               'proof',
+               'banana equivalent doses',
+               'on the Richter scale',
+               'GigaTorr',
+               'furlongs per fortnight',
+               'beard seconds',
+               'dozen',
+               'o\'clock',
+               'baud',
+               'metabolic equivalents',
+               'carats',
+               'Gillette',
+               'horsepower',
+               'man-months',
+               'MegaFonzies', 
+               'milliHelen',
+               'smidgens',
+               'tablespoons',
+               'pieces of string',
+               'barrels of monkeys']
+               
 class FileOps:
     
     def handle_error(self,e):
@@ -27,8 +69,7 @@ class FileOps:
             with h5py.File(filename,'w') as f:
                 f.create_group('globals')
                 return True
-        except:# Exception as e:
-            raise
+        except Exception as e:
             self.handle_error(e)
             return False
     
@@ -85,7 +126,14 @@ class FileOps:
             return {},{}, False
     
     def new_global(self,filename,groupname,globalname):
-        pass
+        try:
+            with h5py.File(filename,'a') as f:
+                group = f['globals'][groupname]
+                group.attrs[globalname] = ''
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
     def rename_global(self,filename,groupname,oldglobalname,newglobalname):
         pass
@@ -113,7 +161,7 @@ class FileOps:
     
     
 class Global(object):
-    def __init__(self, group, name=None):
+    def __init__(self, group, name, new=False):
         
         self.group = group
         self.table = self.group.global_table
@@ -139,21 +187,27 @@ class Global(object):
         for widget in [self.entry_name,self.label_name,self.entry_value]:
             widget.modify_font(pango.FontDescription("monospace 10"))
         
-        self.insert_at_position(n_globals + 1)
+        self.label_name.set_text(name)
+        self.entry_value.set_text(str(int(1000*random.random() - 500)))
+        self.label_units.set_text(random.choice(funny_units))
         
-        self.builder.connect_signals(self)
-        
-        if name:
-            print self.filepath, self.group.name, name
+        if new:
+            success = file_ops.new_global(self.filepath,self.group.name,name)
+            if not success:
+                self.group.globals.remove(self)
+                return
+        else:
             value, success = file_ops.get_value(self.filepath, self.group.name, name)
             if success:
                 self.entry_value.set_text(value)
                 units = file_ops.get_units(self.filepath, self.group.name, name)
                 self.entry_units.set_text(value)
                 self.toggle_edit.set_active(False)
-        else:
-            self.entry_name.select_region(0, -1)
-            self.entry_name.grab_focus()
+                
+        print n_globals + 1
+        self.insert_at_position(n_globals + 1)
+        
+        self.builder.connect_signals(self)
         
     def insert_at_position(self,n):
         self.table.attach(self.vbox_name,0,1,n,n+1)
@@ -168,6 +222,8 @@ class Global(object):
         
     def on_edit_toggled(self,widget):
         if widget.get_active():
+            self.entry_units.set_text(self.label_units.get_text())
+            self.entry_name.set_text(self.label_name.get_text())
             self.entry_name.show()
             self.entry_units.show()
             self.button_remove.show()
@@ -186,7 +242,7 @@ class Global(object):
     
        
     def on_entry_keypress(self,widget,event):
-        widget.set_width_chars(len(widget.get_text()))
+#        widget.set_width_chars(len(widget.get_text()))
         if event.keyval == 65307: #escape
             self.entry_units.set_text(self.label_units.get_text())
             self.entry_name.set_text(self.label_name.get_text())
@@ -201,9 +257,14 @@ class Global(object):
         self.table.remove(self.vbox_value)
         self.table.remove(self.vbox_units)
         self.table.remove(self.vbox_buttons)
-        del self
+        print self.group.globals
+        self.group.globals.remove(self)
+        print self.group.globals
         
-        
+class GroupListEntry(object):
+    def __init__(self,filepath,table):
+        pass
+                
 class Group(object):
     
     def __init__(self,name,filepath,notebook,vbox):
@@ -219,6 +280,7 @@ class Group(object):
         self.scrolledwindow_globals = self.builder.get_object('scrolledwindow_globals')
         self.label_groupname = self.builder.get_object('label_groupname')
         self.entry_groupname = self.builder.get_object('entry_groupname')
+        self.entry_new_global = self.builder.get_object('entry_new_global')
         self.label_h5_path = self.builder.get_object('label_h5_path')
         self.toggle_group_name_edit = self.builder.get_object('toggle_group_name_edit')
         self.adjustment = self.scrolledwindow_globals.get_vadjustment()
@@ -305,7 +367,9 @@ class Group(object):
             self.toggle_group_name_edit.set_active(False)
         
     def on_new_global_clicked(self,button):
-        self.globals.append(Global(self.global_table, len(self.globals)))  
+        name = self.entry_new_global.get_text()
+        self.entry_new_global.set_text('')
+        self.globals.append(Global(self,name,new=True))  
         self.adjustment.value = self.adjustment.upper     
         
 class RunManager(object):
@@ -373,7 +437,6 @@ class RunManager(object):
         if not chooser:
             chooser = self.chooser_h5_file
         filename = self.chooser_h5_file.get_filename()
-        print 'updating grouplist!', filename
         if not filename:
             self.grouplist_vbox.hide()
             #TODO: remove existing entries from vbox
