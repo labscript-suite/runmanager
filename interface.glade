@@ -494,44 +494,34 @@
           </object>
           <packing>
             <property name="tab_fill">False</property>
+            <property name="reorderable">True</property>
           </packing>
         </child>
         <child>
-          <object class="GtkNotebook" id="notebook2">
+          <object class="GtkHBox" id="hbox5">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="border_width">15</property>
+            <property name="homogeneous">True</property>
             <child>
-              <object class="GtkHBox" id="hbox5">
+              <object class="GtkVBox" id="vbox9">
                 <property name="visible">True</property>
                 <property name="border_width">15</property>
-                <property name="homogeneous">True</property>
                 <child>
-                  <object class="GtkVBox" id="vbox9">
+                  <object class="GtkVBox" id="vbox10">
                     <property name="visible">True</property>
-                    <property name="border_width">15</property>
                     <child>
-                      <object class="GtkVBox" id="vbox10">
+                      <object class="GtkHBox" id="hbox6">
                         <property name="visible">True</property>
                         <child>
-                          <object class="GtkHBox" id="hbox6">
+                          <object class="GtkVBox" id="vbox11">
                             <property name="visible">True</property>
+                            <property name="homogeneous">True</property>
                             <child>
-                              <object class="GtkVBox" id="vbox11">
+                              <object class="GtkLabel" id="label15">
                                 <property name="visible">True</property>
-                                <property name="homogeneous">True</property>
-                                <child>
-                                  <object class="GtkLabel" id="label15">
-                                    <property name="visible">True</property>
-                                    <property name="xalign">1</property>
-                                    <property name="xpad">15</property>
-                                    <property name="label" translatable="yes">HDF5 File</property>
-                                  </object>
-                                  <packing>
-                                    <property name="expand">False</property>
-                                    <property name="fill">False</property>
-                                    <property name="position">0</property>
-                                  </packing>
-                                </child>
+                                <property name="xalign">1</property>
+                                <property name="xpad">15</property>
+                                <property name="label" translatable="yes">HDF5 File</property>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -539,150 +529,262 @@
                                 <property name="position">0</property>
                               </packing>
                             </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkVBox" id="vbox12">
+                            <property name="visible">True</property>
+                            <property name="homogeneous">True</property>
                             <child>
-                              <object class="GtkVBox" id="vbox12">
+                              <object class="GtkFileChooserButton" id="chooser_h5_file">
                                 <property name="visible">True</property>
-                                <property name="homogeneous">True</property>
-                                <child>
-                                  <object class="GtkFileChooserButton" id="chooser_h5_file">
-                                    <property name="visible">True</property>
-                                    <property name="filter">filefilter1</property>
-                                    <property name="local_only">False</property>
-                                    <signal name="file_set" handler="on_file_chosen"/>
-                                    <signal name="selection_changed" handler="on_selection_changed"/>
-                                  </object>
-                                  <packing>
-                                    <property name="position">0</property>
-                                  </packing>
-                                </child>
+                                <property name="filter">filefilter1</property>
+                                <property name="local_only">False</property>
+                                <signal name="file_set" handler="update_grouplist"/>
+                                <signal name="selection_changed" handler="on_selection_changed"/>
                               </object>
                               <packing>
-                                <property name="position">1</property>
+                                <property name="position">0</property>
                               </packing>
                             </child>
+                          </object>
+                          <packing>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkHBox" id="hbox1">
+                        <property name="visible">True</property>
+                        <child>
+                          <object class="GtkLabel" id="label12">
+                            <property name="visible">True</property>
                           </object>
                           <packing>
                             <property name="position">0</property>
                           </packing>
                         </child>
+                        <child>
+                          <object class="GtkButton" id="button4">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">True</property>
+                            <property name="relief">none</property>
+                            <signal name="clicked" handler="on_new_file_clicked"/>
+                            <child>
+                              <object class="GtkHBox" id="hbox7">
+                                <property name="visible">True</property>
+                                <child>
+                                  <object class="GtkImage" id="image4">
+                                    <property name="visible">True</property>
+                                    <property name="stock">gtk-new</property>
+                                    <property name="icon-size">1</property>
+                                  </object>
+                                  <packing>
+                                    <property name="position">0</property>
+                                  </packing>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="label2">
+                                    <property name="visible">True</property>
+                                    <property name="label" translatable="yes">New</property>
+                                  </object>
+                                  <packing>
+                                    <property name="padding">5</property>
+                                    <property name="position">1</property>
+                                  </packing>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="label17">
+                            <property name="visible">True</property>
+                          </object>
+                          <packing>
+                            <property name="position">2</property>
+                          </packing>
+                        </child>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">0</property>
+                        <property name="padding">15</property>
+                        <property name="position">1</property>
                       </packing>
-                    </child>
-                    <child>
-                      <placeholder/>
                     </child>
                   </object>
                   <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
                     <property name="position">0</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkVBox" id="vbox13">
+                  <placeholder/>
+                </child>
+              </object>
+              <packing>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkVBox" id="vbox13">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkFrame" id="frame7">
                     <property name="visible">True</property>
+                    <property name="border_width">15</property>
+                    <property name="label_xalign">0</property>
+                    <property name="shadow_type">etched-out</property>
                     <child>
-                      <object class="GtkFrame" id="frame7">
+                      <object class="GtkAlignment" id="alignment7">
                         <property name="visible">True</property>
-                        <property name="border_width">15</property>
-                        <property name="label_xalign">0</property>
-                        <property name="shadow_type">etched-out</property>
+                        <property name="left_padding">12</property>
                         <child>
-                          <object class="GtkAlignment" id="alignment7">
+                          <object class="GtkScrolledWindow" id="scrolledwindow3">
                             <property name="visible">True</property>
-                            <property name="left_padding">12</property>
+                            <property name="can_focus">True</property>
+                            <property name="hscrollbar_policy">never</property>
+                            <property name="vscrollbar_policy">automatic</property>
                             <child>
-                              <object class="GtkScrolledWindow" id="scrolledwindow3">
+                              <object class="GtkViewport" id="viewport2">
                                 <property name="visible">True</property>
-                                <property name="can_focus">True</property>
-                                <property name="hscrollbar_policy">never</property>
-                                <property name="vscrollbar_policy">automatic</property>
+                                <property name="resize_mode">queue</property>
+                                <property name="shadow_type">none</property>
                                 <child>
-                                  <object class="GtkViewport" id="viewport2">
+                                  <object class="GtkVBox" id="vbox17">
                                     <property name="visible">True</property>
-                                    <property name="resize_mode">queue</property>
-                                    <property name="shadow_type">none</property>
+                                    <property name="border_width">15</property>
                                     <child>
-                                      <object class="GtkVBox" id="vbox17">
+                                      <object class="GtkLabel" id="label_no_file_opened">
                                         <property name="visible">True</property>
-                                        <property name="border_width">15</property>
+                                        <property name="label" translatable="yes">(No file opened)</property>
+                                      </object>
+                                      <packing>
+                                        <property name="expand">False</property>
+                                        <property name="fill">False</property>
+                                        <property name="position">0</property>
+                                      </packing>
+                                    </child>
+                                    <child>
+                                      <object class="GtkVBox" id="grouplist_vbox">
+                                        <property name="visible">True</property>
                                         <child>
-                                          <object class="GtkLabel" id="label_no_file_opened">
-                                            <property name="visible">True</property>
-                                            <property name="label" translatable="yes">(No file opened)</property>
-                                          </object>
-                                          <packing>
-                                            <property name="expand">False</property>
-                                            <property name="fill">False</property>
-                                            <property name="position">0</property>
-                                          </packing>
-                                        </child>
-                                        <child>
-                                          <object class="GtkVBox" id="grouplist_vbox">
+                                          <object class="GtkHBox" id="hbox10">
                                             <property name="visible">True</property>
                                             <child>
-                                              <object class="GtkHBox" id="hbox10">
+                                              <object class="GtkLabel" id="label27">
                                                 <property name="visible">True</property>
-                                                <child>
-                                                  <object class="GtkLabel" id="label27">
-                                                    <property name="visible">True</property>
-                                                    <property name="xalign">0</property>
-                                                    <property name="xpad">10</property>
-                                                    <property name="label" translatable="yes">&lt;b&gt;Name&lt;/b&gt;</property>
-                                                    <property name="use_markup">True</property>
-                                                  </object>
-                                                  <packing>
-                                                    <property name="position">0</property>
-                                                  </packing>
-                                                </child>
-                                                <child>
-                                                  <object class="GtkLabel" id="label28">
-                                                    <property name="visible">True</property>
-                                                    <property name="xalign">1</property>
-                                                    <property name="xpad">10</property>
-                                                    <property name="label" translatable="yes">&lt;b&gt;Import&lt;/b&gt;</property>
-                                                    <property name="use_markup">True</property>
-                                                  </object>
-                                                  <packing>
-                                                    <property name="position">1</property>
-                                                  </packing>
-                                                </child>
+                                                <property name="xalign">0</property>
+                                                <property name="xpad">10</property>
+                                                <property name="label" translatable="yes">&lt;b&gt;Name&lt;/b&gt;</property>
+                                                <property name="use_markup">True</property>
                                               </object>
                                               <packing>
-                                                <property name="expand">False</property>
-                                                <property name="fill">False</property>
-                                                <property name="padding">5</property>
                                                 <property name="position">0</property>
                                               </packing>
                                             </child>
                                             <child>
-                                              <object class="GtkHBox" id="hbox11">
+                                              <object class="GtkLabel" id="label28">
+                                                <property name="visible">True</property>
+                                                <property name="xalign">1</property>
+                                                <property name="xpad">10</property>
+                                                <property name="label" translatable="yes">&lt;b&gt;Import&lt;/b&gt;</property>
+                                                <property name="use_markup">True</property>
+                                              </object>
+                                              <packing>
+                                                <property name="position">1</property>
+                                              </packing>
+                                            </child>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="padding">5</property>
+                                            <property name="position">0</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <object class="GtkHBox" id="hbox11">
+                                            <property name="visible">True</property>
+                                            <child>
+                                              <object class="GtkLabel" id="label29">
+                                                <property name="visible">True</property>
+                                                <property name="xalign">0</property>
+                                                <property name="xpad">10</property>
+                                                <property name="label" translatable="yes">&lt;Groupname&gt;</property>
+                                              </object>
+                                              <packing>
+                                                <property name="position">0</property>
+                                              </packing>
+                                            </child>
+                                            <child>
+                                              <object class="GtkCheckButton" id="checkbutton1">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">True</property>
+                                                <property name="receives_default">False</property>
+                                                <property name="draw_indicator">True</property>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">False</property>
+                                                <property name="padding">18</property>
+                                                <property name="position">1</property>
+                                              </packing>
+                                            </child>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">1</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <object class="GtkHBox" id="hbox12">
+                                            <property name="visible">True</property>
+                                            <child>
+                                              <object class="GtkEntry" id="entry_tabname">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">True</property>
+                                                <property name="invisible_char">•</property>
+                                                <signal name="activate" handler="button_create_new_group"/>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">False</property>
+                                                <property name="position">0</property>
+                                              </packing>
+                                            </child>
+                                            <child>
+                                              <object class="GtkHButtonBox" id="hbuttonbox2">
                                                 <property name="visible">True</property>
                                                 <child>
-                                                  <object class="GtkLabel" id="label29">
-                                                    <property name="visible">True</property>
-                                                    <property name="xalign">0</property>
-                                                    <property name="xpad">10</property>
-                                                    <property name="label" translatable="yes">&lt;Groupname&gt;</property>
-                                                  </object>
-                                                  <packing>
-                                                    <property name="position">0</property>
-                                                  </packing>
-                                                </child>
-                                                <child>
-                                                  <object class="GtkCheckButton" id="checkbutton1">
+                                                  <object class="GtkButton" id="button3">
+                                                    <property name="label" translatable="yes">Create new</property>
                                                     <property name="visible">True</property>
                                                     <property name="can_focus">True</property>
-                                                    <property name="receives_default">False</property>
-                                                    <property name="draw_indicator">True</property>
+                                                    <property name="receives_default">True</property>
+                                                    <property name="border_width">15</property>
+                                                    <signal name="clicked" handler="button_create_new_group"/>
                                                   </object>
                                                   <packing>
                                                     <property name="expand">False</property>
                                                     <property name="fill">False</property>
-                                                    <property name="padding">18</property>
-                                                    <property name="position">1</property>
+                                                    <property name="position">0</property>
                                                   </packing>
                                                 </child>
                                               </object>
@@ -692,60 +794,17 @@
                                                 <property name="position">1</property>
                                               </packing>
                                             </child>
-                                            <child>
-                                              <object class="GtkHBox" id="hbox12">
-                                                <property name="visible">True</property>
-                                                <child>
-                                                  <object class="GtkEntry" id="entry_tabname">
-                                                    <property name="visible">True</property>
-                                                    <property name="can_focus">True</property>
-                                                    <property name="invisible_char">•</property>
-                                                    <signal name="activate" handler="button_create_new_group"/>
-                                                  </object>
-                                                  <packing>
-                                                    <property name="expand">False</property>
-                                                    <property name="fill">False</property>
-                                                    <property name="position">0</property>
-                                                  </packing>
-                                                </child>
-                                                <child>
-                                                  <object class="GtkHButtonBox" id="hbuttonbox2">
-                                                    <property name="visible">True</property>
-                                                    <child>
-                                                      <object class="GtkButton" id="button3">
-                                                        <property name="label" translatable="yes">Create new</property>
-                                                        <property name="visible">True</property>
-                                                        <property name="can_focus">True</property>
-                                                        <property name="receives_default">True</property>
-                                                        <property name="border_width">15</property>
-                                                        <signal name="clicked" handler="button_create_new_group"/>
-                                                      </object>
-                                                      <packing>
-                                                        <property name="expand">False</property>
-                                                        <property name="fill">False</property>
-                                                        <property name="position">0</property>
-                                                      </packing>
-                                                    </child>
-                                                  </object>
-                                                  <packing>
-                                                    <property name="expand">False</property>
-                                                    <property name="fill">False</property>
-                                                    <property name="position">1</property>
-                                                  </packing>
-                                                </child>
-                                              </object>
-                                              <packing>
-                                                <property name="expand">False</property>
-                                                <property name="fill">False</property>
-                                                <property name="position">2</property>
-                                              </packing>
-                                            </child>
                                           </object>
                                           <packing>
-                                            <property name="position">1</property>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">2</property>
                                           </packing>
                                         </child>
                                       </object>
+                                      <packing>
+                                        <property name="position">1</property>
+                                      </packing>
                                     </child>
                                   </object>
                                 </child>
@@ -753,81 +812,52 @@
                             </child>
                           </object>
                         </child>
-                        <child type="label">
-                          <object class="GtkLabel" id="label5">
-                            <property name="visible">True</property>
-                            <property name="label" translatable="yes">&lt;b&gt;Groups in this file&lt;/b&gt;</property>
-                            <property name="use_markup">True</property>
-                          </object>
-                        </child>
                       </object>
-                      <packing>
-                        <property name="position">0</property>
-                      </packing>
                     </child>
-                    <child>
-                      <object class="GtkHButtonBox" id="hbuttonbox3">
+                    <child type="label">
+                      <object class="GtkLabel" id="label5">
                         <property name="visible">True</property>
-                        <child>
-                          <object class="GtkButton" id="button7">
-                            <property name="label" translatable="yes">Import selection</property>
-                            <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">True</property>
-                          </object>
-                          <packing>
-                            <property name="expand">False</property>
-                            <property name="fill">False</property>
-                            <property name="position">0</property>
-                          </packing>
-                        </child>
+                        <property name="label" translatable="yes">&lt;b&gt;Groups in this file&lt;/b&gt;</property>
+                        <property name="use_markup">True</property>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkHButtonBox" id="hbuttonbox3">
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkButton" id="button7">
+                        <property name="label" translatable="yes">Import selection</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
                         <property name="fill">False</property>
-                        <property name="padding">5</property>
-                        <property name="position">1</property>
+                        <property name="position">0</property>
                       </packing>
                     </child>
                   </object>
                   <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="padding">5</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
               </object>
-            </child>
-            <child type="tab">
-              <object class="GtkLabel" id="label2">
-                <property name="visible">True</property>
-                <property name="label" translatable="yes">Import</property>
-              </object>
-              <packing>
-                <property name="tab_fill">False</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkLabel" id="label30">
-                <property name="visible">True</property>
-                <property name="label" translatable="yes">export...!</property>
-              </object>
               <packing>
                 <property name="position">1</property>
-              </packing>
-            </child>
-            <child type="tab">
-              <object class="GtkLabel" id="label3">
-                <property name="visible">True</property>
-                <property name="label" translatable="yes">Export</property>
-              </object>
-              <packing>
-                <property name="position">1</property>
-                <property name="tab_fill">False</property>
               </packing>
             </child>
           </object>
           <packing>
             <property name="position">1</property>
-            <property name="tab_fill">False</property>
           </packing>
         </child>
         <child type="tab">
@@ -845,7 +875,7 @@
             <child>
               <object class="GtkLabel" id="label18">
                 <property name="visible">True</property>
-                <property name="label" translatable="yes">Import/export</property>
+                <property name="label" translatable="yes">Import/New</property>
                 <property name="use_markup">True</property>
               </object>
               <packing>
@@ -857,6 +887,7 @@
           <packing>
             <property name="position">1</property>
             <property name="tab_fill">False</property>
+            <property name="reorderable">True</property>
           </packing>
         </child>
       </object>

@@ -18,24 +18,39 @@ if os.name == 'nt':
 
 class FileOps:
     
+    def handle_error(self,e):
+        raise e # for the moment
+        
     def new_file(self,filename):
-        with h5py.File(filename,'w') as f:
-            f.create_group('globals')
+        try:
+            with h5py.File(filename,'w') as f:
+                f.create_group('globals')
+                return True
+        except:# Exception as e:
+            raise
+            self.handle_error(e)
+            return False
     
     def get_grouplist(self,filename):
-        with h5py.File(filename,'r') as f:
-            try:
+        try:
+            with h5py.File(filename,'r') as f:
                 grouplist = f['globals']
                 # File closes after this function call, so have to
                 # convert the grouplist generator to a list of strings
                 # before its file gets dereferenced:
                 return list(grouplist), True
-            except:
-                raise
-                return [], False
+        except Exception as e:
+            self.handle_error(e)
+            return [], False
         
     def new_group(self,filename,groupname):
-        pass
+        try:
+            with h5py.File(filename,'a') as f:
+                f['globals'].create_group(groupname)
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
     def delete_group(self,filename,groupname):
         pass
@@ -268,8 +283,11 @@ class RunManager(object):
         
         self.builder.connect_signals(self)
         
-        self.groups = []
+        self.opentabs = []
+        self.grouplist = []
     
+        self.output('ready\n')
+        
     def output(self,text):
         """Prints text to the output textbox and to stdout"""
         print text, 
@@ -284,42 +302,71 @@ class RunManager(object):
         if scrolling:
             self.output_adjustment.value = self.output_adjustment.upper
 
-    def run(self):
-        self.output('ready\n')
-        gtk.main()
-            
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
         name = entry_name.get_text()
         filepath = self.chooser_h5_file.get_filenames()[0]
-        self.groups.append(Group(name,filepath,self.notebook,self.use_globals_vbox))
-        entry_name.set_text('')
-    
-    def on_file_chosen(self,chooser):
-        self.grouplist_vbox.show()
-        self.no_file_opened.hide()
-        filename = self.chooser_h5_file.get_filenames()[0]
-        grouplist, success = file_ops.get_grouplist(filename) 
+        success = file_ops.new_group(filepath, name)
         if success:
-            for group in grouplist:
-                print group
-                #TODO: populate vbox with groups
-        else:
-            chooser.set_current_folder('')
-            self.on_selection_changed(chooser)           
-        
-    def on_selection_changed(self,chooser):
-        """This is just to detect when the h5 file chooser comes back
-        without a file so we can put the 'no file open' label back'"""
-        if not self.chooser_h5_file.get_filenames():
+            self.opentabs.append(Group(name,filepath,self.notebook,self.use_globals_vbox))
+            entry_name.set_text('')
+            self.update_grouplist()
+    
+    
+    def update_grouplist(self,chooser=None):
+        if not chooser:
+            chooser = self.chooser_h5_file
+        filename = self.chooser_h5_file.get_filename()
+        print 'updating grouplist!', filename
+        if not filename:
             self.grouplist_vbox.hide()
             #TODO: remove existing entries from vbox
             self.no_file_opened.show()
-              
+        else:
+            self.grouplist_vbox.show()
+            self.no_file_opened.hide()
+            grouplist, success = file_ops.get_grouplist(filename) 
+            if success:
+                for group in grouplist:
+                    print group
+                    #TODO: populate vbox with groups
+            else:
+                chooser.unselect_all()
+                self.on_selection_changed(chooser)
+        return True
+    
+    
+    def on_selection_changed(self,chooser):
+        if not self.chooser_h5_file.get_filename():
+            self.update_grouplist(chooser)
+            
+            
+    def on_new_file_clicked(self,*args):
+        chooser = gtk.FileChooserDialog(title='Save new HDF5 file',action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                    buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
+                                               gtk.STOCK_SAVE,gtk.RESPONSE_OK))
+        chooser.add_filter(self.builder.get_object('filefilter1'))
+        chooser.set_default_response(gtk.RESPONSE_OK)
+        chooser.set_do_overwrite_confirmation(True)
+#        chooser.set_current_folder_uri('')
+        chooser.set_current_name('.h5')
+        response = chooser.run()
+        
+        if response == gtk.RESPONSE_OK:
+            success = file_ops.new_file(chooser.get_filename())
+            self.chooser_h5_file.unselect_all()
+            self.chooser_h5_file.select_filename(chooser.get_filename())
+            # We need self.chooser_h5_file to have its file set before
+            # we can move on:
+            while gtk.events_pending():
+                gtk.main_iteration()
+            self.update_grouplist()
+        chooser.destroy()
+               
     def do_it(self,*args):
         self.output('do it\n')
  
 if __name__ == '__main__':        
     app = RunManager()
     file_ops = FileOps()
-    app.run()
+    gtk.main()
