@@ -19,7 +19,8 @@ if os.name == 'nt':
 class FileOps:
     
     def handle_error(self,e):
-        raise e # for the moment
+        # for the moment:
+        raise e
         
     def new_file(self,filename):
         try:
@@ -46,25 +47,65 @@ class FileOps:
     def new_group(self,filename,groupname):
         try:
             with h5py.File(filename,'a') as f:
-                f['globals'].create_group(groupname)
+                group = f['globals'].create_group(groupname)
+                units = group.create_group('units')
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
+    
+    def rename_group(self,filename,oldgroupname,newgroupname):
+        try:
+            with h5py.File(filename,'a') as f:
+                f.copy(f['globals'][oldgroupname], '/globals/%s'%newgroupname)
+                del f['globals'][oldgroupname]
                 return True
         except Exception as e:
             self.handle_error(e)
             return False
     
     def delete_group(self,filename,groupname):
-        pass
+        try:
+            with h5py.File(filename,'a') as f:
+                del f['globals'][groupname]
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
-    def get_globals_list(self,filename,groupname):
-        pass
+    def get_globalslist(self,filename,groupname):
+        try:
+            with h5py.File(filename,'r') as f:
+                group = f['globals'][groupname]
+                # File closes after this function call, so have to convert
+                # the attrs to a dict before its file gets dereferenced:
+                return dict(group.attrs), True
+        except Exception as e:
+            self.handle_error(e)
+            return {},{}, False
     
     def new_global(self,filename,groupname,globalname):
         pass
     
-    def get_value(self,filename,groupname,globalname):
+    def rename_global(self,filename,groupname,oldglobalname,newglobalname):
         pass
     
-    def set_value(self,filename,groupname,globalname):
+    def get_value(self,filename,groupname,globalname):
+        try:
+            with h5py.File(filename,'r') as f:
+                value = f['globals'][groupname].attrs[globalname]
+                return value, True
+        except Exception as e:
+            self.handle_error(e)
+            return None, False
+    
+    def set_value(self,filename,groupname,globalname, value):
+        pass
+    
+    def get_units(self,filename,groupname,globalname):
+        pass
+    
+    def set_units(self,filename,groupname,globalname, units):
         pass
     
     def delete_global(self,filenmae,groupname,globalname):
@@ -72,9 +113,13 @@ class FileOps:
     
     
 class Global(object):
-    def __init__(self, table, n_globals):
+    def __init__(self, group, name=None):
         
-        self.table = table
+        self.group = group
+        self.table = self.group.global_table
+        n_globals = len(self.group.globals)
+        self.filepath = self.group.filepath
+        
         self.builder = gtk.Builder()
         self.builder.add_from_file('global.glade')
         
@@ -96,10 +141,19 @@ class Global(object):
         
         self.insert_at_position(n_globals + 1)
         
-        self.entry_name.select_region(0, -1)
-        self.entry_name.grab_focus()
-            
         self.builder.connect_signals(self)
+        
+        if name:
+            print self.filepath, self.group.name, name
+            value, success = file_ops.get_value(self.filepath, self.group.name, name)
+            if success:
+                self.entry_value.set_text(value)
+                units = file_ops.get_units(self.filepath, self.group.name, name)
+                self.entry_units.set_text(value)
+                self.toggle_edit.set_active(False)
+        else:
+            self.entry_name.select_region(0, -1)
+            self.entry_name.grab_focus()
         
     def insert_at_position(self,n):
         self.table.attach(self.vbox_name,0,1,n,n+1)
@@ -137,10 +191,8 @@ class Global(object):
             self.entry_units.set_text(self.label_units.get_text())
             self.entry_name.set_text(self.label_name.get_text())
             self.toggle_edit.set_active(False)
-            self.toggle_edit.toggled()
         elif event.keyval == 65293 or event.keyval == 65421: #enter
             self.toggle_edit.set_active(False)
-            self.toggle_edit.toggled()
         
     def on_remove_clicked(self,widget):
         # TODO "Are you sure? This will remove the global from the h5
@@ -214,6 +266,10 @@ class Group(object):
         
         self.globals = []
         
+        global_vars, success = file_ops.get_globalslist(self.filepath,self.name)
+        for global_var in global_vars:
+            self.globals.append(Global(self, global_var))
+        
     def on_closetab_button_clicked(self, *args):
         #get the page number of the tab we wanted to close
         pagenum = self.notebook.page_num(self.toplevel)
@@ -222,10 +278,12 @@ class Group(object):
         self.checkbox.destroy()
     
     def changename(self, newname):
-        self.name = newname
-        self.label_groupname.set_text(self.name)
-        self.tablabel.set_text(self.name)
-        self.checkbox.get_children()[0].set_text(self.name) 
+        success = file_ops.rename_group(self.filepath, self.name, newname)
+        if success:
+            self.name = newname
+            self.label_groupname.set_text(self.name)
+            self.tablabel.set_text(self.name)
+            self.checkbox.get_children()[0].set_text(self.name) 
               
     def on_groupname_edit_toggle(self,widget):
         if widget.get_active():
@@ -243,10 +301,8 @@ class Group(object):
         if event.keyval == 65307: #escape
             widget.set_text(self.label_groupname.get_text())
             self.toggle_group_name_edit.set_active(False)
-            self.toggle_group_name_edit.toggled()
         elif event.keyval == 65293 or event.keyval == 65421: #enter
             self.toggle_group_name_edit.set_active(False)
-            self.toggle_group_name_edit.toggled()
         
     def on_new_global_clicked(self,button):
         self.globals.append(Global(self.global_table, len(self.globals)))  
