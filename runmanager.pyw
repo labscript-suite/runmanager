@@ -249,9 +249,9 @@ class Global(object):
     def value_keypress(self, widget, event):
         if event.keyval == 65307: # escape
             self.entry_value.set_text(self.undo_backup)
-            self.group.entry_new_global.grab_focus()
+            self.group.toggle_group_name_edit.grab_focus()
         elif event.keyval == 65293 or event.keyval == 65421: #enter
-            self.group.entry_new_global.grab_focus()
+            self.group.toggle_group_name_edit.grab_focus()
         elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK:
             self.entry_value.set_text(self.undo_backup)
             
