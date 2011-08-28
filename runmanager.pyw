@@ -148,20 +148,45 @@ class FileOps:
             return None, False
     
     def set_value(self,filename,groupname,globalname, value):
-        pass
+        try:
+            with h5py.File(filename,'a') as f:
+                f['globals'][groupname].attrs[globalname] = value
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
     def get_units(self,filename,groupname,globalname):
-        pass
+        try:
+            with h5py.File(filename,'r') as f:
+                value = f['globals'][groupname]['units'].attrs[globalname]
+                return value, True
+        except Exception as e:
+            self.handle_error(e)
+            return None, False
     
     def set_units(self,filename,groupname,globalname, units):
-        pass
+        try:
+            with h5py.File(filename,'a') as f:
+                f['globals'][groupname]['units'].attrs[globalname] = units
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
-    def delete_global(self,filenmae,groupname,globalname):
-        pass
+    def delete_global(self,filename,groupname,globalname):
+        try:
+            with h5py.File(filename,'a') as f:
+                group = f['globals'][groupname]
+                del group.attrs[globalname]
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
     
 class Global(object):
-    def __init__(self, group, name, new=False):
+    def __init__(self, group, name):
         
         self.group = group
         self.table = self.group.global_table
@@ -188,21 +213,11 @@ class Global(object):
             widget.modify_font(pango.FontDescription("monospace 10"))
         
         self.label_name.set_text(name)
-        self.entry_value.set_text(str(int(1000*random.random() - 500)))
-        self.label_units.set_text(random.choice(funny_units))
-        
-        if new:
-            success = file_ops.new_global(self.filepath,self.group.name,name)
-            if not success:
-                self.group.globals.remove(self)
-                return
-        else:
-            value, success = file_ops.get_value(self.filepath, self.group.name, name)
-            if success:
-                self.entry_value.set_text(value)
-                units = file_ops.get_units(self.filepath, self.group.name, name)
-                self.entry_units.set_text(value)
-                self.toggle_edit.set_active(False)
+        value, success = file_ops.get_value(self.filepath, self.group.name, name)
+        units, success = file_ops.get_units(self.filepath, self.group.name, name)
+        self.entry_value.set_text(str(value))
+        self.label_units.set_text(units)
+        self.toggle_edit.set_active(False)
                 
         print n_globals + 1
         self.insert_at_position(n_globals + 1)
@@ -219,7 +234,16 @@ class Global(object):
         self.vbox_units.show()
         self.vbox_buttons.show()
         self.vbox_value.show()
-        
+    
+    def on_value_focus(self, *args):
+        pass
+    
+    def on_value_changed(self,*args):
+        pass
+    
+    def on_value_unfocus(self, *args):
+        pass
+            
     def on_edit_toggled(self,widget):
         if widget.get_active():
             self.entry_units.set_text(self.label_units.get_text())
@@ -242,7 +266,7 @@ class Global(object):
     
        
     def on_entry_keypress(self,widget,event):
-#        widget.set_width_chars(len(widget.get_text()))
+        print widget.get_text()
         if event.keyval == 65307: #escape
             self.entry_units.set_text(self.label_units.get_text())
             self.entry_name.set_text(self.label_name.get_text())
@@ -253,23 +277,24 @@ class Global(object):
     def on_remove_clicked(self,widget):
         # TODO "Are you sure? This will remove the global from the h5
         # file and cannot be undone."
+        success = file_ops.delete_global(self.filepath,self.group.name,
+                                         self.entry_name.get_text())
         self.table.remove(self.vbox_name)
         self.table.remove(self.vbox_value)
         self.table.remove(self.vbox_units)
         self.table.remove(self.vbox_buttons)
         self.group.globals.remove(self)
         
-class GroupListEntry(object):
-    def __init__(self,filepath,table):
-        pass
+
                 
 class GroupTab(object):
     
-    def __init__(self,name,filepath,notebook,vbox):
+    def __init__(self, runmanager, filepath, name):
         self.name = name
         self.filepath = filepath
-        self.notebook = notebook
-        self.vbox = vbox
+        self.runmanager = runmanager
+        self.notebook = self.runmanager.notebook
+        self.vbox = runmanager.use_globals_vbox
         
         self.builder = gtk.Builder()
         self.builder.add_from_file('grouptab.glade')
@@ -306,18 +331,18 @@ class GroupTab(object):
         self.tab.pack_start(self.tablabel)
         self.tab.pack_start(btn, False, False)
         self.tab.show_all()
-        notebook.append_page(self.toplevel, tab_label = self.tab)
+        self.notebook.append_page(self.toplevel, tab_label = self.tab)
                      
         self.checkbox = gtk.CheckButton(self.name)
         self.vbox.pack_start(self.checkbox,expand=False,fill=False)
         self.vbox.show_all()
-        notebook.set_tab_reorderable(self.toplevel,True)
+        self.notebook.set_tab_reorderable(self.toplevel,True)
         
         self.label_groupname.set_text(self.name)
         self.entry_groupname.set_text(self.name)
         self.label_h5_path.set_text(self.filepath)
         
-        notebook.show()
+        self.notebook.show()
 
         #connect the close button
         btn.connect('clicked', self.on_closetab_button_clicked)
@@ -331,20 +356,30 @@ class GroupTab(object):
             self.globals.append(Global(self, global_var))
         
     def on_closetab_button_clicked(self, *args):
-        #get the page number of the tab we wanted to close
+        # Get the page number of the tab we wanted to close
         pagenum = self.notebook.page_num(self.toplevel)
-        #and close it
+        # And close it
         self.notebook.remove_page(pagenum)
         self.checkbox.destroy()
+        self.runmanager.opentabs.remove(self)
     
     def changename(self, newname):
         success = file_ops.rename_group(self.filepath, self.name, newname)
         if success:
+            oldname = self.name
             self.name = newname
             self.label_groupname.set_text(self.name)
             self.tablabel.set_text(self.name)
             self.checkbox.get_children()[0].set_text(self.name) 
-              
+            # Is this global group open in the import tab?
+            if self.runmanager.chooser_h5_file.get_filename() == self.filepath:
+                # Better change the name there too:
+                for entry in self.runmanager.grouplist:
+                    if entry.name == oldname:
+                        entry.name = self.name
+                        entry.label_name.set_text(self.name)
+                        entry.entry_name.set_text(self.name)
+            
     def on_groupname_edit_toggle(self,widget):
         if widget.get_active():
             self.entry_groupname.set_text(self.name)
@@ -365,11 +400,99 @@ class GroupTab(object):
             self.toggle_group_name_edit.set_active(False)
         
     def on_new_global_clicked(self,button):
+        print 'new global clicked!'
         name = self.entry_new_global.get_text()
-        self.entry_new_global.set_text('')
-        self.globals.append(Global(self,name,new=True))  
-        self.adjustment.value = self.adjustment.upper     
+        self.adjustment.value = self.adjustment.upper  
+        success = file_ops.new_global(self.filepath, self.name, name)
+        if success:
+            success = file_ops.set_value(self.filepath, self.name, 
+                                         name, int(1000*random.random() - 500))
+        if success:
+            success = file_ops.set_units(self.filepath, self.name, 
+                                         name,random.choice(funny_units))
+        if success:
+            self.globals.append(Global(self,name)) 
+            self.entry_new_global.set_text('')   
+
+
+class GroupListEntry(object):
+    def __init__(self,runmanager,filepath,name):
+        self.runmanager = runmanager
+        self.vbox = self.runmanager.grouplist_vbox
+        n_groups = len(self.runmanager.grouplist)
+        self.filepath = filepath
+        self.name = name
         
+        self.builder = gtk.Builder()
+        self.builder.add_from_file('grouplistentry.glade')
+        
+        self.toplevel = self.builder.get_object('toplevel')
+        self.entry_name = self.builder.get_object('entry_name')
+        self.label_name = self.builder.get_object('label_name')
+        self.hbox_buttons = self.builder.get_object('hbox_buttons')
+        self.toggle_edit = self.builder.get_object('toggle_edit')
+        self.button_import = self.builder.get_object('button_remove')
+        self.button_remove = self.builder.get_object('button_remove')
+        
+        self.label_name.set_text(name)
+        
+        self.vbox.pack_start(self.toplevel)
+        self.toplevel.show()
+        
+        self.builder.connect_signals(self)
+        
+    def on_edit_toggled(self,widget):
+        if widget.get_active():
+            self.entry_name.set_text(self.label_name.get_text())
+            self.entry_name.show()
+            self.label_name.hide()
+            self.entry_name.select_region(0, -1)
+            self.entry_name.grab_focus()
+        else:
+            self.entry_name.hide()
+            self.changename(self.entry_name.get_text())
+            self.label_name.show()
+            
+    def changename(self, newname):
+        success = file_ops.rename_group(self.filepath, self.name, newname)
+        if success:
+            oldname = self.name
+            self.name = newname
+            self.label_name.set_text(self.name)
+            # Is this global group open in a tab?
+            if self.runmanager.chooser_h5_file.get_filename() == self.filepath:
+                # Better change the name there too:
+                for tab in self.runmanager.opentabs:
+                    if tab.name == oldname and tab.filepath == self.filepath:
+                        tab.name = self.name
+                        tab.label_groupname.set_text(self.name)
+                        tab.entry_groupname.set_text(self.name) 
+                        tab.tablabel.set_text(self.name) 
+                        tab.checkbox.get_children()[0].set_text(self.name) 
+       
+    def on_entry_keypress(self,widget,event):
+        if event.keyval == 65307: #escape
+            self.entry_name.set_text(self.label_name.get_text())
+            self.toggle_edit.set_active(False)
+        elif event.keyval == 65293 or event.keyval == 65421: #enter
+            self.toggle_edit.set_active(False)
+        
+    def on_remove_clicked(self,widget):
+        # TODO "Are you sure? This will remove the group from the h5
+        # file and cannot be undone."
+        success = file_ops.delete_group(self.filepath,self.name)
+        self.toplevel.destroy()
+        self.runmanager.grouplist.remove(self)
+        # is the tab open? If so, close it:
+        for tab in self.runmanager.opentabs:
+            if tab.name == self.name and tab.filepath == self.filepath:
+                print 'closing etc!'
+                tab.on_closetab_button_clicked()
+        
+    def on_import_clicked(self,widget):
+        self.runmanager.opentabs.append(GroupTab(self.runmanager, self.filepath, self.name))
+            
+            
 class RunManager(object):
     def __init__(self):
         self.builder = gtk.Builder()
@@ -397,7 +520,6 @@ class RunManager(object):
         self.window.set_icon_from_file(os.path.join('assets','icon.png'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
-        self.grouplist_vbox.hide()
         
         self.builder.connect_signals(self)
         
@@ -426,30 +548,28 @@ class RunManager(object):
         filepath = self.chooser_h5_file.get_filenames()[0]
         success = file_ops.new_group(filepath, name)
         if success:
-            self.opentabs.append(GroupTab(name,filepath,self.notebook,self.use_globals_vbox))
+            self.grouplist.append(GroupListEntry(self, filepath, name))
+            self.opentabs.append(GroupTab(self, filepath, name))
             entry_name.set_text('')
-            self.update_grouplist()
     
     
     def update_grouplist(self,chooser=None):
         if not chooser:
             chooser = self.chooser_h5_file
-        filename = self.chooser_h5_file.get_filename()
+        filename = chooser.get_filename()
+        for group in self.grouplist:
+            group.toplevel.destroy()
+        self.grouplist = []
         if not filename:
-            self.grouplist_vbox.hide()
-            #TODO: remove existing entries from vbox
             self.no_file_opened.show()
         else:
-            self.grouplist_vbox.show()
-            self.no_file_opened.hide()
             grouplist, success = file_ops.get_grouplist(filename) 
             if success:
-                for group in grouplist:
-                    print group
-                    #TODO: populate vbox with groups
+                self.no_file_opened.hide()
+                for name in grouplist:
+                    self.grouplist.append(GroupListEntry(self, filename, name))
             else:
                 chooser.unselect_all()
-                self.on_selection_changed(chooser)
         return True
     
     

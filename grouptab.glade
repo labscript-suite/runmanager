@@ -55,6 +55,27 @@
               <object class="GtkHBox" id="hbox2">
                 <property name="visible">True</property>
                 <child>
+                  <object class="GtkToggleButton" id="toggle_group_name_edit">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">True</property>
+                    <property name="relief">none</property>
+                    <signal name="toggled" handler="on_groupname_edit_toggle"/>
+                    <child>
+                      <object class="GtkImage" id="image4">
+                        <property name="visible">True</property>
+                        <property name="stock">gtk-edit</property>
+                        <property name="icon-size">1</property>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
                   <object class="GtkVBox" id="vbox3">
                     <property name="visible">True</property>
                     <child>
@@ -78,27 +99,6 @@
                       <packing>
                         <property name="position">1</property>
                       </packing>
-                    </child>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">False</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkToggleButton" id="toggle_group_name_edit">
-                    <property name="visible">True</property>
-                    <property name="can_focus">True</property>
-                    <property name="receives_default">True</property>
-                    <property name="relief">none</property>
-                    <signal name="toggled" handler="on_groupname_edit_toggle"/>
-                    <child>
-                      <object class="GtkImage" id="image4">
-                        <property name="visible">True</property>
-                        <property name="stock">gtk-edit</property>
-                        <property name="icon-size">1</property>
-                      </object>
                     </child>
                   </object>
                   <packing>
@@ -437,7 +437,7 @@
                         <child>
                           <object class="GtkImage" id="image5">
                             <property name="visible">True</property>
-                            <property name="stock">gtk-add</property>
+                            <property name="stock">gtk-new</property>
                           </object>
                           <packing>
                             <property name="position">0</property>
