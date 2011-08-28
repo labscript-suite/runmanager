@@ -48,11 +48,11 @@ funny_units = ['attoparsecs',
                'baud',
                'metabolic equivalents',
                'carats',
-               'Gillette',
+               'Gillettes',
                'horsepower',
                'man-months',
                'MegaFonzies', 
-               'milliHelen',
+               'milliHelens',
                'smidgens',
                'tablespoons',
                'pieces of string',
@@ -257,15 +257,13 @@ class Global(object):
         self.table.remove(self.vbox_value)
         self.table.remove(self.vbox_units)
         self.table.remove(self.vbox_buttons)
-        print self.group.globals
         self.group.globals.remove(self)
-        print self.group.globals
         
 class GroupListEntry(object):
     def __init__(self,filepath,table):
         pass
                 
-class Group(object):
+class GroupTab(object):
     
     def __init__(self,name,filepath,notebook,vbox):
         self.name = name
@@ -428,7 +426,7 @@ class RunManager(object):
         filepath = self.chooser_h5_file.get_filenames()[0]
         success = file_ops.new_group(filepath, name)
         if success:
-            self.opentabs.append(Group(name,filepath,self.notebook,self.use_globals_vbox))
+            self.opentabs.append(GroupTab(name,filepath,self.notebook,self.use_globals_vbox))
             entry_name.set_text('')
             self.update_grouplist()
     
