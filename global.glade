@@ -79,7 +79,9 @@
             <property name="invisible_char">•</property>
             <property name="width_chars">11</property>
             <property name="xalign">1</property>
-            <signal name="key_press_event" handler="on_entry_keypress"/>
+            <signal name="key_press_event" handler="value_keypress"/>
+            <signal name="focus_in_event" handler="focus_in"/>
+            <signal name="changed" handler="value_changed"/>
           </object>
           <packing>
             <property name="expand">False</property>

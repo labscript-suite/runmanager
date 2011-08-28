@@ -224,6 +224,9 @@ class Global(object):
         
         self.builder.connect_signals(self)
         
+        self.editing = False
+        self.undo_backup = ''
+        
     def insert_at_position(self,n):
         self.table.attach(self.vbox_name,0,1,n,n+1)
         self.table.attach(self.vbox_value,1,2,n,n+1)
@@ -235,14 +238,22 @@ class Global(object):
         self.vbox_buttons.show()
         self.vbox_value.show()
     
-    def on_value_focus(self, *args):
-        pass
+    def focus_in(self, *args):
+        self.undo_backup = self.entry_value.get_text()
     
-    def on_value_changed(self,*args):
-        pass
-    
-    def on_value_unfocus(self, *args):
-        pass
+    def value_changed(self, *args):
+        success = file_ops.set_value(self.filepath,self.group.name,
+                                     self.label_name.get_text(), 
+                                     self.entry_value.get_text())
+        
+    def value_keypress(self, widget, event):
+        if event.keyval == 65307: # escape
+            self.entry_value.set_text(self.undo_backup)
+            self.group.entry_new_global.grab_focus()
+        elif event.keyval == 65293 or event.keyval == 65421: #enter
+            self.group.entry_new_global.grab_focus()
+        elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK:
+            self.entry_value.set_text(self.undo_backup)
             
     def on_edit_toggled(self,widget):
         if widget.get_active():
