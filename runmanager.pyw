@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 
 import os
+import time
 import random
+import itertools
+import types
 
 import gtk
 import gobject
 import pango
 import h5py
 
+import pylab
 
 if os.name == 'nt':
     # Have Windows 7 consider this program to be a separate app, and not
@@ -58,13 +62,34 @@ funny_units = ['attoparsecs',
                'tablespoons',
                'pieces of string',
                'barrels of monkeys']
-               
+
+
+  
+                       
 class FileOps:
-    
+
     def handle_error(self,e):
         # for the moment:
         raise e
-        
+    
+    def make_single_run_file(self, filename, sequenceglobals, runglobals):
+#        try:
+            with h5py.File(filename,'w') as f:
+                f.create_group('globals')
+                for groupname, groupvars in sequenceglobals.items():
+                    group = f['globals'].create_group(groupname)
+                    unitsgroup = group.create_group('units')
+                    for name, (value, units) in groupvars.items():
+                        group.attrs[name] = value
+                        unitsgroup.attrs[name] = units
+                for name, value in runglobals.items():
+                    f['globals'].attrs[name] = value
+                return True
+#        except Exception as e:
+#            self.handle_error(e)
+#            return False
+    
+                    
     def new_file(self,filename):
         try:
             with h5py.File(filename,'w') as f:
@@ -213,7 +238,7 @@ class FileOps:
     
 class Global(object):
     def __init__(self, group, name):
-        
+        self.name = name
         self.group = group
         self.table = self.group.global_table
         n_globals = len(self.group.globals)
@@ -238,7 +263,7 @@ class Global(object):
         for widget in [self.entry_name,self.label_name,self.entry_value]:
             widget.modify_font(pango.FontDescription("monospace 10"))
         
-        self.label_name.set_text(name)
+        self.label_name.set_text(self.name)
         value, success = file_ops.get_value(self.filepath, self.group.name, name)
         units, success = file_ops.get_units(self.filepath, self.group.name, name)
         self.entry_value.set_text(str(value))
@@ -286,7 +311,7 @@ class Global(object):
     def value_changed(self, *args):
         """Saves the value to the h5 file every time it is modified."""
         success = file_ops.set_value(self.filepath,self.group.name,
-                                     self.label_name.get_text(), 
+                                     self.name, 
                                      self.entry_value.get_text())
         
     def value_keypress(self, widget, event):
@@ -323,18 +348,21 @@ class Global(object):
             self.entry_name.grab_focus()
         else:
             success = file_ops.rename_global(self.filepath, self.group.name, 
-                                             self.label_name.get_text(), 
+                                             self.name, 
                                              self.entry_name.get_text())
             if success:
+                self.name = self.entry_name.get_text()
+                self.label_name.set_text(self.name)
                 success = file_ops.set_units(self.filepath, self.group.name, 
-                                             self.entry_name.get_text(), 
+                                             self.name, 
                                              self.entry_units.get_text())
+            else:
+                self.entry_name.set_text(self.name)
             if success:
                 self.label_units.set_text(self.entry_units.get_text())
-                self.label_name.set_text(self.entry_name.get_text())
             else:
                 self.entry_units.set_text(self.label_units.get_text())
-                self.entry_name.set_text(self.label_name.get_text())
+                
                 
             self.entry_name.hide()
             self.entry_units.hide()
@@ -605,7 +633,9 @@ class RunManager(object):
         self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
         self.no_file_opened = self.builder.get_object('label_no_file_opened')
         self.chooser_h5_file = self.builder.get_object('chooser_h5_file')
-        self.window.show_all()
+        self.hbox_output = self.builder.get_object('hbox_output')
+        self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
+        self.window.show()
         
         area=self.builder.get_object('drawingarea1')
         pixbuf=gtk.gdk.pixbuf_new_from_file(os.path.join('assets','grey.png'))
@@ -623,7 +653,7 @@ class RunManager(object):
         
         self.opentabs = []
         self.grouplist = []
-    
+        self.popped_out = False
         self.output('ready\n')
         
     def output(self,text):
@@ -697,11 +727,108 @@ class RunManager(object):
                 gtk.main_iteration()
             self.update_grouplist()
         chooser.destroy()
-               
+
+
+    def pop_out_in(self,widget):
+        if not self.popped_out and not isinstance(widget,gtk.Window):
+            self.popped_out = not self.popped_out
+            self.hbox_output.remove(self.scrolledwindow_output)
+            screen = gtk.gdk.Screen()
+            window = gtk.Window()
+            window.add(self.scrolledwindow_output)
+            window.connect('destroy',self.pop_out_in)
+            window.resize(min(max(200,screen.get_width() - self.window.get_size()[0]),screen.get_width()/2),screen.get_height())#self.window.get_size()[1])
+            window.set_title('labscript run manager output')
+            window.show()
+            self.builder.get_object('button_popout').hide()
+            self.builder.get_object('button_popin').show()
+        elif self.popped_out:
+            self.popped_out = not self.popped_out
+            window = self.scrolledwindow_output.get_parent()
+            window.remove(self.scrolledwindow_output)
+            self.hbox_output.pack_start(self.scrolledwindow_output)
+            self.hbox_output.show()
+            if not isinstance(widget,gtk.Window):
+                window.destroy()
+            self.builder.get_object('button_popout').show()
+            self.builder.get_object('button_popin').hide()
+            
+    def parse_globals(self):
+        sequenceglobals = {}
+        for grouptab in self.opentabs:
+            if not grouptab.checkbox.get_active():
+                continue
+            globalsdict = {}
+            for globalvar in grouptab.globals:
+                value, success1 = file_ops.get_value(grouptab.filepath,grouptab.name,globalvar.name)
+                units, success2 = file_ops.get_units(grouptab.filepath,grouptab.name,globalvar.name)
+                if not(success1 and success2):
+                    return {}, False
+                globalsdict[globalvar.name] = value, units
+            sequenceglobals[grouptab.name] = globalsdict
+        return sequenceglobals, True
+        
+        
+    def make_sequence(self, basename, sequenceglobals):
+        """makes a sequence of hdf5 run files given a set of global
+        variables. This function takes the unevaluated globals --
+        ie lists and arrays haven't yet been expanded. A run file is
+        then made for every combination. 'sequenceglobals' should be a
+        dictionary with keys being the name of each group, and values
+        being a dictionary of globalname: (value, units)"""
+        names = []  
+        vals = []
+        allglobals = {}
+        for groupname, groupglobals in sequenceglobals.items():
+            for globalname in groupglobals:
+                if globalname in allglobals:
+                    raise Exception('%s is defined twice, both in %s and [dunno]!'%(globalname,groupname))
+                allglobals[globalname], units = groupglobals[globalname]
+        for key in allglobals:
+            value = eval(allglobals[key],pylab.__dict__)
+            if isinstance(value,types.GeneratorType):
+               result = [tuple(value)]
+            elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
+                result = value
+            else:
+                result = [value]
+            names.append(key)
+            vals.append(result)
+        
+        nruns = 1
+        for lst in vals:
+            nruns *= len(lst)
+        ndigits = int(pylab.ceil(pylab.log10(nruns)))
+        for i, values in enumerate(itertools.product(*vals)):
+            runfilename = ('%s%0'+str(ndigits)+'d.h5')%(basename,i)
+            self.output('creating run file %s/%s : %s ...'%(str(i+1),str(nruns),runfilename))
+            runglobals = {} 
+            for name,val in zip(names,values):
+                runglobals[name] = val
+            success = file_ops.make_single_run_file(runfilename,sequenceglobals,runglobals)
+            if not success:
+                self.output('failed.\n Stopping.\n')
+                return False    
+            self.output('done.\n')
+        return True
+                        
     def do_it(self,*args):
-        self.output('do it\n')
+        self.output('doing it...\n')
+        self.output('Parsing globals...')
+        sequenceglobals, success = self.parse_globals()
+        if success:
+            self.output('done.\n')
+        else:
+            self.output('failed.\n Stopping.\n')
+        self.make_sequence(str(int(time.time()))+'run',sequenceglobals)
  
 if __name__ == '__main__':        
-    app = RunManager()
+    run_manager = RunManager()
     file_ops = FileOps()
     gtk.main()
+    
+    
+    
+    
+    
+    

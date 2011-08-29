@@ -415,21 +415,88 @@
                                   </packing>
                                 </child>
                                 <child>
-                                  <object class="GtkScrolledWindow" id="scrolledwindow1">
+                                  <object class="GtkHBox" id="hbox_output">
                                     <property name="visible">True</property>
-                                    <property name="can_focus">True</property>
-                                    <property name="hscrollbar_policy">automatic</property>
-                                    <property name="vscrollbar_policy">automatic</property>
-                                    <property name="shadow_type">in</property>
                                     <child>
-                                      <object class="GtkTextView" id="textview1">
+                                      <object class="GtkVBox" id="vbox14">
+                                        <property name="visible">True</property>
+                                        <child>
+                                          <object class="GtkButton" id="button_popout">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">True</property>
+                                            <property name="receives_default">True</property>
+                                            <property name="relief">none</property>
+                                            <signal name="clicked" handler="pop_out_in"/>
+                                            <child>
+                                              <object class="GtkImage" id="image6">
+                                                <property name="visible">True</property>
+                                                <property name="stock">gtk-fullscreen</property>
+                                                <property name="icon-size">1</property>
+                                              </object>
+                                            </child>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">0</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <object class="GtkButton" id="button_popin">
+                                            <property name="can_focus">True</property>
+                                            <property name="receives_default">True</property>
+                                            <property name="relief">none</property>
+                                            <signal name="clicked" handler="pop_out_in"/>
+                                            <child>
+                                              <object class="GtkImage" id="image5">
+                                                <property name="visible">True</property>
+                                                <property name="stock">gtk-leave-fullscreen</property>
+                                                <property name="icon-size">1</property>
+                                              </object>
+                                            </child>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">1</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <object class="GtkLabel" id="label3">
+                                            <property name="visible">True</property>
+                                          </object>
+                                          <packing>
+                                            <property name="position">2</property>
+                                          </packing>
+                                        </child>
+                                      </object>
+                                      <packing>
+                                        <property name="expand">False</property>
+                                        <property name="fill">False</property>
+                                        <property name="position">0</property>
+                                      </packing>
+                                    </child>
+                                    <child>
+                                      <object class="GtkScrolledWindow" id="scrolledwindow_output">
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
-                                        <property name="editable">False</property>
-                                        <property name="wrap_mode">word</property>
-                                        <property name="indent">1</property>
-                                        <property name="cursor_visible">False</property>
+                                        <property name="hscrollbar_policy">automatic</property>
+                                        <property name="vscrollbar_policy">automatic</property>
+                                        <property name="shadow_type">in</property>
+                                        <child>
+                                          <object class="GtkTextView" id="textview1">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">True</property>
+                                            <property name="editable">False</property>
+                                            <property name="wrap_mode">word</property>
+                                            <property name="indent">1</property>
+                                            <property name="cursor_visible">False</property>
+                                          </object>
+                                        </child>
                                       </object>
+                                      <packing>
+                                        <property name="position">1</property>
+                                      </packing>
                                     </child>
                                   </object>
                                   <packing>
