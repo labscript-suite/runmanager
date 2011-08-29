@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import sys
 import time
 import random
 import itertools
@@ -9,10 +10,16 @@ import types
 import gtk
 import gobject
 import pango
+
 import h5py
 
 import pylab
 
+#Redirect output to avoid stupid crash on Windows when there
+#is no command window:
+if 'pythonw' in sys.executable:
+    sys.stdout = sys.stderr = open(os.devnull,'w')
+    
 if os.name == 'nt':
     # Have Windows 7 consider this program to be a separate app, and not
     # group it with other Python programs in the taskbar:
@@ -654,21 +661,32 @@ class RunManager(object):
         self.opentabs = []
         self.grouplist = []
         self.popped_out = False
+    
+        text_iter = self.output_buffer.get_end_iter()
+        
+        self.text_mark = self.output_buffer.create_mark(None, text_iter)
+
         self.output('ready\n')
+         
+    def on_window_destroy(self,widget):
+        gtk.main_quit()
         
     def output(self,text):
         """Prints text to the output textbox and to stdout"""
         print text, 
-        text_iter = self.output_buffer.get_end_iter()
+        self.n_output_calls += 1
         # Check if the scrollbar is at the bottom of the textview:
         scrolling = self.output_adjustment.value == self.output_adjustment.upper - self.output_adjustment.page_size
         # Insert the text at the end:
-        self.output_buffer.insert(text_iter, text)
+        self.output_buffer.insert(self.output_buffer.get_end_iter(), text)
+        
         # Automatically keep the textbox scrolled to the bottom, but
         # only if it was at the bottom to begin with. If the user has
         # scrolled up we won't jump them back to the bottom:
         if scrolling:
-            self.output_adjustment.value = self.output_adjustment.upper
+            self.output_view.scroll_to_mark(self.text_mark,0)
+        while gtk.events_pending():
+            gtk.main_iteration()
 
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
@@ -752,6 +770,9 @@ class RunManager(object):
                 window.destroy()
             self.builder.get_object('button_popout').show()
             self.builder.get_object('button_popin').hide()
+        while gtk.events_pending():
+            gtk.main_iteration()
+        self.output_view.scroll_to_mark(self.text_mark,0)
             
     def parse_globals(self):
         sequenceglobals = {}
