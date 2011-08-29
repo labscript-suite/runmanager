@@ -674,7 +674,6 @@ class RunManager(object):
     def output(self,text):
         """Prints text to the output textbox and to stdout"""
         print text, 
-        self.n_output_calls += 1
         # Check if the scrollbar is at the bottom of the textview:
         scrolling = self.output_adjustment.value == self.output_adjustment.upper - self.output_adjustment.page_size
         # Insert the text at the end:
@@ -686,7 +685,7 @@ class RunManager(object):
         if scrolling:
             self.output_view.scroll_to_mark(self.text_mark,0)
         while gtk.events_pending():
-            gtk.main_iteration()
+            gtk.main_iteration(False)
 
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
