@@ -4,6 +4,7 @@ import os
 import random
 
 import gtk
+import gobject
 import pango
 import h5py
 
@@ -98,7 +99,7 @@ class FileOps:
     def rename_group(self,filename,oldgroupname,newgroupname):
         if oldgroupname == newgroupname:
             # No rename!
-            return
+            return True
         try:
             with h5py.File(filename,'a') as f:
                 f.copy(f['globals'][oldgroupname], '/globals/%s'%newgroupname)
@@ -126,12 +127,14 @@ class FileOps:
                 return dict(group.attrs), True
         except Exception as e:
             self.handle_error(e)
-            return {},{}, False
+            return {}, False
     
     def new_global(self,filename,groupname,globalname):
         try:
             with h5py.File(filename,'a') as f:
                 group = f['globals'][groupname]
+                if globalname in group.attrs:
+                    raise Exception('Can\'t create global: target name already exists.')
                 group.attrs[globalname] = ''
                 return True
         except Exception as e:
@@ -139,8 +142,28 @@ class FileOps:
             return False
     
     def rename_global(self,filename,groupname,oldglobalname,newglobalname):
-        pass
-    
+        if oldglobalname == newglobalname:
+            # No rename!
+            return True
+        try:
+            value, success = self.get_value(filename, groupname, oldglobalname)
+            if success:
+                units, success = self.get_units(filename, groupname, oldglobalname)
+            if not success:
+                return False
+            with h5py.File(filename,'a') as f:
+                group = f['globals'][groupname]
+                if newglobalname in group.attrs:
+                    raise Exception('Can\'t rename: target name already exists.')
+                group.attrs[newglobalname] = value
+                group['units'].attrs[newglobalname] = units
+                del group.attrs[oldglobalname]
+                del group['units'].attrs[oldglobalname]
+                return True
+        except Exception as e:
+            self.handle_error(e)
+            return False
+
     def get_value(self,filename,groupname,globalname):
         try:
             with h5py.File(filename,'r') as f:
@@ -149,7 +172,7 @@ class FileOps:
         except Exception as e:
             self.handle_error(e)
             return None, False
-    
+                
     def set_value(self,filename,groupname,globalname, value):
         try:
             with h5py.File(filename,'a') as f:
@@ -220,14 +243,11 @@ class Global(object):
         units, success = file_ops.get_units(self.filepath, self.group.name, name)
         self.entry_value.set_text(str(value))
         self.label_units.set_text(units)
-        self.toggle_edit.set_active(False)
-                
-        print n_globals + 1
+        
         self.insert_at_position(n_globals + 1)
         
         self.builder.connect_signals(self)
         
-        self.editing = False
         self.undo_backup = ''
         
     def insert_at_position(self,n):
@@ -241,24 +261,56 @@ class Global(object):
         self.vbox_buttons.show()
         self.vbox_value.show()
     
-    def focus_in(self, *args):
+    def focus_in(self, widget,event):
+        """Called whenever one of the three text entries gains focus. If
+        it's the value entry, then we want to store its existing value
+        as a backup if the editing is cancelled via esc or ctrl-z. Also,
+        the 'focus_out' callback adds a timeout to end the editing of
+        the name and units. If one of the other text boxes is gaining
+        focus immediately after, then we don't want this to occur. So
+        we'll cancel that timeout."""
         self.undo_backup = self.entry_value.get_text()
-    
+        try:
+            # Might not exist. If it doesn't, then there's no need to
+            # remove it!
+            gobject.source_remove(self.timeout)
+        except:
+            pass
+        
+    def focus_out(self, widget, event):
+        """Called whenever either of the units entry box or the name
+        entry box lose focus. When this happens, we want to end editing
+        of that box """
+        self.timeout = gobject.timeout_add(100, self.toggle_edit.set_active, False)
+        
     def value_changed(self, *args):
+        """Saves the value to the h5 file every time it is modified."""
         success = file_ops.set_value(self.filepath,self.group.name,
                                      self.label_name.get_text(), 
                                      self.entry_value.get_text())
         
     def value_keypress(self, widget, event):
+        """Keyboard shortcuts for the value entry box. If you hit escape
+        whilst editing the value, the previous value is restored and
+        the entry box loses focus. If you hit control z, the same
+        occurs except without losing focus. Enter simply causes the
+        box to lose focus. No saving is required since the value is
+        saved constantly."""
         if event.keyval == 65307: # escape
             self.entry_value.set_text(self.undo_backup)
-            self.group.toggle_group_name_edit.grab_focus()
+            self.toggle_edit.grab_focus()
+            self.group.entry_new_global.grab_focus()
         elif event.keyval == 65293 or event.keyval == 65421: #enter
-            self.group.toggle_group_name_edit.grab_focus()
-        elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK:
+            self.toggle_edit.grab_focus()
+            self.group.entry_new_global.grab_focus()
+        elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK: # control z
             self.entry_value.set_text(self.undo_backup)
             
     def on_edit_toggled(self,widget):
+        """called when the edit toggle button is toggled, to enter or
+        cancel editing of the global's name and or units. Name and units
+        are not saved constantly like the value, they are only saved
+        when editing is ended."""
         if widget.get_active():
             self.entry_units.set_text(self.label_units.get_text())
             self.entry_name.set_text(self.label_name.get_text())
@@ -270,13 +322,27 @@ class Global(object):
             self.entry_name.select_region(0, -1)
             self.entry_name.grab_focus()
         else:
+            success = file_ops.rename_global(self.filepath, self.group.name, 
+                                             self.label_name.get_text(), 
+                                             self.entry_name.get_text())
+            if success:
+                success = file_ops.set_units(self.filepath, self.group.name, 
+                                             self.entry_name.get_text(), 
+                                             self.entry_units.get_text())
+            if success:
+                self.label_units.set_text(self.entry_units.get_text())
+                self.label_name.set_text(self.entry_name.get_text())
+            else:
+                self.entry_units.set_text(self.label_units.get_text())
+                self.entry_name.set_text(self.label_name.get_text())
+                
             self.entry_name.hide()
             self.entry_units.hide()
             self.button_remove.hide()
-            self.label_units.set_text(self.entry_units.get_text())
-            self.label_name.set_text(self.entry_name.get_text())
             self.label_name.show()
             self.label_units.show()
+            self.toggle_edit.grab_focus()
+            self.group.entry_new_global.grab_focus()
     
        
     def on_entry_keypress(self,widget,event):
@@ -292,23 +358,6 @@ class Global(object):
             elif widget is self.entry_name:
                 self.entry_name.set_text(self.label_name.get_text())
     
-    def focus_out(self, widget, event):
-        print event
-        for thing in dir(event):
-            print thing
-        
-        print event.type
-        print event.window
-        print event.get_coords()
-        print event.get_state()    
-        print self.entry_units.is_focus()
-        print self.entry_name.is_focus()
-        print self.entry_units.has_focus()
-        print self.entry_name.has_focus()
-        
-#        if not (self.entry_units.is_focus() or self.entry_name.is_focus()):
-#            self.toggle_edit.set_active(False)
-            
     def on_remove_clicked(self,widget):
         # TODO "Are you sure? This will remove the global from the h5
         # file and cannot be undone."
@@ -387,9 +436,10 @@ class GroupTab(object):
         self.globals = []
         
         global_vars, success = file_ops.get_globalslist(self.filepath,self.name)
+        
         for global_var in global_vars:
             self.globals.append(Global(self, global_var))
-        
+            
     def on_closetab_button_clicked(self, *args):
         # Get the page number of the tab we wanted to close
         pagenum = self.notebook.page_num(self.toplevel)
@@ -451,7 +501,10 @@ class GroupTab(object):
             success = file_ops.set_units(self.filepath, self.name, 
                                          name,random.choice(funny_units))
         if success:
-            self.globals.append(Global(self,name)) 
+            newglobal = Global(self,name)
+            self.globals.append(newglobal) 
+            newglobal.toggle_edit.set_active(True)
+            newglobal.entry_value.grab_focus()
             self.entry_new_global.set_text('')   
 
 
