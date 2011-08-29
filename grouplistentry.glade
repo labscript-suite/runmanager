@@ -50,6 +50,7 @@
                 <property name="text" translatable="yes">&lt;Variable_name&gt;</property>
                 <property name="xalign">1</property>
                 <signal name="key_press_event" handler="on_entry_keypress"/>
+                <signal name="focus_out_event" handler="focus_out"/>
               </object>
               <packing>
                 <property name="expand">False</property>

@@ -23,6 +23,7 @@
         <property name="text" translatable="yes">&lt;Variable_name&gt;</property>
         <property name="xalign">1</property>
         <signal name="key_press_event" handler="on_entry_keypress"/>
+        <signal name="focus_out_event" handler="focus_out"/>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -50,6 +51,7 @@
         <property name="can_focus">True</property>
         <property name="invisible_char">•</property>
         <signal name="key_press_event" handler="on_entry_keypress"/>
+        <signal name="focus_out_event" handler="focus_out"/>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -79,9 +81,9 @@
             <property name="invisible_char">•</property>
             <property name="width_chars">11</property>
             <property name="xalign">1</property>
+            <signal name="changed" handler="value_changed"/>
             <signal name="key_press_event" handler="value_keypress"/>
             <signal name="focus_in_event" handler="focus_in"/>
-            <signal name="changed" handler="value_changed"/>
           </object>
           <packing>
             <property name="expand">False</property>

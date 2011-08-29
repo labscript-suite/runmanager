@@ -96,6 +96,9 @@ class FileOps:
             return False
     
     def rename_group(self,filename,oldgroupname,newgroupname):
+        if oldgroupname == newgroupname:
+            # No rename!
+            return
         try:
             with h5py.File(filename,'a') as f:
                 f.copy(f['globals'][oldgroupname], '/globals/%s'%newgroupname)
@@ -277,14 +280,35 @@ class Global(object):
     
        
     def on_entry_keypress(self,widget,event):
-        print widget.get_text()
         if event.keyval == 65307: #escape
             self.entry_units.set_text(self.label_units.get_text())
             self.entry_name.set_text(self.label_name.get_text())
             self.toggle_edit.set_active(False)
         elif event.keyval == 65293 or event.keyval == 65421: #enter
             self.toggle_edit.set_active(False)
+        elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK:
+            if widget is self.entry_units:
+                self.entry_units.set_text(self.label_units.get_text())
+            elif widget is self.entry_name:
+                self.entry_name.set_text(self.label_name.get_text())
+    
+    def focus_out(self, widget, event):
+        print event
+        for thing in dir(event):
+            print thing
         
+        print event.type
+        print event.window
+        print event.get_coords()
+        print event.get_state()    
+        print self.entry_units.is_focus()
+        print self.entry_name.is_focus()
+        print self.entry_units.has_focus()
+        print self.entry_name.has_focus()
+        
+#        if not (self.entry_units.is_focus() or self.entry_name.is_focus()):
+#            self.toggle_edit.set_active(False)
+            
     def on_remove_clicked(self,widget):
         # TODO "Are you sure? This will remove the global from the h5
         # file and cannot be undone."
@@ -402,13 +426,18 @@ class GroupTab(object):
             self.changename(self.entry_groupname.get_text())
             self.entry_groupname.hide()
             self.label_groupname.show() 
-            
+    
+    def focus_out(self,widget):
+        self.toggle_group_name_edit.set_active(False)
+        
     def on_entry_keypress(self,widget,event):
         if event.keyval == 65307: #escape
             widget.set_text(self.label_groupname.get_text())
             self.toggle_group_name_edit.set_active(False)
         elif event.keyval == 65293 or event.keyval == 65421: #enter
             self.toggle_group_name_edit.set_active(False)
+        elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK:
+            widget.set_text(self.label_groupname.get_text())
         
     def on_new_global_clicked(self,button):
         print 'new global clicked!'
@@ -463,7 +492,10 @@ class GroupListEntry(object):
             self.entry_name.hide()
             self.changename(self.entry_name.get_text())
             self.label_name.show()
-            
+    
+    def focus_out(self,*args):
+        self.toggle_edit.set_active(False)
+                
     def changename(self, newname):
         success = file_ops.rename_group(self.filepath, self.name, newname)
         if success:
@@ -487,6 +519,8 @@ class GroupListEntry(object):
             self.toggle_edit.set_active(False)
         elif event.keyval == 65293 or event.keyval == 65421: #enter
             self.toggle_edit.set_active(False)
+        elif event.keyval == 122 and event.state & gtk.gdk.CONTROL_MASK:
+            self.entry_name.set_text(self.label_name.get_text())
         
     def on_remove_clicked(self,widget):
         # TODO "Are you sure? This will remove the group from the h5

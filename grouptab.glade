@@ -95,6 +95,7 @@
                         <property name="invisible_char">•</property>
                         <property name="text" translatable="yes">Coils</property>
                         <signal name="key_press_event" handler="on_entry_keypress"/>
+                        <signal name="focus_out_event" handler="focus_out"/>
                       </object>
                       <packing>
                         <property name="position">1</property>
