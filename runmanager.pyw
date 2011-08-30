@@ -80,7 +80,7 @@ class FileOps:
         raise e
     
     def make_single_run_file(self, filename, sequenceglobals, runglobals):
-#        try:
+        try:
             with h5py.File(filename,'w') as f:
                 f.create_group('globals')
                 for groupname, groupvars in sequenceglobals.items():
@@ -684,12 +684,14 @@ class RunManager(object):
         # scrolled up we won't jump them back to the bottom:
         if scrolling:
             self.output_view.scroll_to_mark(self.text_mark,0)
-        parent = self.scrolledwindow_output.get_parent()
-        if isinstance(parent,gtk.Window):
-            parent.queue_draw()
-        while gtk.events_pending():
-            gtk.main_iteration(False)
 
+    def on_scroll(self,widget):
+        """Queue a redraw of the output on Windows, to prevent visual artifacts"""
+        if os.name == 'nt':
+            parent = self.scrolledwindow_output.get_parent()
+            if isinstance(parent,gtk.Window):
+                parent.queue_draw()
+            
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
         name = entry_name.get_text()
