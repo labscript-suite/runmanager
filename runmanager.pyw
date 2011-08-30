@@ -642,6 +642,8 @@ class RunManager(object):
         self.chooser_h5_file = self.builder.get_object('chooser_h5_file')
         self.hbox_output = self.builder.get_object('hbox_output')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
+        self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
+
         self.window.show()
         
         area=self.builder.get_object('drawingarea1')
@@ -657,6 +659,7 @@ class RunManager(object):
         self.builder.get_object('filefilter2').add_pattern('*.py')
         
         self.builder.connect_signals(self)
+        self.outputscrollbar.connect('value-changed', self.on_scroll)
         
         self.opentabs = []
         self.grouplist = []
@@ -685,8 +688,9 @@ class RunManager(object):
         if scrolling:
             self.output_view.scroll_to_mark(self.text_mark,0)
 
-    def on_scroll(self,widget):
-        """Queue a redraw of the output on Windows, to prevent visual artifacts"""
+    def on_scroll(self,*args):
+        """Queue a redraw of the output on Windows, to prevent visual artifacts
+           when the window isn't focused"""
         if os.name == 'nt':
             parent = self.scrolledwindow_output.get_parent()
             if isinstance(parent,gtk.Window):

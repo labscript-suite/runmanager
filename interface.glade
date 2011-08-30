@@ -484,7 +484,6 @@
                                         <property name="hscrollbar_policy">automatic</property>
                                         <property name="vscrollbar_policy">automatic</property>
                                         <property name="shadow_type">in</property>
-                                        <signal name="scroll_child" handler="on_scroll"/>
                                         <child>
                                           <object class="GtkTextView" id="textview1">
                                             <property name="visible">True</property>
@@ -493,6 +492,7 @@
                                             <property name="wrap_mode">word</property>
                                             <property name="indent">1</property>
                                             <property name="cursor_visible">False</property>
+                                            <signal name="button_press_event" handler="on_scroll"/>
                                           </object>
                                         </child>
                                       </object>
