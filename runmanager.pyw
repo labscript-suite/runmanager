@@ -695,7 +695,9 @@ class RunManager(object):
             parent = self.scrolledwindow_output.get_parent()
             if isinstance(parent,gtk.Window):
                 parent.queue_draw()
-            
+                while gtk.events_pending():
+                    gtk.main_iteration()
+                                
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
         name = entry_name.get_text()
