@@ -684,9 +684,10 @@ class RunManager(object):
         # scrolled up we won't jump them back to the bottom:
         if scrolling:
             self.output_view.scroll_to_mark(self.text_mark,0)
-        parent = self.scrolledwindow_output.get_parent()
-        if isinstance(parent,gtk.Window):
-            parent.present()
+# TODO: check if this problem exists on Win7 and only fix it if it does
+#        parent = self.scrolledwindow_output.get_parent()
+#        if isinstance(parent,gtk.Window):
+#            parent.present()
         while gtk.events_pending():
             gtk.main_iteration(False)
 
