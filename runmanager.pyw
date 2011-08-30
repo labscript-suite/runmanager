@@ -92,9 +92,9 @@ class FileOps:
                 for name, value in runglobals.items():
                     f['globals'].attrs[name] = value
                 return True
-#        except Exception as e:
-#            self.handle_error(e)
-#            return False
+        except Exception as e:
+            self.handle_error(e)
+            return False
     
                     
     def new_file(self,filename):
@@ -684,10 +684,9 @@ class RunManager(object):
         # scrolled up we won't jump them back to the bottom:
         if scrolling:
             self.output_view.scroll_to_mark(self.text_mark,0)
-# TODO: check if this problem exists on Win7 and only fix it if it does
-#        parent = self.scrolledwindow_output.get_parent()
-#        if isinstance(parent,gtk.Window):
-#            parent.present()
+        parent = self.scrolledwindow_output.get_parent()
+        if isinstance(parent,gtk.Window):
+            parent.queue_draw()
         while gtk.events_pending():
             gtk.main_iteration(False)
 
