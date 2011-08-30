@@ -659,7 +659,7 @@ class RunManager(object):
         self.builder.get_object('filefilter2').add_pattern('*.py')
         
         self.builder.connect_signals(self)
-        self.outputscrollbar.connect('value-changed', self.on_scroll)
+        self.outputscrollbar.connect_after('value-changed', self.on_scroll)
         
         self.opentabs = []
         self.grouplist = []
