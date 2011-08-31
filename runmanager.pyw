@@ -15,10 +15,10 @@ import h5py
 
 import pylab
 
-#Redirect output to avoid stupid crash on Windows when there
-#is no command window:
-if 'pythonw' in sys.executable:
-    sys.stdout = sys.stderr = open(os.devnull,'w')
+#This provides debug info without having to run from a terminal, and
+#avoids a stupid crash on Windows when there is no command window:
+if not sys.stdout.isatty():
+    sys.stdout = sys.stderr = open('debug.log','w',1)
     
 if os.name == 'nt':
     # Have Windows 7 consider this program to be a separate app, and not
@@ -649,7 +649,7 @@ class RunManager(object):
         self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
         self.no_file_opened = self.builder.get_object('label_no_file_opened')
         self.chooser_h5_file = self.builder.get_object('chooser_h5_file')
-        self.hbox_output = self.builder.get_object('hbox_output')
+        self.vbox_runcontrol = self.builder.get_object('vbox_runcontrol')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
         self.chooser_output_directory = self.builder.get_object('chooser_output_directory')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
@@ -768,7 +768,7 @@ class RunManager(object):
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
             self.popped_out = not self.popped_out
-            self.hbox_output.remove(self.scrolledwindow_output)
+            self.vbox_runcontrol.remove(self.scrolledwindow_output)
             screen = gtk.gdk.Screen()
             window = gtk.Window()
             window.add(self.scrolledwindow_output)
@@ -782,8 +782,8 @@ class RunManager(object):
             self.popped_out = not self.popped_out
             window = self.scrolledwindow_output.get_parent()
             window.remove(self.scrolledwindow_output)
-            self.hbox_output.pack_start(self.scrolledwindow_output)
-            self.hbox_output.show()
+            self.vbox_runcontrol.pack_start(self.scrolledwindow_output)
+            self.vbox_runcontrol.show()
             if not isinstance(widget,gtk.Window):
                 window.destroy()
             self.builder.get_object('button_popout').show()
