@@ -10,7 +10,7 @@
         <child>
           <object class="GtkToggleButton" id="toggle_edit">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <signal name="toggled" handler="on_edit_toggled"/>
@@ -84,9 +84,28 @@
           </packing>
         </child>
         <child>
+          <object class="GtkButton" id="button_close">
+            <property name="can_focus">False</property>
+            <property name="receives_default">True</property>
+            <property name="relief">none</property>
+            <child>
+              <object class="GtkImage" id="image2">
+                <property name="visible">True</property>
+                <property name="stock">gtk-no</property>
+                <property name="icon-size">1</property>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
           <object class="GtkButton" id="button_import">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <signal name="clicked" handler="on_import_clicked"/>
@@ -101,13 +120,13 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">False</property>
-            <property name="position">1</property>
+            <property name="position">2</property>
           </packing>
         </child>
         <child>
           <object class="GtkButton" id="button_remove">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <signal name="clicked" handler="on_remove_clicked"/>
@@ -122,7 +141,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">False</property>
-            <property name="position">2</property>
+            <property name="position">3</property>
           </packing>
         </child>
       </object>

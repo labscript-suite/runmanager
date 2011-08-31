@@ -86,6 +86,7 @@
             <signal name="changed" handler="value_changed"/>
             <signal name="key_press_event" handler="value_keypress"/>
             <signal name="focus_in_event" handler="focus_in"/>
+            <signal name="focus_out_event" handler="focus_out"/>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -109,7 +110,7 @@
         <child>
           <object class="GtkToggleButton" id="toggle_edit">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <signal name="toggled" handler="on_edit_toggled"/>
@@ -129,7 +130,7 @@
         </child>
         <child>
           <object class="GtkButton" id="button_remove">
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <signal name="clicked" handler="on_remove_clicked"/>

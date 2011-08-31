@@ -293,7 +293,7 @@ class Global(object):
         self.vbox_buttons.show()
         self.vbox_value.show()
     
-    def focus_in(self, widget,event):
+    def focus_in(self, widget, event):
         """Called whenever one of the three text entries gains focus. If
         it's the value entry, then we want to store its existing value
         as a backup if the editing is cancelled via esc or ctrl-z. Also,
@@ -310,10 +310,17 @@ class Global(object):
             pass
         
     def focus_out(self, widget, event):
-        """Called whenever either of the units entry box or the name
-        entry box lose focus. When this happens, we want to end editing
-        of that box """
-        self.timeout = gobject.timeout_add(100, self.toggle_edit.set_active, False)
+        """Called whenever either of the units entry box, the value
+        box or the name entry box lose focus. When this happens, we
+        want to end editing of that box. If one of these three entries
+        subsequently gains focus (within 100ms), then the end-editing
+        will not occur. If its just the window itself losing focus though
+        (for example if you click and drag on the title bar), then we
+        don't want to cancel editing. So we use widget.is_focus() to
+        check if the widget still has focus within its toplevel. """
+        if not widget.is_focus():
+            self.timeout = gobject.timeout_add(100, self.toggle_edit.set_active, False)
+            widget.select_region(0, 0)
         
     def value_changed(self, *args):
         """Saves the value to the h5 file every time it is modified."""
@@ -407,7 +414,8 @@ class Global(object):
             self.table.remove(self.vbox_units)
             self.table.remove(self.vbox_buttons)
             self.group.globals.remove(self)
-        
+            self.group.entry_new_global.grab_focus()
+            
 
                 
 class GroupTab(object):

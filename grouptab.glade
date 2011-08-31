@@ -57,7 +57,7 @@
                 <child>
                   <object class="GtkToggleButton" id="toggle_group_name_edit">
                     <property name="visible">True</property>
-                    <property name="can_focus">True</property>
+                    <property name="can_focus">False</property>
                     <property name="receives_default">True</property>
                     <property name="relief">none</property>
                     <signal name="toggled" handler="on_groupname_edit_toggle"/>
