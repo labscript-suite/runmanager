@@ -88,6 +88,7 @@
             <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
+            <signal name="clicked" handler="on_close_clicked"/>
             <child>
               <object class="GtkImage" id="image2">
                 <property name="visible">True</property>

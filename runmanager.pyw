@@ -494,6 +494,14 @@ class GroupTab(object):
         self.notebook.remove_page(pagenum)
         self.checkbox.destroy()
         self.runmanager.opentabs.remove(self)
+        # Is this global group open in the import tab?
+        if self.runmanager.chooser_h5_file.get_filename() == self.filepath:
+            for entry in self.runmanager.grouplist:
+                if entry.name == self.name:
+                    entry.button_import.show()
+                    entry.button_close.hide()
+                    entry.label_name.set_use_markup(False)
+                    entry.label_name.set_markup('%s'%entry.name)
     
     def changename(self, newname):
         success = file_ops.rename_group(self.filepath, self.name, newname)
@@ -509,7 +517,7 @@ class GroupTab(object):
                 for entry in self.runmanager.grouplist:
                     if entry.name == oldname:
                         entry.name = self.name
-                        entry.label_name.set_text(self.name)
+                        entry.label_name.set_markup('<b>%s</b>'%self.name)
                         entry.entry_name.set_text(self.name)
             
     def on_groupname_edit_toggle(self,widget):
@@ -559,7 +567,6 @@ class GroupListEntry(object):
     def __init__(self,runmanager,filepath,name):
         self.runmanager = runmanager
         self.vbox = self.runmanager.grouplist_vbox
-        n_groups = len(self.runmanager.grouplist)
         self.filepath = filepath
         self.name = name
         
@@ -571,7 +578,8 @@ class GroupListEntry(object):
         self.label_name = self.builder.get_object('label_name')
         self.hbox_buttons = self.builder.get_object('hbox_buttons')
         self.toggle_edit = self.builder.get_object('toggle_edit')
-        self.button_import = self.builder.get_object('button_remove')
+        self.button_import = self.builder.get_object('button_import')
+        self.button_close = self.builder.get_object('button_close')
         self.button_remove = self.builder.get_object('button_remove')
         
         self.label_name.set_text(name)
@@ -581,6 +589,15 @@ class GroupListEntry(object):
         
         self.builder.connect_signals(self)
         
+        # Is this group open in a tab?
+        for tab in self.runmanager.opentabs:
+            if tab.name == self.name and tab.filepath == self.filepath:
+                # If so, better make the GUI look like it:
+                self.button_import.hide()
+                self.button_close.show()
+                self.label_name.set_use_markup(True)
+                self.label_name.set_markup('<b>%s</b>'%self.name)
+                
     def on_edit_toggled(self,widget):
         if widget.get_active():
             self.entry_name.set_text(self.label_name.get_text())
@@ -636,11 +653,23 @@ class GroupListEntry(object):
             # is the tab open? If so, close it:
             for tab in self.runmanager.opentabs:
                 if tab.name == self.name and tab.filepath == self.filepath:
-                    print 'closing etc!'
                     tab.on_closetab_button_clicked()
         
     def on_import_clicked(self,widget):
         self.runmanager.opentabs.append(GroupTab(self.runmanager, self.filepath, self.name))
+        self.button_import.hide()
+        self.button_close.show()
+        self.label_name.set_use_markup(True)
+        self.label_name.set_markup('<b>%s</b>'%self.name)
+        
+    def on_close_clicked(self,widget):
+        for tab in self.runmanager.opentabs:
+            if tab.name == self.name and tab.filepath == self.filepath:
+                tab.on_closetab_button_clicked()
+        self.label_name.set_use_markup(False)
+        self.label_name.set_markup('%s'%self.name)
+        self.button_import.show()
+        self.button_close.hide()
             
             
 class RunManager(object):
