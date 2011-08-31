@@ -15,12 +15,17 @@ import h5py
 
 import pylab
 
+
+
 #This provides debug info without having to run from a terminal, and
 #avoids a stupid crash on Windows when there is no command window:
 if not sys.stdout.isatty():
     sys.stdout = sys.stderr = open('debug.log','w',1)
     
 if os.name == 'nt':
+    # Make it not look so terrible (if icons and themes are installed):
+    gtk.settings_get_default().set_string_property('gtk-icon-theme-name','gnome-human','')
+    gtk.settings_get_default().set_string_property('gtk-theme-name','Clearlooks','')
     # Have Windows 7 consider this program to be a separate app, and not
     # group it with other Python programs in the taskbar:
     import ctypes
@@ -812,6 +817,9 @@ class RunManager(object):
             window.connect('destroy',self.pop_out_in)
             window.resize(min(max(200,screen.get_width() - self.window.get_size()[0]),screen.get_width()/2),screen.get_height())#self.window.get_size()[1])
             window.set_title('labscript run manager output')
+            icon_theme = gtk.icon_theme_get_default()
+            pb = icon_theme.load_icon('utilities-terminal', gtk.ICON_SIZE_MENU,0)
+            window.set_icon(pb)
             window.show()
             self.builder.get_object('button_popout').hide()
             self.builder.get_object('button_popin').show()
