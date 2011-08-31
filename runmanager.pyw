@@ -394,15 +394,19 @@ class Global(object):
                 self.entry_name.set_text(self.label_name.get_text())
     
     def on_remove_clicked(self,widget):
-        # TODO "Are you sure? This will remove the global from the h5
-        # file and cannot be undone."
-        success = file_ops.delete_global(self.filepath,self.group.name,
-                                         self.entry_name.get_text())
-        self.table.remove(self.vbox_name)
-        self.table.remove(self.vbox_value)
-        self.table.remove(self.vbox_units)
-        self.table.remove(self.vbox_buttons)
-        self.group.globals.remove(self)
+        md = gtk.MessageDialog(self.group.runmanager.window, 
+        gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_WARNING,gtk.BUTTONS_OK_CANCEL,
+        "Are you sure? This will remove the global variable from the h5 file and cannot be undone.")
+        result = md.run()
+        md.destroy()
+        if result == gtk.RESPONSE_OK:
+            success = file_ops.delete_global(self.filepath,self.group.name,
+                                             self.entry_name.get_text())
+            self.table.remove(self.vbox_name)
+            self.table.remove(self.vbox_value)
+            self.table.remove(self.vbox_units)
+            self.table.remove(self.vbox_buttons)
+            self.group.globals.remove(self)
         
 
                 
@@ -611,16 +615,21 @@ class GroupListEntry(object):
             self.entry_name.set_text(self.label_name.get_text())
         
     def on_remove_clicked(self,widget):
-        # TODO "Are you sure? This will remove the group from the h5
-        # file and cannot be undone."
-        success = file_ops.delete_group(self.filepath,self.name)
-        self.toplevel.destroy()
-        self.runmanager.grouplist.remove(self)
-        # is the tab open? If so, close it:
-        for tab in self.runmanager.opentabs:
-            if tab.name == self.name and tab.filepath == self.filepath:
-                print 'closing etc!'
-                tab.on_closetab_button_clicked()
+        md = gtk.MessageDialog(self.runmanager.window, 
+        gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_WARNING, 
+        buttons =(gtk.BUTTONS_OK_CANCEL),
+        message_format = "Are you sure? This will remove the group from the h5 file and cannot be undone.")
+        result = md.run()
+        md.destroy()
+        if result == gtk.RESPONSE_OK:
+            success = file_ops.delete_group(self.filepath,self.name)
+            self.toplevel.destroy()
+            self.runmanager.grouplist.remove(self)
+            # is the tab open? If so, close it:
+            for tab in self.runmanager.opentabs:
+                if tab.name == self.name and tab.filepath == self.filepath:
+                    print 'closing etc!'
+                    tab.on_closetab_button_clicked()
         
     def on_import_clicked(self,widget):
         self.runmanager.opentabs.append(GroupTab(self.runmanager, self.filepath, self.name))
@@ -642,6 +651,7 @@ class RunManager(object):
         self.chooser_h5_file = self.builder.get_object('chooser_h5_file')
         self.hbox_output = self.builder.get_object('hbox_output')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
+        self.chooser_output_directory = self.builder.get_object('chooser_output_directory')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
 
         self.window.show()
@@ -695,8 +705,6 @@ class RunManager(object):
             parent = self.scrolledwindow_output.get_parent()
             if isinstance(parent,gtk.Window):
                 parent.queue_draw()
-                while gtk.events_pending():
-                    gtk.main_iteration()
                                 
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
@@ -810,6 +818,8 @@ class RunManager(object):
         names = []  
         vals = []
         allglobals = {}
+        outfolder = self.chooser_output_directory.get_filename()
+        basename = os.path.join(outfolder,basename)
         for groupname, groupglobals in sequenceglobals.items():
             for globalname in groupglobals:
                 if globalname in allglobals:
