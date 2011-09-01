@@ -26,6 +26,7 @@ if os.name == 'nt':
     # Make it not look so terrible (if icons and themes are installed):
     gtk.settings_get_default().set_string_property('gtk-icon-theme-name','gnome-human','')
     gtk.settings_get_default().set_string_property('gtk-theme-name','Clearlooks','')
+    gtk.settings_get_default().set_string_property('gtk-font-name','ubuntu 11','')
     gtk.settings_get_default().set_long_property('gtk-button-images',False,'')
 
     # Have Windows 7 consider this program to be a separate app, and not
@@ -108,7 +109,7 @@ class FileOps:
         try:
             with h5py.File(filename,'w') as f:
                 f.create_group('globals')
-                return True
+            return True
         except Exception as e:
             self.handle_error(e)
             return False
@@ -718,6 +719,7 @@ class RunManager(object):
         self.opentabs = []
         self.grouplist = []
         self.popped_out = False
+        self.making_new_file = False
     
         text_iter = self.output_buffer.get_end_iter()
         
@@ -782,7 +784,7 @@ class RunManager(object):
     
     
     def on_selection_changed(self,chooser):
-        if not self.chooser_h5_file.get_filename():
+        if not self.chooser_h5_file.get_filename() and not self.making_new_file:
             self.update_grouplist(chooser)
             
             
@@ -795,20 +797,32 @@ class RunManager(object):
         chooser.set_do_overwrite_confirmation(True)
 #        chooser.set_current_folder_uri('')
         chooser.set_current_name('.h5')
+        self.chooser_h5_file.unselect_all()
+        while gtk.events_pending():
+            gtk.main_iteration()
         response = chooser.run()
-        
+        f = chooser.get_filename()
+        d = chooser.get_current_folder()
+        chooser.destroy()
         if response == gtk.RESPONSE_OK:
-            success = file_ops.new_file(chooser.get_filename())
-            self.chooser_h5_file.unselect_all()
-            self.chooser_h5_file.select_filename(chooser.get_filename())
-            # We need self.chooser_h5_file to have its file set before
-            # we can move on:
+            # Make sure that we don't accidentally trigger more callbacks
+            # in the gtk.main_iteration calls in this block:
+            self.making_new_file = True
+            success = file_ops.new_file(f)
+            self.chooser_h5_file.set_current_folder(d)
+            # Have to make sure the above changes occur before proceeding:
+            while gtk.events_pending():
+                gtk.main_iteration()
+            self.chooser_h5_file.select_filename(f)
+            # Have to make sure the file gets set before
+            # update_grouplist() happens:
             while gtk.events_pending():
                 gtk.main_iteration()
             self.update_grouplist()
-        chooser.destroy()
-
-
+            self.making_new_file = False
+            
+            
+            
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
             self.popped_out = not self.popped_out
