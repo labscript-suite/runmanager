@@ -17,8 +17,8 @@ import pylab
 
 
 
-#This provides debug info without having to run from a terminal, and
-#avoids a stupid crash on Windows when there is no command window:
+# This provides debug info without having to run from a terminal, and
+# avoids a stupid crash on Windows when there is no command window:
 if not sys.stdout.isatty():
     sys.stdout = sys.stderr = open('debug.log','w',1)
     
@@ -82,10 +82,18 @@ funny_units = ['attoparsecs',
   
                        
 class FileOps:
-
+    def __init__(self, runmanager):
+        self.runmanager = runmanager
+        
     def handle_error(self,e):
-        # for the moment:
-        raise e
+        if '-debug' in sys.argv:
+            raise e
+        else:
+            print str(e)
+            md = gtk.MessageDialog(self.runmanager.window, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, 
+                                   buttons =(gtk.BUTTONS_OK), message_format = str(e))
+            md.run()
+            md.destroy()
     
     def make_single_run_file(self, filename, sequenceglobals, runglobals):
         try:
@@ -384,15 +392,16 @@ class Global(object):
                 self.label_units.set_text(self.entry_units.get_text())
             else:
                 self.entry_units.set_text(self.label_units.get_text())
+             
                 
+            if any([w.has_focus() for w in (self.entry_units, self.entry_name, self.entry_value)]):
+                self.group.entry_new_global.grab_focus()
                 
             self.entry_name.hide()
             self.entry_units.hide()
             self.button_remove.hide()
             self.label_name.show()
             self.label_units.show()
-            self.toggle_edit.grab_focus()
-            self.group.entry_new_global.grab_focus()
     
        
     def on_entry_keypress(self,widget,event):
@@ -540,7 +549,7 @@ class GroupTab(object):
             self.entry_groupname.hide()
             self.label_groupname.show() 
     
-    def focus_out(self,widget):
+    def focus_out(self,widget,event):
         self.toggle_group_name_edit.set_active(False)
         
     def on_entry_keypress(self,widget,event):
@@ -758,8 +767,8 @@ class RunManager(object):
         filepath = self.chooser_h5_file.get_filenames()[0]
         success = file_ops.new_group(filepath, name)
         if success:
-            self.grouplist.append(GroupListEntry(self, filepath, name))
             self.opentabs.append(GroupTab(self, filepath, name))
+            self.grouplist.append(GroupListEntry(self, filepath, name))
             entry_name.set_text('')
     
     
@@ -926,7 +935,7 @@ class RunManager(object):
  
 if __name__ == '__main__':        
     run_manager = RunManager()
-    file_ops = FileOps()
+    file_ops = FileOps(run_manager)
     gtk.main()
     
     
