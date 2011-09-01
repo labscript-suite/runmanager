@@ -883,7 +883,7 @@ class RunManager(object):
         for groupname, groupglobals in sequenceglobals.items():
             for globalname in groupglobals:
                 if globalname in allglobals:
-                    raise Exception('%s is defined twice, both in %s and [dunno]!\n'%(globalname,groupname))
+                    raise Exception('Error parsing \'%s\' from group \'%s\'. Global name is already defined in another group.'%(globalname,groupname))
                 allglobals[globalname], units = groupglobals[globalname]
         for key in allglobals:
             print allglobals[key]
