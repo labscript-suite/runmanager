@@ -95,22 +95,20 @@ class FileOps:
             md.run()
             md.destroy()
     
-    def make_single_run_file(self, filename, sequenceglobals, runglobals):
-        try:
-            with h5py.File(filename,'w') as f:
-                f.create_group('globals')
-                for groupname, groupvars in sequenceglobals.items():
-                    group = f['globals'].create_group(groupname)
-                    unitsgroup = group.create_group('units')
-                    for name, (value, units) in groupvars.items():
-                        group.attrs[name] = value
-                        unitsgroup.attrs[name] = units
-                for name, value in runglobals.items():
-                    f['globals'].attrs[name] = value
-                return True
-        except Exception as e:
-            self.handle_error(e)
-            return False
+    def make_single_run_file(self, filename, sequenceglobals, runglobals, sequence_id, run_no, n_runs):
+        with h5py.File(filename,'w') as f:
+            f.attrs['sequence_id'] = sequence_id
+            f.attrs['run_no'] = run_no
+            f.attrs['n_runs'] = n_runs
+            f.create_group('globals')
+            for groupname, groupvars in sequenceglobals.items():
+                group = f['globals'].create_group(groupname)
+                unitsgroup = group.create_group('units')
+                for name, (value, units) in groupvars.items():
+                    group.attrs[name] = value
+                    unitsgroup.attrs[name] = units
+            for name, value in runglobals.items():
+                f['globals'].attrs[name] = value
     
                     
     def new_file(self,filename):
@@ -568,7 +566,7 @@ class GroupTab(object):
         success = file_ops.new_global(self.filepath, self.name, name)
         if success:
             success = file_ops.set_value(self.filepath, self.name, 
-                                         name, int(1000*random.random() - 500))
+                                         name, str(int(1000*random.random() - 500)))
         if success:
             success = file_ops.set_units(self.filepath, self.name, 
                                          name,random.choice(funny_units))
@@ -703,6 +701,7 @@ class RunManager(object):
         self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
         self.no_file_opened = self.builder.get_object('label_no_file_opened')
         self.chooser_h5_file = self.builder.get_object('chooser_h5_file')
+        self.chooser_labscript_file = self.builder.get_object('chooser_labscript_file')
         self.vbox_runcontrol = self.builder.get_object('vbox_runcontrol')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
         self.chooser_output_directory = self.builder.get_object('chooser_output_directory')
@@ -863,6 +862,7 @@ class RunManager(object):
         self.output_view.scroll_to_mark(self.text_mark,0)
             
     def parse_globals(self):
+        self.output('Parsing globals...')
         sequenceglobals = {}
         for grouptab in self.opentabs:
             if not grouptab.checkbox.get_active():
@@ -875,28 +875,23 @@ class RunManager(object):
                     return {}, False
                 globalsdict[globalvar.name] = value, units
             sequenceglobals[grouptab.name] = globalsdict
-        return sequenceglobals, True
-        
-        
-    def make_sequence(self, basename, sequenceglobals):
-        """makes a sequence of hdf5 run files given a set of global
-        variables. This function takes the unevaluated globals --
-        ie lists and arrays haven't yet been expanded. A run file is
-        then made for every combination. 'sequenceglobals' should be a
-        dictionary with keys being the name of each group, and values
-        being a dictionary of globalname: (value, units)"""
+           
         names = []  
         vals = []
         allglobals = {}
-        outfolder = self.chooser_output_directory.get_filename()
-        basename = os.path.join(outfolder,basename)
+         
         for groupname, groupglobals in sequenceglobals.items():
             for globalname in groupglobals:
                 if globalname in allglobals:
-                    raise Exception('%s is defined twice, both in %s and [dunno]!'%(globalname,groupname))
+                    raise Exception('%s is defined twice, both in %s and [dunno]!\n'%(globalname,groupname))
                 allglobals[globalname], units = groupglobals[globalname]
         for key in allglobals:
-            value = eval(allglobals[key],pylab.__dict__)
+            print allglobals[key]
+            try:
+                value = eval(allglobals[key],pylab.__dict__)
+            except Exception as e:
+                raise Exception('Error parsing global \'%s\': '%key + str(e))
+                
             if isinstance(value,types.GeneratorType):
                result = [tuple(value)]
             elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
@@ -906,33 +901,56 @@ class RunManager(object):
             names.append(key)
             vals.append(result)
         
+        self.output('done.\n')
+        return sequenceglobals, names, vals
+        
+        
+    def make_sequence(self, sequenceglobals, names, vals):
+        """makes a sequence of hdf5 run files given a set of global
+        variables. This function takes the unevaluated globals --
+        ie lists and arrays haven't yet been expanded. A run file is
+        then made for every combination. 'sequenceglobals' should be a
+        dictionary with keys being the name of each group, and values
+        being a dictionary of globalname: (value, units)"""
+
+        self.output('generating run files...\n')
+        outfolder = self.chooser_output_directory.get_filename()
+        sequence_id = self.generate_sequence_number()
+        basename = os.path.join(outfolder,sequence_id)
+
         nruns = 1
         for lst in vals:
             nruns *= len(lst)
         ndigits = int(pylab.ceil(pylab.log10(nruns)))
         for i, values in enumerate(itertools.product(*vals)):
             runfilename = ('%s%0'+str(ndigits)+'d.h5')%(basename,i)
-            self.output('creating run file %s/%s : %s ...'%(str(i+1),str(nruns),runfilename))
+            self.output('creating run file %s/%s : %s'%(str(i+1),str(nruns),runfilename))
             runglobals = {} 
             for name,val in zip(names,values):
                 runglobals[name] = val
-            success = file_ops.make_single_run_file(runfilename,sequenceglobals,runglobals)
-            if not success:
-                self.output('failed.\n Stopping.\n')
-                return False    
-            self.output('done.\n')
-        return True
+            file_ops.make_single_run_file(runfilename,sequenceglobals,runglobals, sequence_id, i, nruns)
+    
+    def generate_sequence_number(self):
+        timestamp = str(int(time.time()))
+        scriptname = self.chooser_labscript_file.get_filename()
+        if not scriptname:
+            raise Exception('No labscript file selected')
+        scriptbase = os.path.basename(scriptname).split('.py')[0]
+        return timestamp + scriptbase
                         
     def do_it(self,*args):
-        self.output('doing it...\n')
-        self.output('Parsing globals...')
-        sequenceglobals, success = self.parse_globals()
-        if success:
-            self.output('done.\n')
-        else:
-            self.output('failed.\n Stopping.\n')
-        self.make_sequence(str(int(time.time()))+'run',sequenceglobals)
- 
+        parse = True
+        make = True
+        comp = True
+        run = True
+        try:
+            if parse:
+                sequenceglobals, names, vals = self.parse_globals()
+            if make:
+                self.make_sequence(sequenceglobals, names, vals)
+        except Exception as e:
+            self.output('\n'+str(e)+'\n')
+            
 if __name__ == '__main__':        
     run_manager = RunManager()
     file_ops = FileOps(run_manager)
