@@ -705,6 +705,10 @@ class RunManager(object):
         self.vbox_runcontrol = self.builder.get_object('vbox_runcontrol')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
         self.chooser_output_directory = self.builder.get_object('chooser_output_directory')
+        self.checkbutton_parse = self.builder.get_object('checkbutton_parse')
+        self.checkbutton_make = self.builder.get_object('checkbutton_make')
+        self.checkbutton_compile = self.builder.get_object('checkbutton_compile')
+        self.checkbutton_run = self.builder.get_object('checkbutton_run')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
 
         self.window.show()
@@ -728,24 +732,34 @@ class RunManager(object):
         self.grouplist = []
         self.popped_out = False
         self.making_new_file = False
-    
-        text_iter = self.output_buffer.get_end_iter()
+        self.parse = False
+        self.make = False
+        self.compile = False
+        self.run = False
         
-        self.text_mark = self.output_buffer.create_mark(None, text_iter)
+        self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
-        self.output('ready\n')
+        self.output('Ready\n')
          
     def on_window_destroy(self,widget):
         gtk.main_quit()
         
-    def output(self,text):
+    def output(self,text,red=False):
         """Prints text to the output textbox and to stdout"""
         print text, 
         # Check if the scrollbar is at the bottom of the textview:
         scrolling = self.output_adjustment.value == self.output_adjustment.upper - self.output_adjustment.page_size
+        # We need the initial cursor position so we know what range to make red:
+        offset = self.output_buffer.get_end_iter().get_offset()
         # Insert the text at the end:
         self.output_buffer.insert(self.output_buffer.get_end_iter(), text)
-        
+        if red:
+            start = self.output_buffer.get_iter_at_offset(offset)
+            end = self.output_buffer.get_end_iter()
+            # Make the text red:
+            self.output_buffer.apply_tag(self.output_buffer.create_tag(foreground='red'),start,end)
+            self.output_buffer.apply_tag(self.output_buffer.create_tag(weight=pango.WEIGHT_BOLD),start,end)
+
         # Automatically keep the textbox scrolled to the bottom, but
         # only if it was at the bottom to begin with. If the user has
         # scrolled up we won't jump them back to the bottom:
@@ -937,19 +951,46 @@ class RunManager(object):
             raise Exception('No labscript file selected')
         scriptbase = os.path.basename(scriptname).split('.py')[0]
         return timestamp + scriptbase
-                        
+
+    def toggle_parse(self,widget):
+        self.parse = widget.get_active()
+        if not self.parse:
+            self.checkbutton_make.set_active(False)
+            self.checkbutton_compile.set_active(False)
+            self.checkbutton_run.set_active(False)
+           
+    def toggle_make(self,widget):
+        self.make = widget.get_active()
+        if self.make:
+            self.checkbutton_parse.set_active(True)
+        else:
+            self.checkbutton_compile.set_active(False)
+            self.checkbutton_run.set_active(False)        
+    
+    def toggle_compile(self,widget):
+        self.compile = widget.get_active()
+        if self.compile:
+            self.checkbutton_parse.set_active(True)
+            self.checkbutton_make.set_active(True)
+        else:
+            self.checkbutton_run.set_active(False) 
+    
+    def toggle_run(self,widget):
+        self.run = widget.get_active()
+        if self.run:
+            self.checkbutton_parse.set_active(True)
+            self.checkbutton_make.set_active(True)
+            self.checkbutton_compile.set_active(True) 
+                     
     def do_it(self,*args):
-        parse = True
-        make = True
-        comp = True
-        run = True
         try:
-            if parse:
+            if self.parse:
                 sequenceglobals, names, vals = self.parse_globals()
-            if make:
+            if self.make:
                 self.make_sequence(sequenceglobals, names, vals)
         except Exception as e:
-            self.output('\n'+str(e)+'\n')
+            self.output(str(e)+'\n',red=True)
+            self.output('\nReady')
             
 if __name__ == '__main__':        
     run_manager = RunManager()
