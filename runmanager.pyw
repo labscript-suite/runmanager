@@ -6,7 +6,8 @@ import time
 import random
 import itertools
 import types
-
+import subprocess
+import threading
 import gtk
 import gobject
 import pango
@@ -38,6 +39,7 @@ if os.name == 'nt':
     except:
         pass
 
+# Feel free to add to this list!
 funny_units = ['attoparsecs',
                'light-nanoseconds',
                'metric inches',
@@ -79,7 +81,22 @@ funny_units = ['attoparsecs',
                'barrels of monkeys']
 
 
-  
+class StreamWatcher(threading.Thread):
+    def __init__(self, runmanager, stream, red=False):
+        threading.Thread.__init__(self)
+        self.stream = stream
+        self.runmanager = runmanager
+        self.red = red
+        
+    def run(self):
+        while True:
+            line = self.stream.readline()
+            if line:
+                gtk.gdk.threads_enter()
+                self.runmanager.output(line,red=self.red)
+                gtk.gdk.threads_leave()
+            else:
+                break
                        
 class FileOps:
     def __init__(self, runmanager):
@@ -717,10 +734,10 @@ class RunManager(object):
         pixbuf=gtk.gdk.pixbuf_new_from_file(os.path.join('assets','grey.png'))
         pixmap, mask=pixbuf.render_pixmap_and_mask()
         area.window.set_back_pixmap(pixmap, False)
-        self.output_view.modify_font(pango.FontDescription("monospace 10"))
+        self.output_view.modify_font(pango.FontDescription("monospace 11"))
         self.output_view.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse('black'))
         self.output_view.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse('white'))
-
+        
         self.window.set_icon_from_file(os.path.join('assets','icon.png'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
@@ -736,6 +753,7 @@ class RunManager(object):
         self.make = False
         self.compile = False
         self.run = False
+        self.run_files = []
         
         self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
@@ -876,7 +894,7 @@ class RunManager(object):
         self.output_view.scroll_to_mark(self.text_mark,0)
             
     def parse_globals(self):
-        self.output('Parsing globals...')
+        self.output('Parsing globals...\n')
         sequenceglobals = {}
         for grouptab in self.opentabs:
             if not grouptab.checkbox.get_active():
@@ -900,7 +918,6 @@ class RunManager(object):
                     raise Exception('Error parsing \'%s\' from group \'%s\'. Global name is already defined in another group.'%(globalname,groupname))
                 allglobals[globalname], units = groupglobals[globalname]
         for key in allglobals:
-            print allglobals[key]
             try:
                 value = eval(allglobals[key],pylab.__dict__)
             except Exception as e:
@@ -915,9 +932,15 @@ class RunManager(object):
             names.append(key)
             vals.append(result)
         
-        self.output('done.\n')
         return sequenceglobals, names, vals
-        
+
+    def generate_sequence_number(self):
+        timestamp = str(int(time.time()))
+        scriptname = self.chooser_labscript_file.get_filename()
+        if not scriptname:
+            raise Exception('Error: No labscript file selected')
+        scriptbase = os.path.basename(scriptname).split('.py')[0]
+        return timestamp + scriptbase        
         
     def make_sequence(self, sequenceglobals, names, vals):
         """makes a sequence of hdf5 run files given a set of global
@@ -927,31 +950,56 @@ class RunManager(object):
         dictionary with keys being the name of each group, and values
         being a dictionary of globalname: (value, units)"""
 
-        self.output('generating run files...\n')
+        self.output('Generating run files...\n')
         outfolder = self.chooser_output_directory.get_filename()
+        labscript_file = self.chooser_labscript_file.get_filename()
         sequence_id = self.generate_sequence_number()
         basename = os.path.join(outfolder,sequence_id)
-
+        
         nruns = 1
         for lst in vals:
             nruns *= len(lst)
         ndigits = int(pylab.ceil(pylab.log10(nruns)))
         for i, values in enumerate(itertools.product(*vals)):
             runfilename = ('%s%0'+str(ndigits)+'d.h5')%(basename,i)
-            self.output('creating run file %s/%s : %s'%(str(i+1),str(nruns),runfilename))
+            self.run_files.append(runfilename)
+            self.output('Creating run file %s/%s : %s\n'%(str(i+1),str(nruns),runfilename))
             runglobals = {} 
             for name,val in zip(names,values):
                 runglobals[name] = val
             file_ops.make_single_run_file(runfilename,sequenceglobals,runglobals, sequence_id, i, nruns)
-    
-    def generate_sequence_number(self):
-        timestamp = str(int(time.time()))
-        scriptname = self.chooser_labscript_file.get_filename()
-        if not scriptname:
-            raise Exception('No labscript file selected')
-        scriptbase = os.path.basename(scriptname).split('.py')[0]
-        return timestamp + scriptbase
+        return labscript_file
 
+    def compile_labscript(self, labscript_file):
+        for run_file in self.run_files:
+            print 'compiling!!!'
+            proc = subprocess.Popen(['python','-u',labscript_file,run_file],stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+            gtk.gdk.threads_leave()
+            stdout = StreamWatcher(self,proc.stdout)
+            stderr = StreamWatcher(self,proc.stderr,red=True)
+            stdout.start()
+            stderr.start()
+            gtk.gdk.threads_enter()
+            while stderr.is_alive() and stdout.is_alive():
+                # For some reason, checking if gtk.events_pending()
+                # blocks here!  If anyone would like to tell me why it
+                # blocks when there are other threads running, I would
+                # love to know. I guess in multithreaded applications
+                # you're supposed to return control to the mainloop rather
+                # than this 'update the GUI' trick, and maybe I'll make
+                # the entire 'do_it' callback launch a separate thread
+                # instead, at some point. But for the moment let's just
+                # do the mainloop til the threads die, then we'll wrap
+                # up any remaining events.
+                gtk.main_iteration(False)
+            while gtk.events_pending():
+                gtk.main_iteration(False)
+            # The process won't end itself, even though we read EOF on
+            # both its output streams. I guess this writes EOF to its stdin:
+            dontcare, dontcare_either = proc.communicate() 
+            if proc.returncode:
+                raise Exception('Error: this labscript would not compile.')
+        
     def toggle_parse(self,widget):
         self.parse = widget.get_active()
         if not self.parse:
@@ -981,18 +1029,36 @@ class RunManager(object):
             self.checkbutton_parse.set_active(True)
             self.checkbutton_make.set_active(True)
             self.checkbutton_compile.set_active(True) 
+    
+    def ask_delete_run_files(self):
+        md = gtk.MessageDialog(self.window, 
+        gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, 
+        buttons =(gtk.BUTTONS_OK_CANCEL),
+        message_format = "Run aborted. Would you like to delete the hdf5 files that were created?")
+        result = md.run()
+        md.destroy()
+        if result == gtk.RESPONSE_OK:
+            for run_file in self.run_files:
+                os.remove(run_file)
                      
     def do_it(self,*args):
         try:
             if self.parse:
                 sequenceglobals, names, vals = self.parse_globals()
             if self.make:
-                self.make_sequence(sequenceglobals, names, vals)
+                labscript_file = self.make_sequence(sequenceglobals, names, vals)
+            if self.compile:
+                self.compile_labscript(labscript_file)
         except Exception as e:
             self.output(str(e)+'\n',red=True)
-            self.output('\nReady')
-            
-if __name__ == '__main__':        
+            self.output('Run aborted\n',red=True)
+            if self.run_files:
+                self.ask_delete_run_files()
+        self.run_files = []
+        self.output('Ready\n')
+        
+if __name__ == '__main__':    
+    gtk.gdk.threads_init()    
     run_manager = RunManager()
     file_ops = FileOps(run_manager)
     gtk.main()
