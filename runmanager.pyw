@@ -278,8 +278,10 @@ class Global(object):
     def __init__(self, group, name):
         self.name = name
         self.group = group
-        self.table = self.group.global_table
-        n_globals = len(self.group.globals)
+        self.list_name = self.group.builder.get_object('vbox_name')
+        self.list_value = self.group.builder.get_object('vbox_value')
+        self.list_units = self.group.builder.get_object('vbox_units')
+        self.list_buttons = self.group.builder.get_object('vbox_buttons')
         self.filepath = self.group.filepath
         
         self.builder = gtk.Builder()
@@ -307,23 +309,20 @@ class Global(object):
         self.entry_value.set_text(str(value))
         self.label_units.set_text(units)
         
-        self.insert_at_position(n_globals + 1)
-        
-        self.builder.connect_signals(self)
-        
-        self.undo_backup = ''
-        
-    def insert_at_position(self,n):
-        self.table.attach(self.vbox_name,0,1,n,n+1)
-        self.table.attach(self.vbox_value,1,2,n,n+1)
-        self.table.attach(self.vbox_units,2,3,n,n+1)
-        self.table.attach(self.vbox_buttons,3,4,n,n+1)
+        self.list_name.pack_start(self.vbox_name)
+        self.list_value.pack_start(self.vbox_value)
+        self.list_units.pack_start(self.vbox_units)
+        self.list_buttons.pack_start(self.vbox_buttons)
         
         self.vbox_name.show()
         self.vbox_units.show()
         self.vbox_buttons.show()
         self.vbox_value.show()
-    
+        
+        self.builder.connect_signals(self)
+        
+        self.undo_backup = ''
+        
     def focus_in(self, widget, event):
         """Called whenever one of the three text entries gains focus. If
         it's the value entry, then we want to store its existing value
@@ -441,10 +440,10 @@ class Global(object):
         if result == gtk.RESPONSE_OK:
             success = file_ops.delete_global(self.filepath,self.group.name,
                                              self.entry_name.get_text())
-            self.table.remove(self.vbox_name)
-            self.table.remove(self.vbox_value)
-            self.table.remove(self.vbox_units)
-            self.table.remove(self.vbox_buttons)
+            self.list_name.remove(self.vbox_name)
+            self.list_value.remove(self.vbox_value)
+            self.list_units.remove(self.vbox_units)
+            self.list_buttons.remove(self.vbox_buttons)
             self.group.globals.remove(self)
             self.group.entry_new_global.grab_focus()
             
@@ -577,8 +576,10 @@ class GroupTab(object):
             widget.set_text(self.label_groupname.get_text())
         
     def on_new_global_clicked(self,button):
-        print 'new global clicked!'
         name = self.entry_new_global.get_text()
+        if not name:
+            # Do nothing if the textbox is empty:
+            return
         self.adjustment.value = self.adjustment.upper  
         success = file_ops.new_global(self.filepath, self.name, name)
         if success:
@@ -996,7 +997,7 @@ class RunManager(object):
                 gtk.main_iteration(False)
             # The process won't end itself, even though we read EOF on
             # both its output streams. I guess this writes EOF to its stdin:
-            dontcare, dontcare_either = proc.communicate() 
+            dontcare, go_away = proc.communicate() 
             if proc.returncode:
                 raise Exception('Error: this labscript would not compile.')
         
