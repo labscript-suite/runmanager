@@ -1062,7 +1062,9 @@ if __name__ == '__main__':
     gtk.gdk.threads_init()    
     run_manager = RunManager()
     file_ops = FileOps(run_manager)
+    gtk.gdk.threads_enter()
     gtk.main()
+    gtk.gdk.threads_leave()
     
     
     
