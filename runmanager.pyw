@@ -25,11 +25,25 @@ if not sys.stdout.isatty():
     
 if os.name == 'nt':
     # Make it not look so terrible (if icons and themes are installed):
+        
+    # Collect defaults so that we can fallback:
+    default_icon = gtk.settings_get_default().get_property('gtk-icon-theme-name')
+    default_theme = gtk.settings_get_default().get_property('gtk-theme-name')
+    default_font = gtk.settings_get_default().get_property('gtk-font-name')
+    
     gtk.settings_get_default().set_string_property('gtk-icon-theme-name','gnome-human','')
     gtk.settings_get_default().set_string_property('gtk-theme-name','Clearlooks','')
     gtk.settings_get_default().set_string_property('gtk-font-name','ubuntu 11','')
     gtk.settings_get_default().set_long_property('gtk-button-images',False,'')
-
+    
+    #If they didn't apply, fallback to previous values (The default fallbacks are even uglier):
+    if not gtk.settings_get_default().get_property('gtk-icon-theme-name') == 'gnome-human':
+        gtk.settings_get_default().set_string_property('gtk-icon-theme-name',default_icon,'')
+    if not gtk.settings_get_default().get_property('gtk-theme-name') == 'Clearlooks':
+        gtk.settings_get_default().set_string_property('gtk-theme-name',default_theme,'')
+    if not gtk.settings_get_default().get_property('gtk-font-name') == 'ubuntu 11':
+        gtk.settings_get_default().set_string_property('gtk-font-name',default_font,'')
+    
     # Have Windows 7 consider this program to be a separate app, and not
     # group it with other Python programs in the taskbar:
     import ctypes
