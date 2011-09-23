@@ -1031,20 +1031,24 @@ class RunManager(object):
                 os.remove(run_file)
 
     def do_it(self, *args):
+        self.builder.get_object('button_run').set_sensitive(False)
         gtk.gdk.threads_leave()
         threading.Thread(target = self._do_it).start()
         gtk.gdk.threads_enter()
         
     def _do_it(self):
         try:
-            gtk.gdk.threads_enter()
-            if self.parse:
-                sequenceglobals, names, vals = self.parse_globals()
-            gtk.gdk.threads_leave()
-            gtk.gdk.threads_enter()
-            if self.make:
-                labscript_file = self.make_sequence(sequenceglobals, names, vals)
-            gtk.gdk.threads_leave()
+            try:
+                gtk.gdk.threads_enter()
+                if self.parse:
+                    sequenceglobals, names, vals = self.parse_globals()
+                if self.make:
+                    labscript_file = self.make_sequence(sequenceglobals, names, vals)
+                gtk.gdk.threads_leave()
+            except:
+                raise
+            finally:
+                gtk.gdk.threads_leave()
             if self.compile:
                 self.compile_labscript(labscript_file)
         except Exception as e:
@@ -1057,6 +1061,7 @@ class RunManager(object):
         self.run_files = []
         gtk.gdk.threads_enter()
         self.output('Ready\n')
+        self.builder.get_object('button_run').set_sensitive(True)
         gtk.gdk.threads_leave()
         
 if __name__ == '__main__':    
