@@ -1,26 +1,22 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0"?>
 <interface>
-  <!-- interface-requires gtk+ 2.12 -->
+  <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy project-wide -->
   <object class="GtkHBox" id="toplevel">
     <property name="visible">True</property>
-    <property name="can_focus">False</property>
     <child>
       <object class="GtkHBox" id="hbox1">
         <property name="visible">True</property>
-        <property name="can_focus">False</property>
         <child>
           <object class="GtkToggleButton" id="toggle_edit">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="receives_default">True</property>
-            <property name="use_action_appearance">False</property>
             <property name="relief">none</property>
-            <signal name="toggled" handler="on_edit_toggled" swapped="no"/>
+            <signal name="toggled" handler="on_edit_toggled"/>
             <child>
               <object class="GtkImage" id="image6">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
                 <property name="stock">gtk-edit</property>
                 <property name="icon-size">1</property>
               </object>
@@ -35,17 +31,15 @@
         <child>
           <object class="GtkVBox" id="vbox_name">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
+            <property name="orientation">vertical</property>
             <child>
               <object class="GtkLabel" id="label_name">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
                 <property name="xalign">1</property>
                 <property name="xpad">10</property>
                 <property name="label" translatable="yes">&lt;Group_name&gt;</property>
               </object>
               <packing>
-                <property name="expand">True</property>
                 <property name="fill">False</property>
                 <property name="position">0</property>
               </packing>
@@ -53,15 +47,13 @@
             <child>
               <object class="GtkEntry" id="entry_name">
                 <property name="can_focus">True</property>
-                <property name="invisible_char">•</property>
+                <property name="invisible_char">&#x2022;</property>
                 <property name="text" translatable="yes">&lt;Variable_name&gt;</property>
                 <property name="xalign">1</property>
-                <property name="primary_icon_activatable">False</property>
-                <property name="secondary_icon_activatable">False</property>
                 <property name="primary_icon_sensitive">True</property>
                 <property name="secondary_icon_sensitive">True</property>
-                <signal name="key-press-event" handler="on_entry_keypress" swapped="no"/>
-                <signal name="focus-out-event" handler="focus_out" swapped="no"/>
+                <signal name="key_press_event" handler="on_entry_keypress"/>
+                <signal name="focus_out_event" handler="focus_out"/>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -86,15 +78,11 @@
     <child>
       <object class="GtkHBox" id="hbox_buttons">
         <property name="visible">True</property>
-        <property name="can_focus">False</property>
         <child>
           <object class="GtkLabel" id="label1">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
           </object>
           <packing>
-            <property name="expand">True</property>
-            <property name="fill">True</property>
             <property name="position">0</property>
           </packing>
         </child>
@@ -102,13 +90,11 @@
           <object class="GtkButton" id="button_close">
             <property name="can_focus">False</property>
             <property name="receives_default">True</property>
-            <property name="use_action_appearance">False</property>
             <property name="relief">none</property>
-            <signal name="clicked" handler="on_close_clicked" swapped="no"/>
+            <signal name="clicked" handler="on_close_clicked"/>
             <child>
               <object class="GtkImage" id="image2">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
                 <property name="stock">gtk-no</property>
                 <property name="icon-size">1</property>
               </object>
@@ -125,13 +111,11 @@
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="receives_default">True</property>
-            <property name="use_action_appearance">False</property>
             <property name="relief">none</property>
-            <signal name="clicked" handler="on_import_clicked" swapped="no"/>
+            <signal name="clicked" handler="on_import_clicked"/>
             <child>
               <object class="GtkImage" id="image1">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
                 <property name="stock">gtk-add</property>
                 <property name="icon-size">1</property>
               </object>
@@ -148,13 +132,11 @@
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="receives_default">True</property>
-            <property name="use_action_appearance">False</property>
             <property name="relief">none</property>
-            <signal name="clicked" handler="on_remove_clicked" swapped="no"/>
+            <signal name="clicked" handler="on_remove_clicked"/>
             <child>
               <object class="GtkImage" id="image7">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
                 <property name="stock">gtk-remove</property>
                 <property name="icon-size">1</property>
               </object>
@@ -168,8 +150,6 @@
         </child>
       </object>
       <packing>
-        <property name="expand">True</property>
-        <property name="fill">True</property>
         <property name="position">1</property>
       </packing>
     </child>
