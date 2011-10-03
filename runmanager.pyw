@@ -995,7 +995,7 @@ class RunManager(object):
         server = self.builder.get_object('entry_server').get_text()
         if not server.startswith('http://'):
             server = 'http://'+server
-        port = 427513
+        port = 42517
         for run_file in run_files:
             gtk.gdk.threads_enter()
             self.output('Submitting run file %s.\n'%os.path.basename(run_file))
