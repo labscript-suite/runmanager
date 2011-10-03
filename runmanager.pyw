@@ -8,6 +8,8 @@ import itertools
 import types
 import subprocess
 import threading
+import urllib, urllib2
+
 import gtk
 import gobject
 import pango
@@ -988,6 +990,22 @@ class RunManager(object):
                 while not (proc.stdout.closed and proc.stderr.closed):
                     continue
                 raise Exception('Error: this labscript would not compile.')
+    
+    def submit_jobs(self, run_files):
+        server = self.builder.get_object('entry_server').get_text()
+        if not server.startswith('http://'):
+            server = 'http://'+server
+        port = 427513
+        for run_file in run_files:
+            gtk.gdk.threads_enter()
+            self.output('Submitting run file %s.\n'%os.path.basename(run_file))
+            gtk.gdk.threads_leave()
+            params = urllib.urlencode({'filepath': run_file})
+            try:
+                response = urllib2.urlopen('%s:%d'%(server,port), params, 2).read()
+                print response
+            except Exception as e:
+                raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.\n%s'%str(e))
         
     def toggle_parse(self,widget):
         self.parse = widget.get_active()
@@ -1051,6 +1069,8 @@ class RunManager(object):
                 gtk.gdk.threads_leave()
             if self.compile:
                 self.compile_labscript(labscript_file)
+            if self.run:
+                self.submit_jobs(self.run_files)
         except Exception as e:
             gtk.gdk.threads_enter()
             self.output(str(e)+'\n',red=True)
@@ -1058,6 +1078,7 @@ class RunManager(object):
             if self.run_files:
                 self.ask_delete_run_files()
             gtk.gdk.threads_leave()
+        print 1
         self.run_files = []
         gtk.gdk.threads_enter()
         self.output('Ready\n')

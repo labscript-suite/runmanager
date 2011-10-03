@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy project-wide -->
@@ -17,7 +17,6 @@
         <child>
           <object class="GtkVBox" id="vbox2">
             <property name="visible">True</property>
-            <property name="orientation">vertical</property>
             <child>
               <object class="GtkHBox" id="hbox2">
                 <property name="visible">True</property>
@@ -104,7 +103,6 @@
                 <child>
                   <object class="GtkVBox" id="vbox3">
                     <property name="visible">True</property>
-                    <property name="orientation">vertical</property>
                     <child>
                       <object class="GtkFrame" id="frame2">
                         <property name="visible">True</property>
@@ -121,7 +119,6 @@
                                 <child>
                                   <object class="GtkVBox" id="vbox4">
                                     <property name="visible">True</property>
-                                    <property name="orientation">vertical</property>
                                     <property name="homogeneous">True</property>
                                     <child>
                                       <object class="GtkLabel" id="label7">
@@ -166,7 +163,6 @@
                                 <child>
                                   <object class="GtkVBox" id="vbox5">
                                     <property name="visible">True</property>
-                                    <property name="orientation">vertical</property>
                                     <property name="homogeneous">True</property>
                                     <child>
                                       <object class="GtkFileChooserButton" id="chooser_labscript_file">
@@ -193,11 +189,11 @@
                                       </packing>
                                     </child>
                                     <child>
-                                      <object class="GtkEntry" id="entry5">
+                                      <object class="GtkEntry" id="entry_server">
                                         <property name="width_request">300</property>
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
-                                        <property name="invisible_char">&#x2022;</property>
+                                        <property name="invisible_char">•</property>
                                         <property name="text" translatable="yes">w-cl27-g46-krb-control</property>
                                         <property name="primary_icon_sensitive">True</property>
                                         <property name="secondary_icon_sensitive">True</property>
@@ -252,14 +248,12 @@
                               <object class="GtkVBox" id="vbox_runcontrol">
                                 <property name="visible">True</property>
                                 <property name="border_width">12</property>
-                                <property name="orientation">vertical</property>
                                 <child>
                                   <object class="GtkHBox" id="hbox4">
                                     <property name="visible">True</property>
                                     <child>
                                       <object class="GtkVBox" id="vbox6">
                                         <property name="visible">True</property>
-                                        <property name="orientation">vertical</property>
                                         <child>
                                           <object class="GtkHButtonBox" id="hbuttonbox1">
                                             <property name="visible">True</property>
@@ -377,7 +371,6 @@
                                             <child>
                                               <object class="GtkVBox" id="vbox8">
                                                 <property name="visible">True</property>
-                                                <property name="orientation">vertical</property>
                                                 <child>
                                                   <object class="GtkCheckButton" id="checkbutton_parse">
                                                     <property name="label" translatable="yes">Parse globals</property>
@@ -556,14 +549,12 @@
               <object class="GtkVBox" id="vbox9">
                 <property name="visible">True</property>
                 <property name="border_width">15</property>
-                <property name="orientation">vertical</property>
                 <child>
                   <object class="GtkHBox" id="hbox6">
                     <property name="visible">True</property>
                     <child>
                       <object class="GtkVBox" id="vbox11">
                         <property name="visible">True</property>
-                        <property name="orientation">vertical</property>
                         <property name="homogeneous">True</property>
                         <child>
                           <object class="GtkLabel" id="label15">
@@ -596,7 +587,6 @@
                     <child>
                       <object class="GtkVBox" id="vbox12">
                         <property name="visible">True</property>
-                        <property name="orientation">vertical</property>
                         <property name="homogeneous">True</property>
                         <child>
                           <object class="GtkFileChooserButton" id="chooser_h5_file">
@@ -607,6 +597,8 @@
                             <signal name="selection_changed" handler="on_selection_changed"/>
                           </object>
                           <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
                             <property name="position">0</property>
                           </packing>
                         </child>
@@ -631,7 +623,6 @@
                                 <child>
                                   <object class="GtkHBox" id="hbox7">
                                     <property name="visible">True</property>
-                                    <property name="orientation">vertical</property>
                                     <child>
                                       <object class="GtkImage" id="image4">
                                         <property name="visible">True</property>
@@ -702,7 +693,6 @@
               <object class="GtkVBox" id="vbox13">
                 <property name="visible">True</property>
                 <property name="border_width">15</property>
-                <property name="orientation">vertical</property>
                 <child>
                   <object class="GtkFrame" id="frame7">
                     <property name="visible">True</property>
@@ -726,12 +716,10 @@
                                 <child>
                                   <object class="GtkVBox" id="vbox1">
                                     <property name="visible">True</property>
-                                    <property name="orientation">vertical</property>
                                     <child>
                                       <object class="GtkVBox" id="grouplist_vbox">
                                         <property name="visible">True</property>
                                         <property name="border_width">15</property>
-                                        <property name="orientation">vertical</property>
                                         <child>
                                           <object class="GtkLabel" id="label_no_file_opened">
                                             <property name="visible">True</property>
@@ -792,7 +780,7 @@
                           <object class="GtkEntry" id="entry_tabname">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
-                            <property name="invisible_char">&#x2022;</property>
+                            <property name="invisible_char">•</property>
                             <property name="primary_icon_sensitive">True</property>
                             <property name="secondary_icon_sensitive">True</property>
                             <signal name="activate" handler="button_create_new_group"/>
