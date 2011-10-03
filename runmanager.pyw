@@ -1075,8 +1075,8 @@ class RunManager(object):
             gtk.gdk.threads_enter()
             self.output(str(e)+'\n',red=True)
             self.output('Run aborted\n',red=True)
-            if self.run_files:
-                self.ask_delete_run_files()
+            #if self.run_files:
+                #self.ask_delete_run_files()
             gtk.gdk.threads_leave()
         print 1
         self.run_files = []
