@@ -258,6 +258,42 @@
                                           <object class="GtkHButtonBox" id="hbuttonbox1">
                                             <property name="visible">True</property>
                                             <child>
+                                              <object class="GtkButton" id="button_abort">
+                                                <property name="can_focus">True</property>
+                                                <property name="receives_default">True</property>
+                                                <property name="relief">none</property>
+                                                <signal name="clicked" handler="on_abort_clicked"/>
+                                                <child>
+                                                  <object class="GtkHBox" id="hbox15">
+                                                    <property name="visible">True</property>
+                                                    <child>
+                                                      <object class="GtkImage" id="image9">
+                                                        <property name="visible">True</property>
+                                                        <property name="stock">gtk-stop</property>
+                                                      </object>
+                                                      <packing>
+                                                        <property name="position">0</property>
+                                                      </packing>
+                                                    </child>
+                                                    <child>
+                                                      <object class="GtkLabel" id="label10">
+                                                        <property name="visible">True</property>
+                                                        <property name="label" translatable="yes">Abort</property>
+                                                      </object>
+                                                      <packing>
+                                                        <property name="position">1</property>
+                                                      </packing>
+                                                    </child>
+                                                  </object>
+                                                </child>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">False</property>
+                                                <property name="position">0</property>
+                                              </packing>
+                                            </child>
+                                            <child>
                                               <object class="GtkButton" id="button_run">
                                                 <property name="visible">True</property>
                                                 <property name="can_focus">True</property>
@@ -292,7 +328,7 @@
                                               <packing>
                                                 <property name="expand">False</property>
                                                 <property name="fill">False</property>
-                                                <property name="position">0</property>
+                                                <property name="position">1</property>
                                               </packing>
                                             </child>
                                           </object>
@@ -411,6 +447,19 @@
                                                   </packing>
                                                 </child>
                                                 <child>
+                                                  <object class="GtkCheckButton" id="checkbutton_view">
+                                                    <property name="label" translatable="yes">View run(s)</property>
+                                                    <property name="visible">True</property>
+                                                    <property name="can_focus">True</property>
+                                                    <property name="receives_default">False</property>
+                                                    <property name="draw_indicator">True</property>
+                                                    <signal name="toggled" handler="toggle_view"/>
+                                                  </object>
+                                                  <packing>
+                                                    <property name="position">3</property>
+                                                  </packing>
+                                                </child>
+                                                <child>
                                                   <object class="GtkCheckButton" id="checkbutton_run">
                                                     <property name="label" translatable="yes">Run experiment(s)</property>
                                                     <property name="visible">True</property>
@@ -420,7 +469,7 @@
                                                     <signal name="toggled" handler="toggle_run"/>
                                                   </object>
                                                   <packing>
-                                                    <property name="position">3</property>
+                                                    <property name="position">4</property>
                                                   </packing>
                                                 </child>
                                               </object>

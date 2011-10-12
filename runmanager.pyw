@@ -103,6 +103,9 @@ class StreamWatcher(threading.Thread):
             else:
                 self.stream.close()
                 break
+            if self.runmanager.aborted:
+                self.stream.close()
+                break
                        
 class FileOps:
     def __init__(self, runmanager):
@@ -732,6 +735,7 @@ class RunManager(object):
         self.checkbutton_parse = self.builder.get_object('checkbutton_parse')
         self.checkbutton_make = self.builder.get_object('checkbutton_make')
         self.checkbutton_compile = self.builder.get_object('checkbutton_compile')
+        self.checkbutton_view = self.builder.get_object('checkbutton_view')
         self.checkbutton_run = self.builder.get_object('checkbutton_run')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
 
@@ -759,8 +763,10 @@ class RunManager(object):
         self.parse = False
         self.make = False
         self.compile = False
+        self.view = False
         self.run = False
         self.run_files = []
+        self.aborted = False
         
         self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
@@ -878,7 +884,7 @@ class RunManager(object):
             window = gtk.Window()
             window.add(self.scrolledwindow_output)
             window.connect('destroy',self.pop_out_in)
-            window.resize(min(max(200,screen.get_width() - self.window.get_size()[0]),screen.get_width()/2),screen.get_height())#self.window.get_size()[1])
+            window.resize(800,800)#self.window.get_size()[1])
             window.set_title('labscript run manager output')
             icon_theme = gtk.icon_theme_get_default()
             pb = icon_theme.load_icon('utilities-terminal', gtk.ICON_SIZE_MENU,0)
@@ -989,7 +995,11 @@ class RunManager(object):
             if proc.returncode:
                 while not (proc.stdout.closed and proc.stderr.closed):
                     continue
-                raise Exception('Error: this labscript would not compile.')
+                if not self.aborted:
+                    raise Exception('Error: this labscript would not compile.')
+                else:
+                    raise Exception('Complilation interrupted.')
+                    
     
     def submit_jobs(self, run_files):
         server = self.builder.get_object('entry_server').get_text()
@@ -997,6 +1007,8 @@ class RunManager(object):
             server = 'http://'+server
         port = 42517
         for run_file in run_files:
+            if self.aborted:
+                raise Exception('Job submission interrupted.')
             gtk.gdk.threads_enter()
             self.output('Submitting run file %s.\n'%os.path.basename(run_file))
             gtk.gdk.threads_leave()
@@ -1005,13 +1017,14 @@ class RunManager(object):
                 response = urllib2.urlopen('%s:%d'%(server,port), params, 2).read()
                 print response
             except Exception as e:
-                raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.\n%s'%str(e))
+                raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.%s'%str(e))
         
     def toggle_parse(self,widget):
         self.parse = widget.get_active()
         if not self.parse:
             self.checkbutton_make.set_active(False)
             self.checkbutton_compile.set_active(False)
+            self.checkbutton_view.set_active(False)
             self.checkbutton_run.set_active(False)
            
     def toggle_make(self,widget):
@@ -1020,6 +1033,7 @@ class RunManager(object):
             self.checkbutton_parse.set_active(True)
         else:
             self.checkbutton_compile.set_active(False)
+            self.checkbutton_view.set_active(False)
             self.checkbutton_run.set_active(False)        
     
     def toggle_compile(self,widget):
@@ -1028,8 +1042,16 @@ class RunManager(object):
             self.checkbutton_parse.set_active(True)
             self.checkbutton_make.set_active(True)
         else:
+            self.checkbutton_view.set_active(False)
             self.checkbutton_run.set_active(False) 
     
+    def toggle_view(self,widget):
+        self.view = widget.get_active()
+        if self.view:
+            self.checkbutton_parse.set_active(True)
+            self.checkbutton_make.set_active(True)
+            self.checkbutton_compile.set_active(True) 
+            
     def toggle_run(self,widget):
         self.run = widget.get_active()
         if self.run:
@@ -1049,10 +1071,14 @@ class RunManager(object):
                 os.remove(run_file)
 
     def do_it(self, *args):
-        self.builder.get_object('button_run').set_sensitive(False)
+        self.builder.get_object('button_run').set_visible(False)
+        self.builder.get_object('button_abort').set_visible(True)
         gtk.gdk.threads_leave()
         threading.Thread(target = self._do_it).start()
         gtk.gdk.threads_enter()
+        
+    def on_abort_clicked(self, *args):
+        self.aborted = True
         
     def _do_it(self):
         try:
@@ -1078,12 +1104,14 @@ class RunManager(object):
             #if self.run_files:
                 #self.ask_delete_run_files()
             gtk.gdk.threads_leave()
-        print 1
+
         self.run_files = []
         gtk.gdk.threads_enter()
         self.output('Ready\n')
-        self.builder.get_object('button_run').set_sensitive(True)
+        self.builder.get_object('button_run').set_visible(True)
+        self.builder.get_object('button_abort').set_visible(False)
         gtk.gdk.threads_leave()
+        self.aborted = False
         
 if __name__ == '__main__':    
     gtk.gdk.threads_init()    
