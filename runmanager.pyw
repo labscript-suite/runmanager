@@ -8,7 +8,7 @@ import itertools
 import types
 import subprocess
 import threading
-import urllib, urllib2
+import urllib, urllib2, socket
 
 import gtk
 import gobject
@@ -1006,9 +1006,9 @@ class RunManager(object):
         
     def submit_jobs(self, run_files):
         server = self.builder.get_object('entry_server').get_text()
-        if not server.startswith('http://'):
-            server = 'http://'+server
         port = 42517
+        # Workaround to force python not to use IPv6 for the request:
+        address  = socket.gethostbyname(server)
         for run_file in run_files:
             if self.aborted:
                 raise Exception('Job submission interrupted.')
@@ -1017,7 +1017,7 @@ class RunManager(object):
             gtk.gdk.threads_leave()
             params = urllib.urlencode({'filepath': run_file})
             try:
-                response = urllib2.urlopen('%s:%d'%(server,port), params, 2).read()
+                response = urllib2.urlopen('http://%s:%d'%(address,port), params, 2).read()
                 print response
             except Exception as e:
                 raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.%s'%str(e))
