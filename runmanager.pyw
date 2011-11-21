@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os
 import sys
 import time
@@ -17,7 +15,7 @@ import pango
 import h5py
 
 import pylab
-
+import excepthook
 
 
 # This provides debug info without having to run from a terminal, and
@@ -1018,9 +1016,13 @@ class RunManager(object):
             params = urllib.urlencode({'filepath': run_file})
             try:
                 response = urllib2.urlopen('http://%s:%d'%(address,port), params, 2).read()
-                print response
+                if 'added successfully' in response:
+                    with gtk.gdk.lock:
+                        self.output(response)
+                else:
+                    raise Exception(response)
             except Exception as e:
-                raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.%s'%str(e))
+                raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.\n%s'%str(e))
         
     def toggle_parse(self,widget):
         self.parse = widget.get_active()
