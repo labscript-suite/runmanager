@@ -147,7 +147,7 @@
                                         <property name="visible">True</property>
                                         <property name="xalign">1</property>
                                         <property name="xpad">15</property>
-                                        <property name="label" translatable="yes">LabVIEW server</property>
+                                        <property name="label" translatable="yes">Control server</property>
                                       </object>
                                       <packing>
                                         <property name="position">2</property>
@@ -169,6 +169,7 @@
                                         <property name="visible">True</property>
                                         <property name="filter">filefilter2</property>
                                         <property name="local_only">False</property>
+                                        <signal name="file_set" handler="labscript_file_selected"/>
                                       </object>
                                       <packing>
                                         <property name="expand">False</property>
@@ -194,7 +195,7 @@
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
                                         <property name="invisible_char">•</property>
-                                        <property name="text" translatable="yes">w-cl27-g46-krb-control</property>
+                                        <property name="text" translatable="yes">localhost</property>
                                         <property name="primary_icon_sensitive">True</property>
                                         <property name="secondary_icon_sensitive">True</property>
                                       </object>

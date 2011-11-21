@@ -750,7 +750,7 @@ class RunManager(object):
         self.window.set_icon_from_file(os.path.join('assets','icon.png'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
-        
+        self.chooser_labscript_file.set_current_folder(r'Z:\\Experiments') # Will only happen if folder exists
         self.builder.connect_signals(self)
         self.outputscrollbar.connect_after('value-changed', self.on_scroll)
         
@@ -802,6 +802,10 @@ class RunManager(object):
             parent = self.scrolledwindow_output.get_parent()
             if isinstance(parent,gtk.Window):
                 parent.queue_draw()
+    
+    def labscript_file_selected(self,chooser):
+        filename = chooser.get_filename()
+        self.chooser_output_directory.select_filename(filename)
                                 
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
@@ -812,7 +816,6 @@ class RunManager(object):
             self.opentabs.append(GroupTab(self, filepath, name))
             self.grouplist.append(GroupListEntry(self, filepath, name))
             entry_name.set_text('')
-    
     
     def update_grouplist(self,chooser=None):
         if not chooser:
@@ -833,11 +836,9 @@ class RunManager(object):
                 chooser.unselect_all()
         return True
     
-    
     def on_selection_changed(self,chooser):
         if not self.chooser_h5_file.get_filename() and not self.making_new_file:
             self.update_grouplist(chooser)
-            
             
     def on_new_file_clicked(self,*args):
         chooser = gtk.FileChooserDialog(title='Save new HDF5 file',action=gtk.FILE_CHOOSER_ACTION_SAVE,
