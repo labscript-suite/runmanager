@@ -947,7 +947,7 @@ class RunManager(object):
         return sequenceglobals, names, vals
 
     def generate_sequence_number(self):
-        timestamp = time.strftime('%Y-%m-%dT%X',time.localtime())
+        timestamp = time.strftime('%Y%m%dT%H%M%S',time.localtime())
         scriptname = self.chooser_labscript_file.get_filename()
         if not scriptname:
             raise Exception('Error: No labscript file selected')
