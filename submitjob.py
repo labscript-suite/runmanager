@@ -1,7 +1,6 @@
 import sys,os
 import socket
 import urllib, urllib2
-import excepthook
 
 def submit_job(run_file,server):
     port = 42517
@@ -12,7 +11,7 @@ def submit_job(run_file,server):
     try:
         response = urllib2.urlopen('http://%s:%d'%(address,port), params, 2).read()
         if 'added successfully' in response:
-            print response
+            return response
         else:
             raise Exception(response)
     except Exception as e:
@@ -30,4 +29,4 @@ if __name__ == '__main__':
         print 'Usage: python -m runviewer.submitjob [server-name] run_file.h5'
         sys.exit(1)
         
-    submit_job(run_file,server)
+    print submit_job(run_file,server)
