@@ -971,7 +971,7 @@ class RunManager(object):
         nruns = 1
         for lst in vals:
             nruns *= len(lst)
-        ndigits = 5 # Fixed number of digits for the moment #int(pylab.ceil(pylab.log10(nruns)))
+        ndigits = int(pylab.ceil(pylab.log10(nruns)))
         for i, values in enumerate(itertools.product(*vals)):
             runfilename = ('%s_%0'+str(ndigits)+'d.h5')%(basename,i)
             self.run_files.append(runfilename)
