@@ -947,12 +947,12 @@ class RunManager(object):
         return sequenceglobals, names, vals
 
     def generate_sequence_number(self):
-        timestamp = str(int(time.time()))
+        timestamp = time.strftime('%Y-%m-%dT%X',time.localtime())
         scriptname = self.chooser_labscript_file.get_filename()
         if not scriptname:
             raise Exception('Error: No labscript file selected')
         scriptbase = os.path.basename(scriptname).split('.py')[0]
-        return timestamp + scriptbase        
+        return timestamp + '_' + scriptbase        
         
     def make_sequence(self, sequenceglobals, names, vals):
         """makes a sequence of hdf5 run files given a set of global
@@ -971,9 +971,9 @@ class RunManager(object):
         nruns = 1
         for lst in vals:
             nruns *= len(lst)
-        ndigits = int(pylab.ceil(pylab.log10(nruns)))
+        ndigits = 5 # Fixed number of digits for the moment #int(pylab.ceil(pylab.log10(nruns)))
         for i, values in enumerate(itertools.product(*vals)):
-            runfilename = ('%s%0'+str(ndigits)+'d.h5')%(basename,i)
+            runfilename = ('%s_%0'+str(ndigits)+'d.h5')%(basename,i)
             self.run_files.append(runfilename)
             self.output('Creating run file %s/%s : %s\n'%(str(i+1),str(nruns),runfilename))
             runglobals = {} 
