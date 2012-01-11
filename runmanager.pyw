@@ -765,7 +765,7 @@ class RunManager(object):
         self.run = False
         self.run_files = []
         self.aborted = False
-        
+        self.current_labscript_file = None
         self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
         self.output('Ready\n')
@@ -806,6 +806,17 @@ class RunManager(object):
     def labscript_file_selected(self,chooser):
         filename = chooser.get_filename()
         self.chooser_output_directory.select_filename(filename)
+        self.current_labscript_file = filename
+        
+    def labscript_selection_changed(self, chooser):
+        """A hack to allow a file which is deleted and quickly recreated to not
+        be unselected by the file chooser widget. This is the case when Vim saves a file,
+        so this saves Vim users from reselecting the labscript file constantly."""
+        if not chooser.get_filename():
+            def keep_current_filename(filename):
+                chooser.select_filename(filename)
+            if self.current_labscript_file:
+                gobject.timeout_add(100, keep_current_filename,self.current_labscript_file)
                                 
     def button_create_new_group(self,*args):
         entry_name = self.builder.get_object('entry_tabname')
