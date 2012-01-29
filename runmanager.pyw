@@ -1009,7 +1009,9 @@ class RunManager(object):
                     raise Exception('Error: this labscript would not compile.')
                 else:
                     raise Exception('Complilation interrupted.')
-                    
+            if self.run:
+                self.submit_jobs([run_file])
+                
     def view_runs(self, run_files):
         print run_files[0]
         subprocess.Popen(['python','-m','runviewer.qtrunviewer',run_files[0]]).wait()
@@ -1114,8 +1116,6 @@ class RunManager(object):
                 self.compile_labscript(labscript_file)
             if self.view:
                 self.view_runs(self.run_files)
-            if self.run:
-                self.submit_jobs(self.run_files)
         except Exception as e:
             gtk.gdk.threads_enter()
             self.output(str(e)+'\n',red=True)
