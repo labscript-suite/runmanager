@@ -886,14 +886,14 @@ class RunManager(object):
                 server_name = socket.gethostname()             
                 
             if 'g07a' in server_name:
-                new_path += '\\spinorlab'
+                new_path += '\\spinor_lab'
             elif 'g46' in server_name:
                 if 'krb' in server_name:
-                    new_path += '\\dualspecieslab\\krb'
+                    new_path += '\\dual_species_lab\\krb'
                 elif 'narb' in server_name:
-                    new_path += '\\dualspecieslab\\narb'
+                    new_path += '\\dual_species_lab\\narb'
                 else:
-                    new_path += '\\dualspecieslab\\other'
+                    new_path += '\\dual_species_lab\\other'
             else:
                 new_path += '\\other'
                 
