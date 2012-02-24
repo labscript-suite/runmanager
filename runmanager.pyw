@@ -7,6 +7,7 @@ import types
 import subprocess
 import threading
 import urllib, urllib2, socket
+import win32com.client
 
 import gtk
 import gobject
@@ -750,7 +751,7 @@ class RunManager(object):
         self.window.set_icon_from_file(os.path.join('assets','icon.png'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
-        self.chooser_labscript_file.set_current_folder(r'Z:\\Experiments') # Will only happen if folder exists
+        self.chooser_labscript_file.set_current_folder(r'C:\\user_scripts\\labscriptlib') # Will only happen if folder exists
         self.builder.connect_signals(self)
         self.outputscrollbar.connect_after('value-changed', self.on_scroll)
         
@@ -768,6 +769,10 @@ class RunManager(object):
         self.current_labscript_file = None
         self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
+        # Add timeout to watch for output folder changes when the day rolls over
+        gobject.timeout_add(1000, self.update_output_dir)
+        self.current_day = time.strftime('\\%Y-%b\\%d')
+        
         self.output('Ready\n')
          
     def on_window_destroy(self,widget):
@@ -805,9 +810,123 @@ class RunManager(object):
     
     def labscript_file_selected(self,chooser):
         filename = chooser.get_filename()
-        self.chooser_output_directory.select_filename(filename)
+        self.mk_output_dir(filename)
         self.current_labscript_file = filename
+    
+    def update_output_dir(self):
+        print 'xx'
+        print time.strftime('\\%Y-%b\\%d')
+        print self.current_day
+        if time.strftime('\\%Y-%b\\%d') != self.current_day:        
+            # Update output dir - We do this outside of a thread, otherwise we have to initialise the win32 library in each thread
+            # See: http://devnulled.com/com-objects-and-threading-in-python/
+            # Caling this will update the output folder if it is on the share drive, and it is set for a previous day 
+            # eg run manager was left running overnight, a new sequence is compiled without changing labscript files,
+            # This will update the output dir.
+            print 'c'
+            self.current_day = time.strftime('\\%Y-%b\\%d')
+            print 'd'
+            if self.chooser_labscript_file.get_filename():
+                print 'e'
+                self.mk_output_dir(self.chooser_labscript_file.get_filename())
+                print 'f'
+            print 'b'
+        print 'a'
+        return True
+    
+    # Makes the output dir for a labscript file
+    def mk_output_dir(self,filename):
+        # If the output dir has been changed since we last did this, then just pass!
+        if hasattr(self,'new_path') and self.new_path != self.chooser_output_directory.get_filename():
+            print 'mk_output_dir: ignoring request to make new output dir on the share drive'
+            print self.chooser_output_directory.get_filename()
+            if hasattr(self,'new_path'):
+                print self.new_path
+            print time.asctime(time.localtime())
+            return
+    
+        try:
+            # If we aren't in windows, don't bother!
+            if os.name != 'nt':
+                return
         
+            # path is Z:\Experiments\<lab>\<labscript>\<year>-<month>\<day>\            
+            def grouper(n, iterable, fillvalue=None):
+                "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+                args = [iter(iterable)] * n
+                return itertools.izip_longest(fillvalue=fillvalue, *args)
+            network = win32com.client.Dispatch('WScript.Network')            
+            drives = network.EnumNetworkDrives()
+            result = dict(grouper(2, drives))
+            
+            new_path = ''
+            
+            acceptable_paths = ['\\\\becnas.physics.monash.edu\\monashbec',
+                                '\\\\becnas.physics.monash.edu.au\\monasbec',
+                                '\\\\becnas.physics.monash.edu.au\\monasbec\\',
+                                '\\\\becnas.physics.monash.edu\\monasbec\\',
+                                '\\\\becnas\\monasbec',
+                                '\\\\becnas\\monasbec\\',
+                                '\\\\becnas.physics\\monasbec',
+                                '\\\\becnas.physics\\monasbec\\']
+            
+            for drive_letter,network_path in result.items():
+                if network_path in acceptable_paths:
+                    new_path += drive_letter+'\\Experiments'
+                    break   
+            
+            # If no mapping was found
+            if new_path == '':
+                # leave the output dir as is
+                return
+            
+            # work out the lab
+            server_name = self.builder.get_object('entry_server').get_text()
+            if server_name == 'localhost':
+                server_name = socket.gethostname()             
+                
+            if 'g07a' in server_name:
+                new_path += '\\spinorlab'
+            elif 'g46' in server_name:
+                if 'krb' in server_name:
+                    new_path += '\\dualspecieslab\\krb'
+                elif 'narb' in server_name:
+                    new_path += '\\dualspecieslab\\narb'
+                else:
+                    new_path += '\\dualspecieslab\\other'
+            else:
+                new_path += '\\other'
+                
+            new_path += '\\'+os.path.basename(filename)[:-3]+'\\'
+            new_path2 = new_path
+            # get year, month, day
+            new_path += time.strftime('%Y-%b\\%d')
+            print new_path
+            os.makedirs(new_path)
+        except OSError, e:  
+            print 'mk_output_dir: ignoring exception, folder probably already exists'
+            print self.chooser_output_directory.get_filename()
+            if hasattr(self,'new_path'):
+                print self.new_path
+            print time.asctime(time.localtime())
+            print e.message
+        except Exception, e:
+            print type(e)
+            raise
+        print 'aa'
+        if os.path.exists(new_path):     
+            print 'mk_output_dir: updating output chooser'
+            self.chooser_output_directory.set_current_folder(new_path)
+            self.chooser_h5_file.set_current_folder(new_path2)
+            
+            # Update storage of the path so we can check each time we hit engage, whether we should check to see if the 
+            # output dir needs to be advanced to todays folder (if run manager is left on overnight)
+            #
+            # This folder is only stored *IF* we have updated the out dir via this function. Thus function only updates the
+            # out dir if the outdir has not been changed since the last time this function ran, and if the share drive is mapped and accessible on windows.
+            
+            self.new_path = new_path
+    
     def labscript_selection_changed(self, chooser):
         """A hack to allow a file which is deleted and quickly recreated to not
         be unselected by the file chooser widget. This is the case when Vim saves a file,
@@ -858,9 +977,12 @@ class RunManager(object):
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
         chooser.set_do_overwrite_confirmation(True)
+        # set this to the current location of the h5_chooser
+        if self.chooser_h5_file.get_current_folder():            
+            chooser.set_current_folder(self.chooser_h5_file.get_current_folder())
+            
 #        chooser.set_current_folder_uri('')
         chooser.set_current_name('.h5')
-        self.chooser_h5_file.unselect_all()
         while gtk.events_pending():
             gtk.main_iteration()
         response = chooser.run()
@@ -868,6 +990,9 @@ class RunManager(object):
         d = chooser.get_current_folder()
         chooser.destroy()
         if response == gtk.RESPONSE_OK:
+            self.chooser_h5_file.unselect_all()
+            while gtk.events_pending():
+                gtk.main_iteration()
             # Make sure that we don't accidentally trigger more callbacks
             # in the gtk.main_iteration calls in this block:
             self.making_new_file = True
@@ -974,8 +1099,8 @@ class RunManager(object):
         being a dictionary of globalname: (value, units)"""
 
         self.output('Generating run files...\n')
-        outfolder = self.chooser_output_directory.get_filename()
         labscript_file = self.chooser_labscript_file.get_filename()
+        outfolder = self.chooser_output_directory.get_filename()
         sequence_id = self.generate_sequence_number()
         basename = os.path.join(outfolder,sequence_id)
         
@@ -1092,6 +1217,7 @@ class RunManager(object):
     def do_it(self, *args):
         self.builder.get_object('button_run').set_visible(False)
         self.builder.get_object('button_abort').set_visible(True)
+        
         gtk.gdk.threads_leave()
         threading.Thread(target = self._do_it).start()
         gtk.gdk.threads_enter()
