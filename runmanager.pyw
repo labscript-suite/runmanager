@@ -7,7 +7,8 @@ import types
 import subprocess
 import threading
 import urllib, urllib2, socket
-import win32com.client
+if os.name == 'nt':
+    import win32com.client
 
 import gtk
 import gobject
@@ -123,7 +124,7 @@ class FileOps:
     def make_single_run_file(self, filename, sequenceglobals, runglobals, sequence_id, run_no, n_runs):
         with h5py.File(filename,'w') as f:
             f.attrs['sequence_id'] = sequence_id
-            f.attrs['run_no'] = run_no
+            f.attrs['run number'] = run_no
             f.attrs['n_runs'] = n_runs
             f.create_group('globals')
             for groupname, groupvars in sequenceglobals.items():
