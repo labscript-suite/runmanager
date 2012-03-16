@@ -809,30 +809,25 @@ class RunManager(object):
             if isinstance(parent,gtk.Window):
                 parent.queue_draw()
     
+    def on_keypress(self, widget, event):
+        if gtk.gdk.keyval_name(event.keyval) == 'F5':
+            self.do_it()
+        
     def labscript_file_selected(self,chooser):
         filename = chooser.get_filename()
         self.mk_output_dir(filename)
         self.current_labscript_file = filename
     
     def update_output_dir(self):
-        print 'xx'
-        print time.strftime('\\%Y-%b\\%d')
-        print self.current_day
         if time.strftime('\\%Y-%b\\%d') != self.current_day:        
             # Update output dir - We do this outside of a thread, otherwise we have to initialise the win32 library in each thread
             # See: http://devnulled.com/com-objects-and-threading-in-python/
             # Caling this will update the output folder if it is on the share drive, and it is set for a previous day 
             # eg run manager was left running overnight, a new sequence is compiled without changing labscript files,
             # This will update the output dir.
-            print 'c'
             self.current_day = time.strftime('\\%Y-%b\\%d')
-            print 'd'
             if self.chooser_labscript_file.get_filename():
-                print 'e'
                 self.mk_output_dir(self.chooser_labscript_file.get_filename())
-                print 'f'
-            print 'b'
-        print 'a'
         return True
     
     # Makes the output dir for a labscript file
