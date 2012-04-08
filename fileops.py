@@ -1,5 +1,6 @@
 import gtk
 import h5py
+import sys
 
 class FileOps:
     def __init__(self, runmanager):
@@ -102,6 +103,7 @@ class FileOps:
                 if globalname in group.attrs:
                     raise Exception('Can\'t create global: target name already exists.')
                 group.attrs[globalname] = ''
+                f['globals'][groupname]['units'].attrs[globalname] = ''
                 return True
         except Exception as e:
             self.handle_error(e)

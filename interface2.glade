@@ -8,17 +8,21 @@
   </object>
   <object class="GtkFileFilter" id="filefilter1"/>
   <object class="GtkFileFilter" id="filefilter2"/>
-  <object class="GtkTreeStore" id="global_store">
+  <object class="GtkTreeStore" id="group_store">
     <columns>
       <!-- column-name name -->
       <column type="gchararray"/>
       <!-- column-name active -->
       <column type="gboolean"/>
       <!-- column-name add_remove -->
-      <column type="GdkPixbuf"/>
-      <!-- column-name delete_close -->
-      <column type="GdkPixbuf"/>
+      <column type="gchararray"/>
+      <!-- column-name delete -->
+      <column type="gchararray"/>
       <!-- column-name inconsistent -->
+      <column type="gboolean"/>
+      <!-- column-name editable -->
+      <column type="gboolean"/>
+      <!-- column-name options_visible -->
       <column type="gboolean"/>
     </columns>
   </object>
@@ -843,92 +847,6 @@
                         <property name="position">1</property>
                       </packing>
                     </child>
-                    <child>
-                      <object class="GtkVSeparator" id="vseparator3">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">2</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkEntry" id="entry_tabname">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="invisible_char">•</property>
-                        <property name="invisible_char_set">True</property>
-                        <property name="primary_icon_activatable">False</property>
-                        <property name="secondary_icon_activatable">False</property>
-                        <property name="primary_icon_sensitive">True</property>
-                        <property name="secondary_icon_sensitive">True</property>
-                        <signal name="activate" handler="button_create_new_group" swapped="no"/>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">3</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="button3">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
-                        <property name="relief">none</property>
-                        <signal name="clicked" handler="button_create_new_group" swapped="no"/>
-                        <child>
-                          <object class="GtkHBox" id="hbox11">
-                            <property name="visible">True</property>
-                            <property name="can_focus">False</property>
-                            <child>
-                              <object class="GtkImage" id="image7">
-                                <property name="visible">True</property>
-                                <property name="can_focus">False</property>
-                                <property name="stock">gtk-new</property>
-                                <property name="icon-size">1</property>
-                              </object>
-                              <packing>
-                                <property name="expand">True</property>
-                                <property name="fill">True</property>
-                                <property name="position">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="label22">
-                                <property name="visible">True</property>
-                                <property name="can_focus">False</property>
-                                <property name="label" translatable="yes">New group</property>
-                              </object>
-                              <packing>
-                                <property name="expand">True</property>
-                                <property name="fill">True</property>
-                                <property name="position">1</property>
-                              </packing>
-                            </child>
-                          </object>
-                        </child>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">4</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkComboBox" id="combobox1">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">5</property>
-                      </packing>
-                    </child>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -937,54 +855,56 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkTreeView" id="treeview1">
+                  <object class="GtkScrolledWindow" id="scrolledwindow1">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="model">global_store</property>
-                    <property name="expander_column">treeviewcolumn4</property>
-                    <property name="search_column">0</property>
-                    <property name="level_indentation">3</property>
+                    <property name="hscrollbar_policy">automatic</property>
+                    <property name="vscrollbar_policy">automatic</property>
                     <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn1">
-                        <property name="resizable">True</property>
+                      <object class="GtkTreeView" id="group_treeview">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="model">group_store</property>
+                        <property name="headers_clickable">False</property>
+                        <property name="expander_column">treeviewcolumn4</property>
+                        <property name="search_column">0</property>
                         <child>
-                          <object class="GtkCellRendererPixbuf" id="cellrendererpixbuf1"/>
-                          <attributes>
-                            <attribute name="pixbuf">2</attribute>
-                          </attributes>
-                        </child>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn2">
-                        <child>
-                          <object class="GtkCellRendererPixbuf" id="cellrendererpixbuf2"/>
-                        </child>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn3">
-                        <property name="title" translatable="yes">Active</property>
-                        <child>
-                          <object class="GtkCellRendererToggle" id="cellrenderertoggle1">
-                            <signal name="toggled" handler="on_global_toggle" swapped="no"/>
+                          <object class="GtkTreeViewColumn" id="add_column">
+                            <property name="resizable">True</property>
                           </object>
-                          <attributes>
-                            <attribute name="active">1</attribute>
-                            <attribute name="inconsistent">4</attribute>
-                          </attributes>
                         </child>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkTreeViewColumn" id="treeviewcolumn4">
-                        <property name="resizable">True</property>
-                        <property name="title" translatable="yes">Global Groups</property>
                         <child>
-                          <object class="GtkCellRendererText" id="cellrenderertext1"/>
-                          <attributes>
-                            <attribute name="text">0</attribute>
-                          </attributes>
+                          <object class="GtkTreeViewColumn" id="delete_column"/>
+                        </child>
+                        <child>
+                          <object class="GtkTreeViewColumn" id="treeviewcolumn3">
+                            <property name="title" translatable="yes">Active</property>
+                            <child>
+                              <object class="GtkCellRendererToggle" id="cellrenderertoggle1">
+                                <signal name="toggled" handler="on_global_toggle" swapped="no"/>
+                              </object>
+                              <attributes>
+                                <attribute name="visible">6</attribute>
+                                <attribute name="active">1</attribute>
+                                <attribute name="inconsistent">4</attribute>
+                              </attributes>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkTreeViewColumn" id="treeviewcolumn4">
+                            <property name="resizable">True</property>
+                            <property name="title" translatable="yes">Global Groups</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="cellrenderertext1">
+                                <signal name="edited" handler="on_add_group" swapped="no"/>
+                              </object>
+                              <attributes>
+                                <attribute name="editable">5</attribute>
+                                <attribute name="text">0</attribute>
+                              </attributes>
+                            </child>
+                          </object>
                         </child>
                       </object>
                     </child>
