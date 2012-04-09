@@ -62,6 +62,29 @@ def setup_logging():
     logger.setLevel(logging.DEBUG)
     return logger
 
+class StreamWatcher(threading.Thread):
+    def __init__(self, runmanager, stream, proc, red=False):
+        threading.Thread.__init__(self)
+        self.stream = stream
+        self.runmanager = runmanager
+        self.proc = proc
+        self.red = red
+        
+    def run(self):
+        while True:
+            if self.stream.closed:
+                break
+            line = self.stream.readline()
+            if line:
+                with gtk.gdk.lock:
+                    self.runmanager.output(line,red=self.red)                
+            else:
+                self.stream.close()
+                break
+            if self.runmanager.aborted:
+                self.stream.close()
+                break    
+    
 class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
     __gsignals__    = { 'clicked' :
                         (gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, (gobject.TYPE_STRING,)) , }
@@ -174,9 +197,15 @@ class GroupTab(object):
                 
             success = file_ops.new_global(self.filepath,self.name,new_text)
             if success:
-                add = self.global_liststore.insert_before(iter,(new_text,"","","gtk-delete",True,True))
-                # TODO: Handle weird bug where hitting "tab" after typing the name causes the treeview rendering to break
-                self.global_treeview.set_cursor(self.global_liststore.get_path(add),self.global_treeview.get_column(2),True)
+                self.global_liststore.insert_after(iter,("<Click to add global>","","",None,False,False))
+                self.global_liststore.set(iter,0,new_text,3,"gtk-delete",4,True,5,True)
+                
+                # Handle weird bug where hitting "tab" after typing the name causes the treeview rendering to break
+                # We fix the issue by first moving to the cell without entering edit mode, and then we set up a gobject timeout add
+                # to enter editing mode immediately
+                self.global_treeview.set_cursor(self.global_liststore.get_path(iter),self.global_treeview.get_column(2),False)
+                gobject.timeout_add(1, self.global_treeview.set_cursor,self.global_liststore.get_path(iter),self.global_treeview.get_column(2),True)
+                
                 
         # We are editing an exiting global
         else:    
@@ -194,7 +223,12 @@ class GroupTab(object):
             # If the units box is empty, make it focussed and editable to encourage people to set units!
             units = self.global_liststore.get(iter,2)[0]  
             if not units:
-                self.global_treeview.set_cursor(path,self.global_treeview.get_column(3),True)
+                # Handle weird bug where hitting "tab" after typing the name causes the treeview rendering to break
+                # We fix the issue by first moving to the cell without entering edit mode, and then we set up a gobject timeout add
+                # to enter editing mode immediately
+                self.global_treeview.set_cursor(path,self.global_treeview.get_column(3),False)
+                gobject.timeout_add(1, self.global_treeview.set_cursor,path,self.global_treeview.get_column(3),True)
+                
     
     def on_edit_units(self,cellrenderer,path,new_text):
         iter = self.global_liststore.get_iter(path)
@@ -647,6 +681,182 @@ class RunManager(object):
                     iter2 = self.group_store.iter_next(iter2)
                 break
             iter = self.group_store.iter_next(iter)
+    
+    def do_it(self, *args):
+        self.builder.get_object('button_run').set_visible(False)
+        self.builder.get_object('button_abort').set_visible(True)
+        
+        threading.Thread(target = self._do_it).start()
+        
+    def _do_it(self):
+        try:
+            try:
+                with gtk.gdk.lock:
+                    if self.parse:
+                        sequenceglobals, names, vals = self.parse_globals()
+                    if self.make:
+                        labscript_file = self.make_sequence(sequenceglobals, names, vals)                
+            except:
+                raise
+            if self.compile:
+                self.compile_labscript(labscript_file)
+            if self.view:
+                self.view_runs(self.run_files)
+        except Exception as e:
+            with gtk.gdk.lock:
+                self.output(str(e)+'\n',red=True)
+                self.output('Run aborted\n',red=True)
+                #if self.run_files:
+                    #self.ask_delete_run_files()
+           
+
+        self.run_files = []
+        gtk.gdk.threads_enter()
+        self.output('Ready\n')
+        self.builder.get_object('button_run').set_visible(True)
+        self.builder.get_object('button_abort').set_visible(False)
+        gtk.gdk.threads_leave()
+        self.aborted = False
+        
+    def parse_globals(self):
+        self.output('Parsing globals...\n')
+        sequenceglobals = {}
+        
+        # find entry in treemodel
+        iter = self.group_store.get_iter_root()
+        # for each file
+        while iter:
+            filepath = self.group_store.get(iter,0)[0]
+            
+            # for each group
+            iter2 = self.group_store.iter_children(iter)
+            while iter2:
+                group_name = self.group_store.get(iter2,0)[0]
+                active = self.group_store.get(iter2,1)[0]
+                if active:                    
+                    # get the globals from the h5 file!
+                    globals_list,success = file_ops.get_globalslist(filepath,group_name)
+                    if not success:
+                        return {}, False
+                    globalsdict = {}
+                    for global_var in globals_list:
+                        value, success1 = file_ops.get_value(filepath,group_name,global_var)
+                        units, success2 = file_ops.get_units(filepath,group_name,global_var)
+                        if not(success1 and success2):
+                            return {}, False
+                        globalsdict[global_var] = value, units
+                    sequenceglobals[group_name] = globalsdict
+                iter2 = self.group_store.iter_next(iter2)            
+            iter = self.group_store.iter_next(iter)
+
+        
+        names = []  
+        vals = []
+        allglobals = {}
+         
+        for groupname, groupglobals in sequenceglobals.items():
+            for globalname in groupglobals:
+                if globalname in allglobals:
+                    raise Exception('Error parsing \'%s\' from group \'%s\'. Global name is already defined in another group.'%(globalname,groupname))
+                allglobals[globalname], units = groupglobals[globalname]
+        for key in allglobals:
+            try:
+                value = eval(allglobals[key],pylab.__dict__)
+            except Exception as e:
+                raise Exception('Error parsing global \'%s\': '%key + str(e))
+                
+            if isinstance(value,types.GeneratorType):
+               result = [tuple(value)]
+            elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
+                result = value
+            else:
+                result = [value]
+            names.append(key)
+            vals.append(result)
+        
+        return sequenceglobals, names, vals
+
+    def generate_sequence_number(self):
+        timestamp = time.strftime('%Y%m%dT%H%M%S',time.localtime())
+        scriptname = self.chooser_labscript_file.get_filename()
+        if not scriptname:
+            raise Exception('Error: No labscript file selected')
+        scriptbase = os.path.basename(scriptname).split('.py')[0]
+        return timestamp + '_' + scriptbase        
+        
+    def make_sequence(self, sequenceglobals, names, vals):
+        """makes a sequence of hdf5 run files given a set of global
+        variables. This function takes the unevaluated globals --
+        ie lists and arrays haven't yet been expanded. A run file is
+        then made for every combination. 'sequenceglobals' should be a
+        dictionary with keys being the name of each group, and values
+        being a dictionary of globalname: (value, units)"""
+
+        self.output('Generating run files...\n')
+        labscript_file = self.chooser_labscript_file.get_filename()
+        outfolder = self.chooser_output_directory.get_filename()
+        sequence_id = self.generate_sequence_number()
+        basename = os.path.join(outfolder,sequence_id)
+        
+        nruns = 1
+        for lst in vals:
+            nruns *= len(lst)
+        ndigits = int(pylab.ceil(pylab.log10(nruns)))
+        for i, values in enumerate(itertools.product(*vals)):
+            runfilename = ('%s_%0'+str(ndigits)+'d.h5')%(basename,i)
+            self.run_files.append(runfilename)
+            self.output('Creating run file %s/%s : %s\n'%(str(i+1),str(nruns),runfilename))
+            runglobals = {} 
+            for name,val in zip(names,values):
+                runglobals[name] = val
+            file_ops.make_single_run_file(runfilename,sequenceglobals,runglobals, sequence_id, i, nruns)
+        return labscript_file
+
+    def compile_labscript(self, labscript_file):
+        for run_file in self.run_files:
+            print 'compiling!!!'
+            proc = subprocess.Popen(['python','-u',labscript_file,run_file],stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+            stdout = StreamWatcher(self,proc.stdout,proc)
+            stderr = StreamWatcher(self,proc.stderr,proc,red=True)
+            stdout.start()
+            stderr.start()
+            proc.wait()
+            if proc.returncode:
+                while not (proc.stdout.closed and proc.stderr.closed):
+                    continue
+                if not self.aborted:
+                    raise Exception('Error: this labscript would not compile.')
+                else:
+                    raise Exception('Complilation interrupted.')
+            if self.run:
+                self.submit_jobs([run_file])
+                
+    def view_runs(self, run_files):
+        print run_files[0]
+        subprocess.Popen(['python','-m','runviewer.qtrunviewer',run_files[0]]).wait()
+        
+    def submit_jobs(self, run_files):
+        server = self.builder.get_object('entry_server').get_text()
+        port = 42517
+        # Workaround to force python not to use IPv6 for the request:
+        address  = socket.gethostbyname(server)
+        for run_file in run_files:
+            if self.aborted:
+                raise Exception('Job submission interrupted.')
+            with gtk.gdk.lock:
+                self.output('Submitting run file %s.\n'%os.path.basename(run_file))
+            
+            params = urllib.urlencode({'filepath': run_file})
+            try:
+                response = urllib2.urlopen('http://%s:%d'%(address,port), params, 2).read()
+                if 'added successfully' in response:
+                    with gtk.gdk.lock:
+                        self.output(response)
+                else:
+                    raise Exception(response)
+            except Exception as e:
+                raise Exception('Couldn\'t submit job to control server. Check network connectivity, and server address.\n%s'%str(e))
+        
     
 logger = setup_logging()
 excepthook.set_logger(logger)
