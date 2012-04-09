@@ -327,8 +327,9 @@ class RunManager(object):
         self.current_labscript_file = None
         self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
+        self.globals_path = None
         # Add timeout to watch for output folder changes when the day rolls over
-        #gobject.timeout_add(1000, self.update_output_dir)
+        gobject.timeout_add(1000, self.update_output_dir)
         self.current_day = time.strftime('\\%Y-%b\\%d')
         
         self.output('Ready\n')
@@ -434,11 +435,13 @@ class RunManager(object):
                                                gtk.STOCK_SAVE,gtk.RESPONSE_OK))
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
-        chooser.set_do_overwrite_confirmation(True)
-        # set this to the current location of the h5_chooser
-        #if self.chooser_h5_file.get_current_folder():            
-        #    chooser.set_current_folder(self.chooser_h5_file.get_current_folder())
-            
+        chooser.set_do_overwrite_confirmation(True) 
+        
+        if self.globals_path:     
+            chooser.set_current_folder(self.globals_path)
+        else:
+            chooser.set_current_folder(self.chooser_labscript_file.get_current_folder())
+        
         chooser.set_current_name('.h5')
         response = chooser.run()
         f = chooser.get_filename()
@@ -451,7 +454,7 @@ class RunManager(object):
                 pass
             
             # Append to Tree View
-            parent = self.group_store.prepend(None,(f,False,"gtk-add","gtk-delete",0,0,1))
+            parent = self.group_store.prepend(None,(f,False,"gtk-close",None,0,0,1))
             # Add editable option for adding!
             self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0))  
             
@@ -513,9 +516,11 @@ class RunManager(object):
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
         # set this to the current location of the h5_chooser
-        #if self.chooser_h5_file.get_current_folder():            
-            #chooser.set_current_folder(self.chooser_h5_file.get_current_folder())
-            
+        if self.globals_path:     
+            chooser.set_current_folder(self.globals_path)
+        else:
+            chooser.set_current_folder(self.chooser_labscript_file.get_current_folder())
+        
         chooser.set_current_name('.h5')
         response = chooser.run()
         f = chooser.get_filename()
@@ -534,14 +539,14 @@ class RunManager(object):
             grouplist, success = file_ops.get_grouplist(f) 
             if success:
                 # Append to Tree View
-                parent = self.group_store.prepend(None,(f,False,"gtk-add","gtk-delete",0,0,1))            
+                parent = self.group_store.prepend(None,(f,False,"gtk-close",None,0,0,1))            
                 for name in grouplist:
                     self.group_store.append(parent,(name,False,"gtk-add","gtk-delete",0,1,1))  
                                 
                 self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
                 # Add editable option for adding!
                 add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
-                self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(3),True)
+                self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
 
     def on_add_group(self,cellrenderer,path,new_text):
         # Find the filepath      
@@ -550,7 +555,7 @@ class RunManager(object):
         filepath = self.group_store.get(parent,0)[0]
         image = self.group_store.get(iter,2)[0]
         
-        # If the image is none, then this is an entry for adding global groups
+        # If the +/x image is none, then this is an entry for adding global groups
         if not image:        
             # Ignore if theyhave clicked in the box, and then out!
             if new_text == "<Click to add group>":
@@ -582,14 +587,14 @@ class RunManager(object):
     def on_delete_group(self,cellrenderer,path):
         iter = self.group_store.get_iter(path)
         
-        image = self.group_store.get(iter,3)[0]
+        image = self.group_store.get(iter,2)[0]
         # If the image is None, we have the <"click here to add>" entry, so ignore!
         if not image:
             return
         
-        # If we have a top level row (a h5 file), then ask if the file should be deleted!
+        # If we have a top level row (a h5 file), then do nothing!
         if self.group_store.iter_depth(iter) == 0:
-            pass
+            return
         
         # Else we want to delete a group!
         else:
@@ -618,6 +623,11 @@ class RunManager(object):
                     self.update_parent_checkbox(iter,None)
                     
                     # TODO: Close the open group tab!
+                    for gt in self.opentabs:
+                        if gt.filepath == filepath and gt.name == group_name:
+                            gt.close_tab()
+                            self.opentabs.remove(gt)
+                            break
                 else:
                     # TODO: Throw error message
                     pass
@@ -629,32 +639,47 @@ class RunManager(object):
         # TODO: Handle clicking the +/x button on a toplevel entry (a h5 file)
         #       This should open all groups if not all are open, or close all groups if all are open
         
-        image = self.group_store.get(iter,2)[0]
-        name = self.group_store.get(iter,0)[0]
-        filepath = self.group_store.get(self.group_store.iter_parent(iter),0)[0]
         
-        # TODO: Ignore "add entry" where there is no image
-        # TODO: open/close all groups if +/x is clicked next to h5 file name
-        # TODO: Implement closing of groups
-        
-        if image == "gtk-add":
-            self.group_store.set_value(iter,2,"gtk-close")
-            self.opentabs.append(GroupTab(self,filepath,name))
-        elif image == "gtk-close":
-            # update the icon in the group list
-            self.group_store.set_value(iter,2,"gtk-add")
-            # close the tab!
-            # Note we don't use the close tab functionality as we already have the iterator.
-            # Instead we just find the GroupTab, remove it from the list, and ask it to delete itself
-            # (calling gt.close_tab does not invoke the close_tab function in the RunManager class 
-            for gt in self.opentabs:
-                if gt.filepath == filepath and gt.name == name:
-                    gt.close_tab()
-                    self.opentabs.remove(gt)
-                    break
-        else:
-            # no image, which means the "<click here to add"> line, so return!
-            return
+        # If we are closing a h5 file, close all open tabs and remove from the group list
+        # If we have a top level row (a h5 file), then do nothing!
+        if self.group_store.iter_depth(iter) == 0:
+            filepath = self.group_store.get(iter,0)[0]
+            iter2 = self.group_store.iter_children(iter)
+            while iter2:
+                gn = self.group_store.get(iter2,0)[0]
+                # remove the tab from the list!
+                for gt in self.opentabs:
+                    if gt.filepath == filepath and gt.name == gn:
+                        gt.close_tab()
+                        self.opentabs.remove(gt)
+                        break
+                # Remove the entry from the group list
+                iter2 = self.group_store.iter_next(iter2)
+            # remove the h5 file from the group list
+            self.group_store.remove(iter)
+        else:                
+            image = self.group_store.get(iter,2)[0]
+            name = self.group_store.get(iter,0)[0]
+            filepath = self.group_store.get(self.group_store.iter_parent(iter),0)[0]
+            
+            if image == "gtk-add":
+                self.group_store.set_value(iter,2,"gtk-close")
+                self.opentabs.append(GroupTab(self,filepath,name))
+            elif image == "gtk-close":
+                # update the icon in the group list
+                self.group_store.set_value(iter,2,"gtk-add")
+                # close the tab!
+                # Note we don't use the close tab functionality as we already have the iterator.
+                # Instead we just find the GroupTab, remove it from the list, and ask it to delete itself
+                # (calling gt.close_tab does not invoke the close_tab function in the RunManager class 
+                for gt in self.opentabs:
+                    if gt.filepath == filepath and gt.name == name:
+                        gt.close_tab()
+                        self.opentabs.remove(gt)
+                        break
+            else:
+                # no image, which means the "<click here to add"> line, so return!
+                return
     
     # This function is poorly named. It actually only updates the +/x icon in the group list!   
     # This function is called by the GroupTab class to clean up the state of the group treeview
@@ -682,9 +707,152 @@ class RunManager(object):
                 break
             iter = self.group_store.iter_next(iter)
     
+    def labscript_file_selected(self,chooser):
+        filename = chooser.get_filename()
+        self.mk_output_dir(filename)
+        self.current_labscript_file = filename
+    
+    def update_output_dir(self):
+        if time.strftime('\\%Y-%b\\%d') != self.current_day:        
+            # Update output dir - We do this outside of a thread, otherwise we have to initialise the win32 library in each thread
+            # See: http://devnulled.com/com-objects-and-threading-in-python/
+            # Caling this will update the output folder if it is on the share drive, and it is set for a previous day 
+            # eg run manager was left running overnight, a new sequence is compiled without changing labscript files,
+            # This will update the output dir.
+            self.current_day = time.strftime('\\%Y-%b\\%d')
+            if self.chooser_labscript_file.get_filename():
+                self.mk_output_dir(self.chooser_labscript_file.get_filename())
+        return True
+    
+    # Makes the output dir for a labscript file
+    def mk_output_dir(self,filename):
+        # If the output dir has been changed since we last did this, then just pass!
+        if hasattr(self,'new_path') and self.new_path != self.chooser_output_directory.get_filename():
+            print 'mk_output_dir: ignoring request to make new output dir on the share drive'
+            print self.chooser_output_directory.get_filename()
+            if hasattr(self,'new_path'):
+                print self.new_path
+            print time.asctime(time.localtime())
+            self.globals_path = None
+            return
+    
+        try:
+            # If we aren't in windows, don't bother!
+            if os.name != 'nt':
+                self.globals_path = None
+                return
+        
+            # path is Z:\Experiments\<lab>\<labscript>\<year>-<month>\<day>\            
+            def grouper(n, iterable, fillvalue=None):
+                "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+                args = [iter(iterable)] * n
+                return itertools.izip_longest(fillvalue=fillvalue, *args)
+            network = win32com.client.Dispatch('WScript.Network')            
+            drives = network.EnumNetworkDrives()
+            result = dict(grouper(2, drives))
+            
+            new_path = ''
+            
+            acceptable_paths = ['\\\\becnas.physics.monash.edu\\monashbec',
+                                '\\\\becnas.physics.monash.edu.au\\monasbec',
+                                '\\\\becnas.physics.monash.edu.au\\monasbec\\',
+                                '\\\\becnas.physics.monash.edu\\monasbec\\',
+                                '\\\\becnas\\monasbec',
+                                '\\\\becnas\\monasbec\\',
+                                '\\\\becnas.physics\\monasbec',
+                                '\\\\becnas.physics\\monasbec\\']
+            
+            for drive_letter,network_path in result.items():
+                if network_path in acceptable_paths:
+                    new_path += drive_letter+'\\Experiments'
+                    break   
+            
+            # If no mapping was found
+            if new_path == '':
+                # leave the output dir as is
+                self.globals_path = None
+                return
+            
+            # work out the lab
+            server_name = self.builder.get_object('entry_server').get_text()
+            if server_name == 'localhost':
+                server_name = socket.gethostname()             
+                
+            if 'g07a' in server_name:
+                new_path += '\\spinor_lab'
+            elif 'g46' in server_name:
+                if 'krb' in server_name:
+                    new_path += '\\dual_species_lab\\krb'
+                elif 'narb' in server_name:
+                    new_path += '\\dual_species_lab\\narb'
+                else:
+                    new_path += '\\dual_species_lab\\other'
+            else:
+                new_path += '\\other'
+                
+            new_path += '\\'+os.path.basename(filename)[:-3]+'\\'
+            new_path2 = new_path
+            # get year, month, day
+            new_path += time.strftime('%Y-%b\\%d')
+            print new_path
+            os.makedirs(new_path)
+        except OSError, e:  
+            print 'mk_output_dir: ignoring exception, folder probably already exists'
+            print self.chooser_output_directory.get_filename()
+            if hasattr(self,'new_path'):
+                print self.new_path
+            print time.asctime(time.localtime())
+            print e.message
+            self.globals_path = None
+        except Exception, e:
+            print type(e)
+            self.globals_path = None
+            raise
+        print 'aa'
+        if os.path.exists(new_path):     
+            print 'mk_output_dir: updating output chooser'
+            self.chooser_output_directory.set_current_folder(new_path)
+            #self.chooser_h5_file.set_current_folder(new_path2)
+            
+            # Update storage of the path so we can check each time we hit engage, whether we should check to see if the 
+            # output dir needs to be advanced to todays folder (if run manager is left on overnight)
+            #
+            # This folder is only stored *IF* we have updated the out dir via this function. Thus function only updates the
+            # out dir if the outdir has not been changed since the last time this function ran, and if the share drive is mapped and accessible on windows.
+            
+            self.new_path = new_path
+            self.globals_path = new_path2
+        else:
+            self.globals_path = None
+    
+    def labscript_selection_changed(self, chooser):
+        """A hack to allow a file which is deleted and quickly recreated to not
+        be unselected by the file chooser widget. This is the case when Vim saves a file,
+        so this saves Vim users from reselecting the labscript file constantly."""
+        if not chooser.get_filename():
+            def keep_current_filename(filename):
+                chooser.select_filename(filename)
+            if self.current_labscript_file:
+                gobject.timeout_add(100, keep_current_filename,self.current_labscript_file)
+                              
+    
+    def on_scroll(self,*args):
+        """Queue a redraw of the output on Windows, to prevent visual artifacts
+           when the window isn't focused"""
+        if os.name == 'nt':
+            parent = self.scrolledwindow_output.get_parent()
+            if isinstance(parent,gtk.Window):
+                parent.queue_draw()
+    
+    def on_keypress(self, widget, event):
+        if gtk.gdk.keyval_name(event.keyval) == 'F5':
+            self.do_it()
+    
     def do_it(self, *args):
         self.builder.get_object('button_run').set_visible(False)
+        self.builder.get_object('button_run1').set_visible(False)
         self.builder.get_object('button_abort').set_visible(True)
+        self.builder.get_object('button_abort1').set_visible(True)
         
         threading.Thread(target = self._do_it).start()
         
@@ -714,10 +882,15 @@ class RunManager(object):
         gtk.gdk.threads_enter()
         self.output('Ready\n')
         self.builder.get_object('button_run').set_visible(True)
+        self.builder.get_object('button_run1').set_visible(True)
         self.builder.get_object('button_abort').set_visible(False)
+        self.builder.get_object('button_abort1').set_visible(False)
         gtk.gdk.threads_leave()
         self.aborted = False
         
+    def on_abort_clicked(self, *args):
+        self.aborted = True
+    
     def parse_globals(self):
         self.output('Parsing globals...\n')
         sequenceglobals = {}

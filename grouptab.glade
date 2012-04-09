@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <requires lib="gtk+" version="2.16"/>
+  <requires lib="gtk+" version="2.24"/>
   <!-- interface-naming-policy project-wide -->
   <object class="GtkListStore" id="global_liststore">
     <columns>
@@ -142,6 +142,7 @@
                     <property name="expand">True</property>
                     <property name="reorderable">True</property>
                     <property name="sort_indicator">True</property>
+                    <property name="sort_column_id">0</property>
                     <child>
                       <object class="GtkCellRendererText" id="cellrenderertext1">
                         <property name="editable">True</property>
@@ -160,6 +161,7 @@
                     <property name="expand">True</property>
                     <property name="reorderable">True</property>
                     <property name="sort_indicator">True</property>
+                    <property name="sort_column_id">1</property>
                     <child>
                       <object class="GtkCellRendererText" id="cellrenderertext2">
                         <signal name="edited" handler="on_edit_value" swapped="no"/>
@@ -178,6 +180,7 @@
                     <property name="expand">True</property>
                     <property name="reorderable">True</property>
                     <property name="sort_indicator">True</property>
+                    <property name="sort_column_id">3</property>
                     <child>
                       <object class="GtkCellRendererText" id="cellrenderertext3">
                         <signal name="edited" handler="on_edit_units" swapped="no"/>

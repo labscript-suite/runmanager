@@ -3,8 +3,14 @@
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy toplevel-contextual -->
   <!-- interface-local-resource-path assets -->
-  <object class="GtkAction" id="compile_action">
+  <object class="GtkToggleAction" id="compile_action">
     <property name="label" translatable="yes">Compile labscript</property>
+  </object>
+  <object class="GtkToggleAction" id="run_action">
+    <property name="label" translatable="yes">Run experiment(s)</property>
+  </object>
+  <object class="GtkToggleAction" id="view_action">
+    <property name="label" translatable="yes">View run(s)</property>
   </object>
   <object class="GtkFileFilter" id="filefilter1"/>
   <object class="GtkFileFilter" id="filefilter2"/>
@@ -25,12 +31,6 @@
       <!-- column-name options_visible -->
       <column type="gboolean"/>
     </columns>
-  </object>
-  <object class="GtkAction" id="run_action">
-    <property name="label" translatable="yes">Run experiment(s)</property>
-  </object>
-  <object class="GtkAction" id="view_action">
-    <property name="label" translatable="yes">View run(s)</property>
   </object>
   <object class="GtkWindow" id="window1">
     <property name="can_focus">False</property>
@@ -59,6 +59,7 @@
                         <property name="receives_default">True</property>
                         <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
+                        <signal name="clicked" handler="on_abort_clicked" swapped="no"/>
                         <child>
                           <object class="GtkHBox" id="hbox16">
                             <property name="visible">True</property>
@@ -103,6 +104,7 @@
                         <property name="receives_default">True</property>
                         <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
+                        <signal name="clicked" handler="do_it" swapped="no"/>
                         <child>
                           <object class="GtkHBox" id="hbox17">
                             <property name="visible">True</property>
@@ -292,6 +294,8 @@
                     <property name="can_focus">False</property>
                     <property name="filter">filefilter2</property>
                     <property name="local_only">False</property>
+                    <signal name="selection-changed" handler="labscript_selection_changed" swapped="no"/>
+                    <signal name="file-set" handler="labscript_file_selected" swapped="no"/>
                   </object>
                   <packing>
                     <property name="left_attach">1</property>
