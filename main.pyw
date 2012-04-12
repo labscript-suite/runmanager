@@ -512,7 +512,7 @@ class RunManager(object):
     def on_open_h5_file(self, *args):      
         chooser = gtk.FileChooserDialog(title='OpenHDF5 file',action=gtk.FILE_CHOOSER_ACTION_OPEN,
                                     buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
-                                               gtk.STOCK_SAVE,gtk.RESPONSE_OK))
+                                               gtk.STOCK_OPEN,gtk.RESPONSE_OK))
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
         # set this to the current location of the h5_chooser
