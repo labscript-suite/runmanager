@@ -906,7 +906,8 @@ class RunManager(object):
             while iter2:
                 group_name = self.group_store.get(iter2,0)[0]
                 active = self.group_store.get(iter2,1)[0]
-                if active:                    
+                image = self.group_store.get(iter2,2)[0]
+                if active and image:                    
                     # get the globals from the h5 file!
                     globals_list,success = file_ops.get_globalslist(filepath,group_name)
                     if not success:
