@@ -989,7 +989,7 @@ class RunManager(object):
     def compile_labscript(self, labscript_file):
         for run_file in self.run_files:
             print 'compiling!!!'
-            proc = subprocess.Popen(['python','-u',labscript_file,run_file],stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+            proc = subprocess.Popen([sys.executable,'-u',labscript_file,run_file],stderr=subprocess.PIPE,stdout=subprocess.PIPE)
             stdout = StreamWatcher(self,proc.stdout,proc)
             stderr = StreamWatcher(self,proc.stderr,proc,red=True)
             stdout.start()
