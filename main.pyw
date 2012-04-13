@@ -1007,7 +1007,7 @@ class RunManager(object):
                 
     def view_runs(self, run_files):
         print run_files[0]
-        subprocess.Popen(['python','-m','runviewer.qtrunviewer',run_files[0]]).wait()
+        subprocess.Popen([sys.executable,'-m','runviewer.qtrunviewer',run_files[0]]).wait()
         
     def submit_jobs(self, run_files):
         server = self.builder.get_object('entry_server').get_text()
