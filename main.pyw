@@ -779,7 +779,7 @@ class RunManager(object):
                 server_name = socket.gethostname()             
                 
             if 'g07a' in server_name:
-                new_path += '\\spinor_lab'
+                new_path += '\\spinorbec'
             elif 'g46' in server_name:
                 if 'krb' in server_name:
                     new_path += '\\dual_species_lab\\krb'
