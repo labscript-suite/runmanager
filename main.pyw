@@ -302,7 +302,7 @@ class RunManager(object):
         
         self.window.show()
         
-        self.output_view.modify_font(pango.FontDescription("monospace 11"))
+        self.output_view.modify_font(pango.FontDescription("monospace 10"))
         self.output_view.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse('black'))
         self.output_view.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse('white'))
         
