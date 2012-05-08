@@ -935,7 +935,10 @@ class RunManager(object):
                 allglobals[globalname], units = groupglobals[globalname]
         for key in allglobals:
             try:
-                value = eval(allglobals[key],pylab.__dict__)
+                sandbox = {}
+                exec('from pylab import *',sandbox,sandbox)
+                exec('from functions import *',sandbox,sandbox)
+                value = eval(allglobals[key],sandbox)
             except Exception as e:
                 raise Exception('Error parsing global \'%s\': '%key + str(e))
                 
