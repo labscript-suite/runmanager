@@ -20,12 +20,15 @@ import h5py
 
 import pylab
 import excepthook
+import shared_drive
 from fileops import FileOps
+
+shared_drive_prefix = shared_drive.get_prefix('monashbec')
 
 # This provides debug info without having to run from a terminal, and
 # avoids a stupid crash on Windows when there is no command window:
-#if not sys.stdout.isatty():
-    #sys.stdout = sys.stderr = open('debug.log','w',1)
+if not sys.stdout.isatty():
+    sys.stdout = sys.stderr = open('debug.log','w',1)
     
 if os.name == 'nt':
     # Make it not look so terrible (if icons and themes are installed):
@@ -1018,6 +1021,8 @@ class RunManager(object):
         # Workaround to force python not to use IPv6 for the request:
         address  = socket.gethostbyname(server)
         for run_file in run_files:
+            run_file = run_file.replace(shared_drive_prefix,'Z:/').replace('/','\\')
+            print run_file
             if self.aborted:
                 raise Exception('Job submission interrupted.')
             with gtk.gdk.lock:
