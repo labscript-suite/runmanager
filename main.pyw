@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import random
+from random import shuffle
 import itertools
 import logging, logging.handlers
 import types
@@ -16,7 +16,6 @@ import gobject
 import pango
 
 import h5py
-
 
 import pylab
 import excepthook
@@ -283,6 +282,7 @@ class RunManager(object):
         self.checkbutton_compile = self.builder.get_object('checkbutton_compile')
         self.checkbutton_view = self.builder.get_object('checkbutton_view')
         self.checkbutton_run = self.builder.get_object('checkbutton_run')
+        self.toggle_shuffle = self.builder.get_object('toggle_shuffle')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
         self.group_store = self.builder.get_object('group_store')
         self.group_treeview = self.builder.get_object('group_treeview')
@@ -990,6 +990,8 @@ class RunManager(object):
             for name,val in zip(names,values):
                 runglobals[name] = val
             file_ops.make_single_run_file(runfilename,sequenceglobals,runglobals, sequence_id, i, nruns)
+        if self.toggle_shuffle.get_active():
+            shuffle(self.run_files)
         return labscript_file
 
     def compile_labscript(self, labscript_file):
