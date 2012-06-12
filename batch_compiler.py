@@ -17,7 +17,7 @@ class BatchProcessor(object):
                 success = self.compile(*data)
                 self.to_parent.put(['done',success])
             elif signal == 'quit':
-                break
+                sys.exit(0)
             else:
                 raise ValueError(signal)
                     
