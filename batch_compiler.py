@@ -23,10 +23,10 @@ class BatchProcessor(object):
                     
     def compile(self,labscript_file, run_file):
         # The namespace the labscript will run in:
-        sandbox = {}
+        sandbox = {'__name__':'__main__'}
         old_sys_argv = sys.argv
         old_builtins = __builtins__.__dict__.copy()
-        sys.argv = [sys.executable, labscript_file, run_file]
+        sys.argv = [labscript_file, run_file]
         try:
             with kill_lock:
                 execfile(labscript_file,sandbox,sandbox)
