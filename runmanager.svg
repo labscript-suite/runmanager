@@ -30,12 +30,12 @@
      id="namedview47"
      showgrid="false"
      inkscape:zoom="1.4377915"
-     inkscape:cx="11.177976"
-     inkscape:cy="27.942625"
+     inkscape:cx="12.568998"
+     inkscape:cy="27.942624"
      inkscape:window-x="242"
      inkscape:window-y="107"
      inkscape:window-maximized="0"
-     inkscape:current-layer="svg2">
+     inkscape:current-layer="text3495">
     <inkscape:grid
        type="xygrid"
        id="grid4013" />
@@ -190,17 +190,14 @@
      d="m 23.686177,3.85843 83.903313,0 c 10.99536,0 19.84734,8.8519 19.84734,19.84733 l 0,83.90332 c 0,10.99542 -8.85198,19.84733 -19.84734,19.84733 l -83.903313,0 c -10.99553,0 -19.8473299,-8.85191 -19.8473299,-19.84733 l 0,-83.90332 c 0,-10.99543 8.8517999,-19.84733 19.8473299,-19.84733 z"
      id="rect11600-6"
      style="fill:none;stroke:#000000;stroke-width:7.69117498;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dashoffset:0" />
-  <text
-     x="16.367292"
-     y="115.64649"
-     id="text3495"
-     xml:space="preserve"
+  <g
      style="font-size:209.55355835px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-indent:0;text-align:start;text-decoration:none;line-height:125%;letter-spacing:0px;word-spacing:0px;text-transform:none;direction:ltr;block-progression:tb;writing-mode:lr-tb;text-anchor:start;baseline-shift:baseline;color:#000000;fill:#d04f6c;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1px;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;font-family:Garamond Premier Pro;-inkscape-font-specification:Garamond Premier Pro"
-     sodipodi:linespacing="125%"><tspan
-       x="16.367292"
-       y="115.64649"
-       id="tspan3497"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;color:#000000;fill:#d04f6c;fill-opacity:1;fill-rule:nonzero;stroke:none;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;font-family:Ubuntu Mono;-inkscape-font-specification:Ubuntu Mono">r</tspan></text>
+     id="text3495">
+    <path
+       d="m 38.789523,115.64649 0,-91.99401 c 14.249605,-4.889486 28.638935,-7.334275 43.168033,-7.334375 4.470406,10e-5 8.731324,0.209653 12.782767,0.628661 4.051287,0.279503 8.521757,0.978014 13.411427,2.095536 l -3.1433,15.297409 c -4.47056,-1.257238 -8.452076,-2.025601 -11.944555,-2.305089 -3.352931,-0.419023 -7.05504,-0.628576 -11.106339,-0.62866 -8.521902,8.4e-5 -17.18344,1.187553 -25.984641,3.56241 l 0,80.678118 -17.183392,0"
+       style="color:#000000;fill:#d04f6c;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;font-family:Ubuntu Mono;-inkscape-font-specification:Ubuntu Mono"
+       id="path3028" />
+  </g>
   <path
      d="m 17.438379,34.234037 16.265804,0"
      id="path4307"
