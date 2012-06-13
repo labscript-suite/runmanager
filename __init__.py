@@ -277,6 +277,7 @@ def compile_labscript_async(labscript_file, run_file, stream_queue, done_callbac
         elif signal == 'done':
             success = data
             to_child.put(['quit',None])
+            retcode = child.communicate()
             done_callback(data)
             break
             
@@ -301,7 +302,8 @@ def compile_multishot_async(labscript_file, run_files, stream_queue, done_callba
         if not success:
             break
     to_child.put(['quit',None])
-            
+    retcode = child.communicate()
+    
 def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path, stream_queue, done_callback):   
     """Same as compile_labscript_with_globals_files, except it launches a
     thread to do the work and does not return anything. Instead, stderr

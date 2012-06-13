@@ -308,7 +308,7 @@ class RunManager(object):
         self.output('Ready\n')
     
     def on_window_destroy(self,widget):
-        self.to_child.put('quit')
+        self.to_child.put(['quit',None])
         gtk.main_quit()
     
     def output(self,text,red=False):
