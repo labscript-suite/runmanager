@@ -289,8 +289,8 @@ def compile_multishot_async(labscript_file, run_files, stream_queue, done_callba
     argument indicating success. Compilation will stop after the first failure."""
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = subproc_utils.subprocess_with_queues(compiler_path)
-    to_child.put(['compile',[labscript_file, run_file]])
     for run_file in run_files:
+        to_child.put(['compile',[labscript_file, run_file]])
         while True:
             signal, data = from_child.get()
             if signal in ['stdout', 'stderr']:
