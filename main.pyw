@@ -7,8 +7,6 @@ import subprocess
 import threading
 import Queue
 import urllib, urllib2, socket
-if os.name == 'nt':
-    import win32com.client
 
 import gtk
 import gobject
@@ -683,35 +681,8 @@ class RunManager(object):
                 return
         
             # path is Z:\Experiments\<lab>\<labscript>\<year>-<month>\<day>\            
-            def grouper(n, iterable, fillvalue=None):
-                "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
-                args = [iter(iterable)] * n
-                return itertools.izip_longest(fillvalue=fillvalue, *args)
-            network = win32com.client.Dispatch('WScript.Network')            
-            drives = network.EnumNetworkDrives()
-            result = dict(grouper(2, drives))
             
-            new_path = ''
-            
-            acceptable_paths = ['\\\\becnas.physics.monash.edu\\monashbec',
-                                '\\\\becnas.physics.monash.edu.au\\monasbec',
-                                '\\\\becnas.physics.monash.edu.au\\monasbec\\',
-                                '\\\\becnas.physics.monash.edu\\monasbec\\',
-                                '\\\\becnas\\monasbec',
-                                '\\\\becnas\\monasbec\\',
-                                '\\\\becnas.physics\\monasbec',
-                                '\\\\becnas.physics\\monasbec\\']
-            
-            for drive_letter,network_path in result.items():
-                if network_path in acceptable_paths:
-                    new_path += drive_letter+'\\Experiments'
-                    break   
-            
-            # If no mapping was found
-            if new_path == '':
-                # leave the output dir as is
-                self.globals_path = None
-                return
+            new_path = shared_drive_prefix
             
             # work out the lab
             server_name = self.builder.get_object('entry_server').get_text()
