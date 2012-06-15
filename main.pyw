@@ -682,7 +682,7 @@ class RunManager(object):
         
             # path is Z:\Experiments\<lab>\<labscript>\<year>-<month>\<day>\            
             
-            new_path = shared_drive_prefix
+            new_path = shared_drive_prefix + '\\Experiments'
             
             # work out the lab
             server_name = self.builder.get_object('entry_server').get_text()
