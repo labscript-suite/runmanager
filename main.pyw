@@ -5,7 +5,6 @@ import itertools
 import logging, logging.handlers
 import subprocess
 import threading
-import traceback
 import Queue
 import urllib, urllib2, socket
 
@@ -235,9 +234,7 @@ class RunManager(object):
         
         self.window = self.builder.get_object('window1')
         self.notebook = self.builder.get_object('notebook1')
-        self.output_view = self.builder.get_object('textview1')
-        self.output_adjustment = self.output_view.get_vadjustment()
-        self.output_buffer = self.output_view.get_buffer()
+
         self.use_globals_vbox = self.builder.get_object('use_globals_vbox')
         self.grouplist_vbox = self.builder.get_object('grouplist_vbox')
         self.no_file_opened = self.builder.get_object('label_no_file_opened')
@@ -269,9 +266,8 @@ class RunManager(object):
         
         self.window.show()
         
-        self.output_view.modify_font(pango.FontDescription("monospace 9"))
-        self.output_view.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse('black'))
-        self.output_view.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse('white'))
+        self.to_output_box = Queue.Queue()
+        self.output_box = OutputBox(self.scrolledwindow_output,self.to_output_box)
         
         self.window.set_icon_from_file(os.path.join('runmanager.svg'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
@@ -289,7 +285,6 @@ class RunManager(object):
         self.run_files = []
         self.aborted = False
         self.current_labscript_file = None
-        self.text_mark = self.output_buffer.create_mark(None, self.output_buffer.get_end_iter())
 
         self.globals_path = None
         # Add timeout to watch for output folder changes when the day rolls over
@@ -312,26 +307,7 @@ class RunManager(object):
         gtk.main_quit()
     
     def output(self,text,red=False):
-        """Prints text to the output textbox and to stdout"""
-        print text, 
-        # Check if the scrollbar is at the bottom of the textview:
-        scrolling = self.output_adjustment.value == self.output_adjustment.upper - self.output_adjustment.page_size
-        # We need the initial cursor position so we know what range to make red:
-        offset = self.output_buffer.get_end_iter().get_offset()
-        # Insert the text at the end:
-        self.output_buffer.insert(self.output_buffer.get_end_iter(), text)
-        if red:
-            start = self.output_buffer.get_iter_at_offset(offset)
-            end = self.output_buffer.get_end_iter()
-            # Make the text red:
-            self.output_buffer.apply_tag(self.output_buffer.create_tag(foreground='red'),start,end)
-            self.output_buffer.apply_tag(self.output_buffer.create_tag(weight=pango.WEIGHT_BOLD),start,end)
-
-        # Automatically keep the textbox scrolled to the bottom, but
-        # only if it was at the bottom to begin with. If the user has
-        # scrolled up we won't jump them back to the bottom:
-        if scrolling:
-            self.output_view.scroll_to_mark(self.text_mark,0)
+        self.to_output_box.put(['stderr' if red else 'stdout',text])
     
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
@@ -356,7 +332,6 @@ class RunManager(object):
             if not isinstance(widget,gtk.Window):
                 window.destroy()
             self.output_page.show()
-        self.output_view.scroll_to_mark(self.text_mark,0)
     
     def on_scroll(self,*args):
         """Queue a redraw of the output on Windows, to prevent visual artifacts
@@ -839,11 +814,9 @@ class RunManager(object):
                 while True:
                     signal,data = self.from_child.get()
                     if signal == 'stdout':
-                        with gtk.gdk.lock:
-                            self.output(data)
+                        self.output(data)
                     elif signal == 'stderr':
-                        with gtk.gdk.lock:
-                            self.output(data,red=True)
+                        self.output(data,red=True)
                     elif signal == 'done':
                         success = data
                         break
@@ -855,8 +828,7 @@ class RunManager(object):
                     break
             return run_file
         except Exception as e :
-            with gtk.gdk.lock:
-                self.output(str(e)+'\n',red=True)
+            self.output(str(e)+'\n',red=True)
             self.aborted = True
                 
     def submit_job(self, run_file):
@@ -865,19 +837,16 @@ class RunManager(object):
         # Workaround to force python not to use IPv6 for the request:
         address  = socket.gethostbyname(server)
         run_file = run_file.replace(shared_drive_prefix,'Z:/').replace('/','\\')
-        with gtk.gdk.lock:
-            self.output('Submitting run file %s.\n'%os.path.basename(run_file))
+        self.output('Submitting run file %s.\n'%os.path.basename(run_file))
         params = urllib.urlencode({'filepath': run_file})
         try:
             response = urllib2.urlopen('http://%s:%d'%(address,port), params, 2).read()
             if 'added successfully' in response:
-                with gtk.gdk.lock:
-                    self.output(response)
+                self.output(response)
             else:
                 raise Exception(response)
         except Exception as e:
-            with gtk.gdk.lock:
-                self.output('Couldn\'t submit job to control server: %s\n'%str(e),red=True)
+            self.output('Couldn\'t submit job to control server: %s\n'%str(e),red=True)
             self.aborted = True
     
 logger = setup_logging()
