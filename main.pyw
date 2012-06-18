@@ -5,6 +5,7 @@ import itertools
 import logging, logging.handlers
 import subprocess
 import threading
+import traceback
 import Queue
 import urllib, urllib2, socket
 
@@ -19,6 +20,7 @@ import excepthook
 import shared_drive
 import runmanager
 import subproc_utils
+from subproc_utils.gtk_components import OutputBox
 
 shared_drive_prefix = shared_drive.get_prefix('monashbec')
 
@@ -53,7 +55,7 @@ def setup_logging():
     if sys.stdout.isatty():
         terminalhandler = logging.StreamHandler(sys.stdout)
         terminalhandler.setFormatter(formatter)
-        terminalhandler.setLevel(logging.INFO) # only display info or higher in the terminal
+        terminalhandler.setLevel(logging.DEBUG) # only display info or higher in the terminal
         logger.addHandler(terminalhandler)
     else:
         # Prevent bug on windows where writing to stdout without a command
@@ -751,20 +753,27 @@ class RunManager(object):
             self.engage()
     
     def engage(self, *args):
+        logger.info('engage')
+        logger.info(str(self.compile))
         try:
+            logger.info('in try statement')
             if self.compile:
+                logger.info('about to parse_globals')
                 sequenceglobals, shots = self.parse_globals()
+                logger.info('about to make_h5_files globals')
                 labscript_file, run_files = self.make_h5_files(sequenceglobals, shots)
                 self.compile_queue.put([labscript_file,run_files])
+            logger.info('finishing try statement')
         except Exception as e:
             self.output(str(e)+'\n',red=True)
-            self.aborted = True
-            
+        logger.info('end engage')
+        
     def compile_loop(self):
         work_was_done = False
         while True:
             try:
                 labscript_file, run_files = self.compile_queue.get(timeout=0.5)
+                logger.info('compile_loop: got a job')
                 with gtk.gdk.lock:
                     self.button_abort.set_sensitive(True)
             except Queue.Empty:
@@ -781,7 +790,9 @@ class RunManager(object):
                     self.button_abort.set_sensitive(False)
                 continue
             if not self.aborted:
+                logger.info('compile_loop: doing compilation')
                 last_run = self.compile_labscript(labscript_file, run_files)
+                logger.info('compile_loop: did compilation')
                 work_was_done = True
                                 
     def on_abort_clicked(self, *args):
@@ -817,29 +828,36 @@ class RunManager(object):
         sequence_id = runmanager.generate_sequence_id(labscript_file)
         shuffle = self.toggle_shuffle.get_active()
         run_files = runmanager.make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle)
+        logger.debug(run_files)
         return labscript_file, run_files
 
     def compile_labscript(self, labscript_file, run_files):
-        for run_file in run_files:
-            self.to_child.put(['compile',[labscript_file,run_file]])
-            while True:
-                signal,data = self.from_child.get()
-                if signal == 'stdout':
-                    with gtk.gdk.lock:
-                        self.output(data)
-                elif signal == 'stderr':
-                    with gtk.gdk.lock:
-                        self.output(data,red=True)
-                elif signal == 'done':
-                    success = data
+        logger.debug('in compile_labscript')
+        try:
+            for run_file in run_files:
+                self.to_child.put(['compile',[labscript_file,run_file]])
+                while True:
+                    signal,data = self.from_child.get()
+                    if signal == 'stdout':
+                        with gtk.gdk.lock:
+                            self.output(data)
+                    elif signal == 'stderr':
+                        with gtk.gdk.lock:
+                            self.output(data,red=True)
+                    elif signal == 'done':
+                        success = data
+                        break
+                if self.aborted or not success:
                     break
-            if self.aborted or not success:
-                break
-            if self.run:
-                self.submit_job(run_file)
-            if self.aborted:
-                break
-        return run_file
+                if self.run:
+                    self.submit_job(run_file)
+                if self.aborted:
+                    break
+            return run_file
+        except Exception as e :
+            with gtk.gdk.lock:
+                self.output(str(e)+'\n',red=True)
+            self.aborted = True
                 
     def submit_job(self, run_file):
         server = self.builder.get_object('entry_server').get_text()

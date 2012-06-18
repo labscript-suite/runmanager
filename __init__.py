@@ -228,8 +228,15 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
                     group.attrs[name] = value
                     unitsgroup.attrs[name] = units
         for name, value in runglobals.items():
-            f['globals'].attrs[name] = value
-                    
+            try:
+                f['globals'].attrs[name] = value
+            except Exception:
+                message = ('Global %s cannot be saved as an hdf5 attribute. '%name +
+                                     'Globals can only have relatively simple datatypes, with no nested structures. ' +
+                                     'Original error was:\n' +
+                                     '%s: %s'%(sys.exc_type.__name__,sys.exc_value.message))
+                raise ValueError(message)
+                
 def make_run_file_from_globals_files(labscript_file, globals_files, output_path):
     """Creates a run file output_path, using all the globals from
     globals_files. Uses labscript_file only to generate a sequence ID"""
