@@ -29,13 +29,13 @@
      inkscape:window-height="762"
      id="namedview47"
      showgrid="false"
-     inkscape:zoom="1.4377915"
-     inkscape:cx="12.568998"
-     inkscape:cy="27.942624"
-     inkscape:window-x="242"
-     inkscape:window-y="107"
+     inkscape:zoom="1.0166721"
+     inkscape:cx="-54.587364"
+     inkscape:cy="82.390532"
+     inkscape:window-x="1004"
+     inkscape:window-y="121"
      inkscape:window-maximized="0"
-     inkscape:current-layer="text3495">
+     inkscape:current-layer="svg2">
     <inkscape:grid
        type="xygrid"
        id="grid4013" />
@@ -192,11 +192,17 @@
      style="fill:none;stroke:#000000;stroke-width:7.69117498;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dashoffset:0" />
   <g
      style="font-size:209.55355835px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-indent:0;text-align:start;text-decoration:none;line-height:125%;letter-spacing:0px;word-spacing:0px;text-transform:none;direction:ltr;block-progression:tb;writing-mode:lr-tb;text-anchor:start;baseline-shift:baseline;color:#000000;fill:#d04f6c;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1px;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;font-family:Garamond Premier Pro;-inkscape-font-specification:Garamond Premier Pro"
-     id="text3495">
-    <path
-       d="m 38.789523,115.64649 0,-91.99401 c 14.249605,-4.889486 28.638935,-7.334275 43.168033,-7.334375 4.470406,10e-5 8.731324,0.209653 12.782767,0.628661 4.051287,0.279503 8.521757,0.978014 13.411427,2.095536 l -3.1433,15.297409 c -4.47056,-1.257238 -8.452076,-2.025601 -11.944555,-2.305089 -3.352931,-0.419023 -7.05504,-0.628576 -11.106339,-0.62866 -8.521902,8.4e-5 -17.18344,1.187553 -25.984641,3.56241 l 0,80.678118 -17.183392,0"
-       style="color:#000000;fill:#d04f6c;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;font-family:Ubuntu Mono;-inkscape-font-specification:Ubuntu Mono"
-       id="path3028" />
+     id="text3495"
+     transform="matrix(1.5379115,0,0,1.5379115,-27.783278,-49.166801)">
+    <g
+       transform="matrix(7.233478,0,0,7.233478,470.01294,-591.12193)"
+       style="font-size:20px;color:#000000;fill:#d04f6c;stroke-width:1.25;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;font-family:Garamond Premier Pro;-inkscape-font-specification:Garamond Premier Pro"
+       id="flowRoot3027">
+      <path
+         d="m -58.9525,88.935417 c 0,0.12 0.22,0.3 0.44,0.46 0.48,0.339999 0.5,0.48 0.5,0.6 0,1.059999 -0.02,3.520001 -0.06,4.42 -0.02,0.459999 -0.08,0.76 -0.86,1.04 -0.24,0.08 -0.46,0.2 -0.46,0.42 0,0.1 0.18,0.32 0.54,0.32 0.559999,0 0.920001,-0.06 1.62,-0.06 0.579999,0 1.600001,0.08 2.22,0.08 0.24,0 0.5,-0.18 0.5,-0.34 0,-0.18 -0.26,-0.34 -0.72,-0.46 -0.899999,-0.24 -1.06,-0.440001 -1.12,-1.38 -0.06,-0.7 -0.04,-3.580001 -0.04,-3.78 0,-0.12 0.1,-0.36 0.18,-0.46 0.26,-0.34 0.56,-0.46 0.92,-0.46 0.26,0 0.56,0.12 0.72,0.24 0.2,0.14 0.32,0.2 0.46,0.2 0.08,0 0.22,-0.06 0.32,-0.16 0.28,-0.22 0.8,-0.780001 0.8,-1.22 0,-0.22 -0.520001,-0.62 -1.1,-0.62 -0.779999,0 -1.580001,0.54 -2.16,1.18 -0.06,0.08 -0.2,0 -0.2,-0.06 -0.02,-0.3 -0.02,-0.700001 -0.04,-0.98 0,-0.06 -0.16,-0.28 -0.24,-0.28 -0.16,0 -0.32,0.08 -0.58,0.2 -0.42,0.219999 -1.04,0.5 -1.36,0.68 -0.16,0.08 -0.28,0.24 -0.28,0.42"
+         style="marker:none"
+         id="path3053" />
+    </g>
   </g>
   <path
      d="m 17.438379,34.234037 16.265804,0"
@@ -230,7 +236,7 @@
      inkscape:connector-curvature="0" />
   <g
      id="g4019"
-     transform="matrix(3.6664234,0,0,3.6664234,-197.54738,-213.50815)">
+     transform="matrix(3.008698,0,0,3.008698,-139.04256,-173.39993)">
     <path
        transform="matrix(0.26933692,0,0,0.26933694,48.14924,47.630262)"
        d="m 136.96648,126.51788 c 0,14.53135 -11.77999,26.31134 -26.31134,26.31134 -14.531345,0 -26.311331,-11.77999 -26.311331,-26.31134 0,-14.53135 11.779986,-26.31133 26.311331,-26.31133 14.53135,0 26.31134,11.77998 26.31134,26.31133 z"
