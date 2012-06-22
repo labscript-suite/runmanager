@@ -1,6 +1,6 @@
 from pylab import *
 
-def drop_times(t_min, t_max, n_points, sample_square=True, randomise=True,repeats=1):
+def drop_times(t_min, t_max, n_points, sample_square=True, randomise=False,repeats=1):
     if sample_square:
         times = sqrt(linspace(t_min**2,t_max**2,n_points))
     else:
