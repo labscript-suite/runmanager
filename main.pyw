@@ -16,6 +16,7 @@ import h5py
 
 import pylab
 import excepthook
+from LabConfig import LabConfig
 import shared_drive
 import runmanager
 import subproc_utils
@@ -229,6 +230,19 @@ class GroupTab(object):
         
 class RunManager(object):
     def __init__(self):
+        config_path = r'C:\labconfig\\'+socket.gethostname()+r'.ini'
+        required_config_params = {"DEFAULT":["experiment_name"],
+                                  "programs":["text_editor",
+                                              "text_editor_arguments",
+                                             ],
+                                  "paths":["shared_drive",
+                                           "experiment_shot_storage",
+                                           "labscriptlib",
+                                          ],
+                                 }
+        self.exp_config = LabConfig(config_path,required_config_params)
+        
+        
         self.builder = gtk.Builder()
         self.builder.add_from_file('interface.glade')
         
@@ -272,7 +286,7 @@ class RunManager(object):
         self.window.set_icon_from_file(os.path.join('runmanager.svg'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
-        self.chooser_labscript_file.set_current_folder(r'C:\\user_scripts\\labscriptlib') # Will only happen if folder exists
+        self.chooser_labscript_file.set_current_folder(self.exp_config.get('paths','labscriptlib')) # Will only happen if folder exists
         self.builder.connect_signals(self)
         
         self.opentabs = []
@@ -668,13 +682,10 @@ class RunManager(object):
                 
             if 'g07a' in server_name:
                 new_path += '\\spinorbec'
-            elif 'g46' in server_name:
-                if 'krb' in server_name:
-                    new_path += '\\dual_species_lab\\krb'
-                elif 'narb' in server_name:
-                    new_path += '\\dual_species_lab\\narb'
-                else:
-                    new_path += '\\dual_species_lab\\other'
+            elif 'krb' in server_name:
+                new_path += '\\krb'
+            elif 'knarbli' in server_name:
+                new_path += '\\knarbli'
             else:
                 new_path += '\\other'
                 
