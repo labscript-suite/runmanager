@@ -641,6 +641,34 @@ class RunManager(object):
         self.mk_output_dir(filename)
         self.current_labscript_file = filename
     
+    def on_reset_dir(self,widget):
+        # Ignore of no file selected
+        if not self.current_labscript_file:
+            return
+        self.mk_output_dir(self.current_labscript_file,force_set=True)
+    
+    def on_edit_script(self,widget):
+        # get path to text editor
+        editor_path = self.exp_config.get('programs','text_editor')
+        editor_args = self.exp_config.get('programs','text_editor_arguments')
+        
+        # Ignore of no file selected
+        if not self.current_labscript_file:
+            return
+        
+        if editor_path:  
+            if '{file}' in editor_args:
+                editor_args = editor_args.replace('{file}', self.current_labscript_file)
+            else:
+                editor_args = self.current_labscript_file + " " + editor_args
+            
+            try:
+                subprocess.Popen([editor_path,editor_args])
+            except Exception:
+                raise Exception("Unable to launch text editor. Check the path is valid in the experiment config file (%s)"%(self.exp_config.config_path))
+        else:
+            raise Exception("No editor path was specified in the lab config file")
+    
     def update_output_dir(self):
         if time.strftime('\\%Y-%b\\%d') != self.current_day:        
             # Update output dir - We do this outside of a thread, otherwise we have to initialise the win32 library in each thread
@@ -654,9 +682,10 @@ class RunManager(object):
         return True
     
     # Makes the output dir for a labscript file
-    def mk_output_dir(self,filename):
+    # If force set is true, we force the output directory back to what it should be
+    def mk_output_dir(self,filename,force_set=False):
         # If the output dir has been changed since we last did this, then just pass!
-        if hasattr(self,'new_path') and self.new_path != self.chooser_output_directory.get_filename():
+        if not force_set and hasattr(self,'new_path') and self.new_path != self.chooser_output_directory.get_filename():
             print 'mk_output_dir: ignoring request to make new output dir on the share drive'
             print self.chooser_output_directory.get_filename()
             if hasattr(self,'new_path'):
@@ -667,29 +696,30 @@ class RunManager(object):
     
         try:
             # If we aren't in windows, don't bother!
-            if os.name != 'nt':
-                self.globals_path = None
-                return
+            #if os.name != 'nt':
+            #    self.globals_path = None
+            #    return
         
             # path is Z:\Experiments\<lab>\<labscript>\<year>-<month>\<day>\            
             
             new_path = shared_drive_prefix + '\\Experiments'
-            
+            new_path = self.exp_config.get('paths','experiment_shot_storage')
+                        
             # work out the lab
-            server_name = self.builder.get_object('entry_server').get_text()
-            if server_name == 'localhost':
-                server_name = socket.gethostname()             
+            #server_name = self.builder.get_object('entry_server').get_text()
+            #if server_name == 'localhost':
+            #    server_name = socket.gethostname()             
                 
-            if 'g07a' in server_name:
-                new_path += '\\spinorbec'
-            elif 'krb' in server_name:
-                new_path += '\\krb'
-            elif 'knarbli' in server_name:
-                new_path += '\\knarbli'
-            else:
-                new_path += '\\other'
+            #if 'g07a' in server_name:
+            #    new_path += '\\spinorbec'
+            #elif 'krb' in server_name:
+            #    new_path += '\\krb'
+            #elif 'knarbli' in server_name:
+            #    new_path += '\\knarbli'
+            #else:
+            #    new_path += '\\other'
                 
-            new_path += '\\'+os.path.basename(filename)[:-3]+'\\'
+            new_path += os.path.basename(filename)[:-3]+'\\'
             new_path2 = new_path
             # get year, month, day
             new_path += time.strftime('%Y-%b\\%d')
