@@ -844,7 +844,7 @@ class RunManager(object):
                 
     def submit_job(self, run_file):
         server = self.builder.get_object('entry_server').get_text()
-        port = 42517
+        port = int(self.exp_config.get('ports','BLACS'))
         # Workaround to force python not to use IPv6 for the request:
         address  = socket.gethostbyname(server)
         run_file = run_file.replace(shared_drive_prefix,'Z:/').replace('/','\\')
