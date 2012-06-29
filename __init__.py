@@ -6,6 +6,7 @@ import time
 import subprocess
 import types
 import threading
+import traceback
 
 import h5py
 import pylab
@@ -296,18 +297,23 @@ def compile_multishot_async(labscript_file, run_files, stream_queue, done_callba
     argument indicating success. Compilation will stop after the first failure."""
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = subproc_utils.subprocess_with_queues(compiler_path)
-    for run_file in run_files:
-        to_child.put(['compile',[labscript_file, run_file]])
-        while True:
-            signal, data = from_child.get()
-            if signal in ['stdout', 'stderr']:
-                stream_queue.put([signal,data])
-            elif signal == 'done':
-                success = data
-                done_callback(data)
+    try:
+        for run_file in run_files:
+            to_child.put(['compile',[labscript_file, run_file]])
+            while True:
+                signal, data = from_child.get()
+                if signal in ['stdout', 'stderr']:
+                    stream_queue.put([signal,data])
+                elif signal == 'done':
+                    success = data
+                    done_callback(data)
+                    break
+            if not success:
                 break
-        if not success:
-            break
+    except Exception:
+        error = traceback.format_exc()
+        stream_queue.put(['stderr', error])
+        done_callback(False)
     to_child.put(['quit',None])
     retcode = child.communicate()
     
@@ -318,10 +324,16 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
     ['stdout','hello, world\n'] etc. When compilation is finished, the
     function done_callback will be called a boolean argument indicating
     success or failure."""
-    make_run_file_from_globals_files(labscript_file, globals_files, output_path)
-    thread = threading.Thread(target=compile_labscript_async, args=[labscript_file, output_path, stream_queue, done_callback])
-    thread.daemon = True
-    thread.start()
+    try:
+        make_run_file_from_globals_files(labscript_file, globals_files, output_path)
+        thread = threading.Thread(target=compile_labscript_async, args=[labscript_file, output_path, stream_queue, done_callback])
+        thread.daemon = True
+        thread.start()
+    except Exception:
+        error = traceback.format_exc()
+        stream_queue.put(['stderr', error])
+        done_callback(False)
+
     
 
     
