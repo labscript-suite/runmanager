@@ -16,7 +16,7 @@ import h5py
 
 import pylab
 import excepthook
-from LabConfig import LabConfig
+from LabConfig import LabConfig, config_prefix
 import shared_drive
 import runmanager
 import subproc_utils
@@ -230,7 +230,7 @@ class GroupTab(object):
         
 class RunManager(object):
     def __init__(self):
-        config_path = r'C:\labconfig\\'+socket.gethostname()+r'.ini'
+        config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
         required_config_params = {"DEFAULT":["experiment_name"],
                                   "programs":["text_editor",
                                               "text_editor_arguments",
@@ -303,8 +303,7 @@ class RunManager(object):
         self.globals_path = None
         # Add timeout to watch for output folder changes when the day rolls over
         gobject.timeout_add(1000, self.update_output_dir)
-        self.current_day = time.strftime('\\%Y-%b\\%d')
-        
+        self.current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
         # Start the compiler subprocess:
         self.to_child, self.from_child, child = subproc_utils.subprocess_with_queues('batch_compiler.py')
         
@@ -670,13 +669,9 @@ class RunManager(object):
             raise Exception("No editor path was specified in the lab config file")
     
     def update_output_dir(self):
-        if time.strftime('\\%Y-%b\\%d') != self.current_day:        
-            # Update output dir - We do this outside of a thread, otherwise we have to initialise the win32 library in each thread
-            # See: http://devnulled.com/com-objects-and-threading-in-python/
-            # Caling this will update the output folder if it is on the share drive, and it is set for a previous day 
-            # eg run manager was left running overnight, a new sequence is compiled without changing labscript files,
-            # This will update the output dir.
-            self.current_day = time.strftime('\\%Y-%b\\%d')
+        current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
+        if current_day_dir_suffix != self.current_day_dir_suffix:        
+            self.current_day_dir_suffix = current_day_dir_suffix
             if self.chooser_labscript_file.get_filename():
                 self.mk_output_dir(self.chooser_labscript_file.get_filename())
         return True
@@ -685,51 +680,26 @@ class RunManager(object):
     # If force set is true, we force the output directory back to what it should be
     def mk_output_dir(self,filename,force_set=False):
         # If the output dir has been changed since we last did this, then just pass!
-        if not force_set and hasattr(self,'new_path') and self.new_path != self.chooser_output_directory.get_filename():
+        if not force_set and hasattr(self,'todays_experiment_dir') and self.todays_experiment_dir != self.chooser_output_directory.get_filename():
             print 'mk_output_dir: ignoring request to make new output dir on the share drive'
             print self.chooser_output_directory.get_filename()
             if hasattr(self,'new_path'):
-                print self.new_path
+                print self.todays_experiment_dir
             print time.asctime(time.localtime())
             self.globals_path = None
             return
     
         try:
-            # If we aren't in windows, don't bother!
-            #if os.name != 'nt':
-            #    self.globals_path = None
-            #    return
-        
-            # path is Z:\Experiments\<lab>\<labscript>\<year>-<month>\<day>\            
-            
-            new_path = shared_drive_prefix + '\\Experiments'
-            new_path = self.exp_config.get('paths','experiment_shot_storage')
-                        
-            # work out the lab
-            #server_name = self.builder.get_object('entry_server').get_text()
-            #if server_name == 'localhost':
-            #    server_name = socket.gethostname()             
-                
-            #if 'g07a' in server_name:
-            #    new_path += '\\spinorbec'
-            #elif 'krb' in server_name:
-            #    new_path += '\\krb'
-            #elif 'knarbli' in server_name:
-            #    new_path += '\\knarbli'
-            #else:
-            #    new_path += '\\other'
-                
-            new_path += os.path.basename(filename)[:-3]+'\\'
-            new_path2 = new_path
-            # get year, month, day
-            new_path += time.strftime('%Y-%b\\%d')
-            print new_path
-            os.makedirs(new_path)
+            experiment_prefix = self.exp_config.get('paths','experiment_shot_storage')
+            labscript_basename = os.path.basename(filename).strip('.py')
+            experiment_dir = os.path.join(experiment_prefix, labscript_basename)
+            todays_experiment_dir = os.path.join(experiment_dir, self.current_day_dir_suffix)
+            os.makedirs(todays_experiment_dir)
         except OSError, e:  
             print 'mk_output_dir: ignoring exception, folder probably already exists'
             print self.chooser_output_directory.get_filename()
-            if hasattr(self,'new_path'):
-                print self.new_path
+            if hasattr(self,'todays_experiment_dir'):
+                print self.todays_experiment_dir
             print time.asctime(time.localtime())
             print e.message
             self.globals_path = None
@@ -737,20 +707,23 @@ class RunManager(object):
             print type(e)
             self.globals_path = None
             raise
-        print 'aa'
-        if os.path.exists(new_path):     
+        if os.path.exists(todays_experiment_dir):     
             print 'mk_output_dir: updating output chooser'
-            self.chooser_output_directory.set_current_folder(new_path)
-            #self.chooser_h5_file.set_current_folder(new_path2)
-            
-            # Update storage of the path so we can check each time we hit engage, whether we should check to see if the 
-            # output dir needs to be advanced to todays folder (if run manager is left on overnight)
+            self.chooser_output_directory.set_current_folder(todays_experiment_dir)
+
+            # Update storage of the path so we can check each time we
+            # hit engage, whether we should check to see if the output
+            # dir needs to be advanced to todays folder (if run manager
+            # is left on overnight)
             #
-            # This folder is only stored *IF* we have updated the out dir via this function. Thus function only updates the
-            # out dir if the outdir has not been changed since the last time this function ran, and if the share drive is mapped and accessible on windows.
-            
-            self.new_path = new_path
-            self.globals_path = new_path2
+            # This folder is only stored *IF* we have updated the out
+            # dir via this function. Thus function only updates the out
+            # dir if the outdir has not been changed since the last time
+            # this function ran, and if the share drive is mapped and
+            # accessible on windows.
+
+            self.todays_experiment_dir = todays_experiment_dir
+            self.globals_path = experiment_dir
         else:
             self.globals_path = None
     
