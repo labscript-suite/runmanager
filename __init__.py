@@ -12,6 +12,7 @@ import h5py
 import pylab
 
 import subproc_utils
+import mise
 
 def new_globals_file(filename):
     with h5py.File(filename,'w') as f:
@@ -146,6 +147,7 @@ def get_shot_globals(sequence_globals,full_output=False):
     
     # Eval the expressions, storing them all as lists or numpy arrays:        
     evaled_globals = {}
+    contains_mise_parameters = False
     for global_name, expression in all_globals.items():
         try:
             sandbox = {}
@@ -159,15 +161,22 @@ def get_shot_globals(sequence_globals,full_output=False):
            evaled_globals[global_name] = [tuple(value)]
         elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
             evaled_globals[global_name] = value
+        elif isinstance(value, mise.MiseParameter):
+            evaled_globals[global_name] = value
+            contains_mise_parameters = True
         else:
             evaled_globals[global_name] = [value]
     
     # Do a cartesian product over the resulting lists of values:
     global_names = evaled_globals.keys()
     shots = []
-    for global_values in itertools.product(*evaled_globals.values()):
-        shot_globals = dict(zip(global_names,global_values))
-        shots.append(shot_globals)
+    # Mise parameters cannot be expanded to individual shots, they are
+    # not lists and don't have values! Leave shots as an empty list if
+    # there are any MiseParameters in the parameter space:
+    if not contains_mise_parameters:
+        for global_values in itertools.product(*evaled_globals.values()):
+            shot_globals = dict(zip(global_names,global_values))
+            shots.append(shot_globals)
         
     if full_output:
         return shots, all_globals, evaled_globals

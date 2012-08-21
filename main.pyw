@@ -13,6 +13,7 @@ import gobject
 import pango
 
 import h5py
+from zmq import ZMQError
 
 import pylab
 import excepthook
@@ -755,8 +756,7 @@ class RunManager(object):
                 labscript_file, run_files = self.make_h5_files(sequenceglobals, shots)
                 self.compile_queue.put([labscript_file,run_files])
             else:
-                # We'll be sending the data to mise. But just print it for the moment
-                print evaled_globals
+                threading.Thread(target=self.submit_to_mise,args=(evaled_globals,)).start()
             logger.info('finishing try statement')
         except Exception as e:
             self.output(str(e)+'\n',red=True)
@@ -868,6 +868,20 @@ class RunManager(object):
             self.output('Couldn\'t submit job to control server: %s\n'%str(e),red=True)
             self.aborted = True
     
+    def submit_to_mise(self, evaled_globals):
+        port = int(self.exp_config.get('ports','mise'))
+        host = self.builder.get_object('entry_mise_server').get_text()
+        if self.current_labscript_file is None:
+            self.output('no labscript file selected\n', red = True)
+            return
+        self.output('submitting labscript and parameter space to mise\n')
+        data = ('from runmanager', self.current_labscript_file, evaled_globals)
+        try:
+            success, message = subproc_utils.zmq_get(port, host=host, data=data, timeout=2)
+        except ZMQError as e:
+            success, message = False, 'Could not send to mise: %s\n'%str(e)
+        self.output(message, red = not success)
+        
 logger = setup_logging()
 excepthook.set_logger(logger)
 if __name__ == "__main__":
