@@ -151,6 +151,7 @@ def get_shot_globals(sequence_globals,full_output=False):
             sandbox = {}
             exec('from pylab import *',sandbox,sandbox)
             exec('from runmanager.functions import *',sandbox,sandbox)
+            exec('from mise import MiseParameter',sandbox,sandbox)
             value = eval(expression,sandbox)
         except Exception as e:
             raise Exception('Error parsing global \'%s\': '%global_name + str(e))

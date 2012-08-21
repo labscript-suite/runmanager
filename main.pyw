@@ -256,9 +256,12 @@ class RunManager(object):
         self.output_page = self.builder.get_object('output_page')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
         self.chooser_output_directory = self.builder.get_object('chooser_output_directory')
-        self.checkbutton_compile = self.builder.get_object('checkbutton_compile')
+        self.radiobutton_compile = self.builder.get_object('radiobutton_compile')
+        self.radiobutton_mise = self.builder.get_object('radiobutton_mise')
         self.checkbutton_view = self.builder.get_object('checkbutton_view')
         self.checkbutton_run = self.builder.get_object('checkbutton_run')
+        self.checkbuttons_box = self.builder.get_object('checkbuttons_box')
+        self.mise_server_box = self.builder.get_object('mise_server_box')
         self.toggle_shuffle = self.builder.get_object('toggle_shuffle')
         self.button_abort = self.builder.get_object('button_abort')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
@@ -354,21 +357,20 @@ class RunManager(object):
             if isinstance(parent,gtk.Window):
                 parent.queue_draw()
                 
-    def toggle_compile(self,widget):
+    def toggle_compile_or_mise(self, widget):
         self.compile = widget.get_active()
-        if not self.compile:
-            self.checkbutton_view.set_active(False)
-            self.checkbutton_run.set_active(False) 
-    
+        if self.compile:
+            self.checkbuttons_box.set_visible(True)
+            self.mise_server_box.set_visible(False)
+        else:
+            self.checkbuttons_box.set_visible(False)
+            self.mise_server_box.set_visible(True)
+            
     def toggle_view(self,widget):
         self.view = widget.get_active()
-        if self.view:
-            self.checkbutton_compile.set_active(True) 
             
     def toggle_run(self,widget):
         self.run = widget.get_active()
-        if self.run:
-            self.checkbutton_compile.set_active(True) 
     
     def on_new_file_clicked(self,*args):
         chooser = gtk.FileChooserDialog(title='Save new HDF5 file',action=gtk.FILE_CHOOSER_ACTION_SAVE,
@@ -746,12 +748,15 @@ class RunManager(object):
         logger.info(str(self.compile))
         try:
             logger.info('in try statement')
+            logger.info('about to parse_globals')
+            sequenceglobals, shots, evaled_globals = self.parse_globals()
             if self.compile:
-                logger.info('about to parse_globals')
-                sequenceglobals, shots = self.parse_globals()
                 logger.info('about to make_h5_files globals')
                 labscript_file, run_files = self.make_h5_files(sequenceglobals, shots)
                 self.compile_queue.put([labscript_file,run_files])
+            else:
+                # We'll be sending the data to mise. But just print it for the moment
+                print evaled_globals
             logger.info('finishing try statement')
         except Exception as e:
             self.output(str(e)+'\n',red=True)
@@ -804,8 +809,8 @@ class RunManager(object):
     def parse_globals(self):
         active_groups = self.get_active_groups()
         sequence_globals = runmanager.get_sequence_globals(active_groups)
-        shots = runmanager.get_shot_globals(sequence_globals)
-        return sequence_globals, shots
+        shots, all_globals, evaled_globals = runmanager.get_shot_globals(sequence_globals,full_output=True)
+        return sequence_globals, shots, evaled_globals
         
     def make_h5_files(self, sequence_globals, shots):
         labscript_file = self.chooser_labscript_file.get_filename()
