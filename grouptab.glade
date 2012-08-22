@@ -132,6 +132,7 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="model">global_liststore</property>
+                <property name="enable_search">False</property>
                 <child>
                   <object class="GtkTreeViewColumn" id="delete_column"/>
                 </child>
