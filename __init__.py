@@ -163,7 +163,6 @@ def get_shot_globals(sequence_globals,full_output=False):
                 sandbox[global_name] = value
                 del globals_to_eval[global_name]
             except Exception as e:
-                print e
                 # Don't raise, just append the error to a list, we'll display them all later.
                 errors.append((global_name,e))
                 continue
@@ -185,7 +184,6 @@ def get_shot_globals(sequence_globals,full_output=False):
             # raise it.
             message = 'Error parsing globals:\n'
             for global_name, e in errors:
-                print global_name, e
                 message += '%s: %s\n'%(global_name,str(e))
             raise Exception(message)
         previous_errors = len(errors)
