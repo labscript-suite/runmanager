@@ -9,5 +9,13 @@ def quadspace(t_min, t_max, n_points, randomise=False, repeats=1):
         return times[argsort(rand(n_points*repeats))]
     else:
         return times
-        
+       
+# For backward compatibility:
 drop_times = quadspace
+
+def first():
+    """Infinite iterator. Its first return value is true, subsequent
+    return values are False"""
+    yield True
+    while True:
+        yield False
