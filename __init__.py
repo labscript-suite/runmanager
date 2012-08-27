@@ -148,25 +148,48 @@ def get_shot_globals(sequence_globals,full_output=False):
     # Eval the expressions, storing them all as lists or numpy arrays:        
     evaled_globals = {}
     contains_mise_parameters = False
-    for global_name, expression in all_globals.items():
-        try:
-            sandbox = {}
-            exec('from pylab import *',sandbox,sandbox)
-            exec('from runmanager.functions import *',sandbox,sandbox)
-            exec('from mise import MiseParameter',sandbox,sandbox)
-            value = eval(expression,sandbox)
-        except Exception as e:
-            raise Exception('Error parsing global \'%s\': '%global_name + str(e))
-        if isinstance(value,types.GeneratorType):
-           evaled_globals[global_name] = [tuple(value)]
-        elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
-            evaled_globals[global_name] = value
-        elif isinstance(value, mise.MiseParameter):
-            evaled_globals[global_name] = value
-            contains_mise_parameters = True
-        else:
-            evaled_globals[global_name] = [value]
-    
+    sandbox = {}
+    exec('from pylab import *',sandbox,sandbox)
+    exec('from runmanager.functions import *',sandbox,sandbox)
+    exec('from mise import MiseParameter',sandbox,sandbox)
+    globals_to_eval = all_globals.copy()
+    previous_errors = -1
+    while globals_to_eval:
+        errors = []
+        for global_name, expression in globals_to_eval.copy().items():
+            try:
+                value = eval(expression,sandbox)
+                # Put the global into the namespace so other globals can use it:
+                sandbox[global_name] = value
+                del globals_to_eval[global_name]
+            except Exception as e:
+                print e
+                # Don't raise, just append the error to a list, we'll display them all later.
+                errors.append((global_name,e))
+                continue
+            if isinstance(value,types.GeneratorType):
+               evaled_globals[global_name] = [tuple(value)]
+            elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
+                evaled_globals[global_name] = value
+            elif isinstance(value, mise.MiseParameter):
+                evaled_globals[global_name] = value
+                contains_mise_parameters = True
+            else:
+                evaled_globals[global_name] = [value]
+        if len(errors) == previous_errors:
+            # Since some globals may refer to others, we expect maybe
+            # some NameErrors to have occured.  There should be fewer
+            # NameErrors each iteration of this while loop, as globals
+            # that are required become defined. If there are not fewer
+            # errors, then there is something else wrong and we should
+            # raise it.
+            message = 'Error parsing globals:\n'
+            for global_name, e in errors:
+                print global_name, e
+                message += '%s: %s\n'%(global_name,str(e))
+            raise Exception(message)
+        previous_errors = len(errors)
+        
     # Do a cartesian product over the resulting lists of values:
     global_names = evaled_globals.keys()
     shots = []
