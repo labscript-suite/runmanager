@@ -15,6 +15,7 @@ import pango
 import h5py
 from zmq import ZMQError
 
+import lyse
 import pylab
 import excepthook
 from LabConfig import LabConfig, config_prefix
@@ -396,7 +397,39 @@ class RunManager(object):
             # Append to Tree View
             parent = self.group_store.prepend(None,(f,False,"gtk-close",None,0,0,1))
             # Add editable option for adding!
-            self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0))  
+            self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0))
+            
+    def on_diff_file(self,*args):
+        chooser = gtk.FileChooserDialog(title='Diff current globals with HDF file',action=gtk.FILE_CHOOSER_ACTION_OPEN,
+                                    buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
+                                               gtk.STOCK_SAVE,gtk.RESPONSE_OK))
+        chooser.add_filter(self.builder.get_object('filefilter1'))
+        chooser.set_default_response(gtk.RESPONSE_OK)
+        # set this to the current location of the h5_chooser
+        if self.globals_path:     
+            chooser.set_current_folder(self.globals_path)
+        else:
+            chooser.set_current_folder(self.chooser_labscript_file.get_current_folder())
+        
+        response = chooser.run()
+        f = chooser.get_filename()
+        d = chooser.get_current_folder()
+        chooser.destroy()
+        if response == gtk.RESPONSE_OK:         
+            # instantiate a lyse Run object based on the file to diff
+            run = lyse.Run(f)
+            # get a dictionary of the sequence_globals for the file to diff
+            sequence_globals_1 = run.get_globals_raw()
+            # get a dictionary of the sequence globals based on the current globals
+            sequence_globals, shots, evaled_globals = self.parse_globals()
+            sequence_globals_2 = {}
+            for globals_group in sequence_globals.values():
+                for key, val in globals_group.items():
+                    sequence_globals_2[key] = val[0]
+            # do a diff of the two dictionaries
+            diff_globals = lyse.dict_diff(sequence_globals_1, sequence_globals_2)
+            for key, val in diff_globals.items():
+                print key, val
             
     def on_global_toggle(self, cellrenderer_toggle, path):
         new_state = not cellrenderer_toggle.get_active()
