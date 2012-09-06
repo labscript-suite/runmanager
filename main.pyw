@@ -24,7 +24,6 @@ import runmanager
 import subproc_utils
 from subproc_utils.gtk_components import OutputBox
 
-shared_drive_prefix = shared_drive.get_prefix('monashbec')
 
 # This provides debug info without having to run from a terminal, and
 # avoids a stupid crash on Windows when there is no command window:
@@ -304,7 +303,9 @@ class RunManager(object):
         self.run_files = []
         self.aborted = False
         self.current_labscript_file = None
-
+        
+        self.shared_drive_prefix = self.exp_config.get('paths','shared_drive')
+        
         self.globals_path = None
         # Add timeout to watch for output folder changes when the day rolls over
         gobject.timeout_add(1000, self.update_output_dir)
@@ -789,7 +790,7 @@ class RunManager(object):
                 labscript_file, run_files = self.make_h5_files(sequenceglobals, shots)
                 self.compile_queue.put([labscript_file,run_files])
             else:
-                threading.Thread(target=self.submit_to_mise,args=(evaled_globals,)).start()
+                threading.Thread(target=self.submit_to_mise,args=(sequenceglobals, shots)).start()
             logger.info('finishing try statement')
         except Exception as e:
             self.output(str(e)+'\n',red=True)
@@ -888,7 +889,7 @@ class RunManager(object):
         port = int(self.exp_config.get('ports','BLACS'))
         # Workaround to force python not to use IPv6 for the request:
         address  = socket.gethostbyname(server)
-        run_file = run_file.replace(shared_drive_prefix,'Z:/').replace('/','\\')
+        run_file = run_file.replace(self.shared_drive_prefix,'Z:/').replace('/','\\')
         self.output('Submitting run file %s.\n'%os.path.basename(run_file))
         params = urllib.urlencode({'filepath': run_file})
         try:
@@ -901,14 +902,20 @@ class RunManager(object):
             self.output('Couldn\'t submit job to control server: %s\n'%str(e),red=True)
             self.aborted = True
     
-    def submit_to_mise(self, evaled_globals):
+    def submit_to_mise(self, sequenceglobals, shots):
         port = int(self.exp_config.get('ports','mise'))
         host = self.builder.get_object('entry_mise_server').get_text()
         if self.current_labscript_file is None:
             self.output('no labscript file selected\n', red = True)
             return
         self.output('submitting labscript and parameter space to mise\n')
-        data = ('from runmanager', self.current_labscript_file, evaled_globals)
+        with gtk.gdk.lock:
+            output_folder = self.chooser_output_directory.get_filename()
+            shuffle = self.toggle_shuffle.get_active()
+            BLACS_server = self.builder.get_object('entry_server').get_text()
+            BLACS_port = int(self.exp_config.get('ports','BLACS'))
+        data = ('from runmanager', self.current_labscript_file, 
+                sequenceglobals, shots, output_folder, shuffle, BLACS_server, BLACS_port, self.shared_drive_prefix)
         try:
             success, message = subproc_utils.zmq_get(port, host=host, data=data, timeout=2)
         except ZMQError as e:
