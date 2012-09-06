@@ -297,7 +297,7 @@ class RunManager(object):
         self.grouplist = []
         self.popped_out = False
         self.making_new_file = False
-        self.compile = False
+        self.compile = True
         self.view = False
         self.run = False
         self.run_files = []
