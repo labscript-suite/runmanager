@@ -5,10 +5,9 @@ import excepthook
 from subproc_utils import setup_connection_with_parent
 from filewatcher.modulewatcher import ModuleWatcher
 
-# Not used directly, but we want these modules to be whitelisted by
-# ModuleWatcher, so that they don't get reloaded.
-import pylab
-import h5py
+# Supress labscript's automatic initialisation (labscript looks in the __main__ module for this):
+labscript_auto_init = False
+import labscript
 
 class BatchProcessor(object):
     def __init__(self, to_parent, from_parent, kill_lock):
@@ -31,9 +30,7 @@ class BatchProcessor(object):
     def compile(self,labscript_file, run_file):
         # The namespace the labscript will run in:
         sandbox = {'__name__':'__main__'}
-        old_sys_argv = sys.argv
-        old_builtins = __builtins__.__dict__.copy()
-        sys.argv = [labscript_file, run_file]
+        labscript.labscript_init(run_file, labscript_file=labscript_file)
         try:
             with kill_lock:
                 execfile(labscript_file,sandbox,sandbox)
@@ -45,16 +42,7 @@ class BatchProcessor(object):
             sys.stderr.write(message)
             return False
         finally:
-            sys.argv = old_sys_argv
-            for name in dir(__builtins__):
-                if name not in old_builtins:
-                    del __builtins__.__dict__[name]
-                else:
-                    __builtins__.__dict__[name] = old_builtins[name]
-            to_delete = []
-            for name in sys.modules.copy():
-                if 'labscript' in name:
-                    del sys.modules[name]  
+            labscript.labscript_cleanup()
                    
 if __name__ == '__main__':
     to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True, redirect_output=True)
