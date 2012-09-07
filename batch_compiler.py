@@ -5,6 +5,11 @@ import excepthook
 from subproc_utils import setup_connection_with_parent
 from filewatcher.modulewatcher import ModuleWatcher
 
+# Not used directly, but we want these modules to be whitelisted by
+# ModuleWatcher, so that they don't get reloaded.
+import pylab
+import h5py
+
 class BatchProcessor(object):
     def __init__(self, to_parent, from_parent, kill_lock):
         self.to_parent = to_parent
