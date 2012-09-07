@@ -435,8 +435,15 @@ class RunManager(object):
                     sequence_globals_2[key] = val[0]
             # do a diff of the two dictionaries
             diff_globals = lyse.dict_diff(sequence_globals_1, sequence_globals_2)
-            for key, val in diff_globals.items():
-                print key, val
+            if len(diff_globals):
+                self.output('\nGlobals diff with:\n%s\n' % f)
+                diff_keys = diff_globals.keys()
+                diff_keys.sort()
+                for key in diff_keys:
+                    self.output('%s : %s\n' % (key, diff_globals[key]))
+            else:
+                self.output('Sequence globals are identical to those of:\n%s\n' % f)
+            self.output('Ready\n')
             
     def on_global_toggle(self, cellrenderer_toggle, path):
         new_state = not cellrenderer_toggle.get_active()
