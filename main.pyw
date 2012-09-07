@@ -319,6 +319,12 @@ class RunManager(object):
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
         
+        # Start the thread which filters stdout and stderr from the child process:
+        self.from_child_minus_output = Queue.Queue()
+        self.output_filter_thread = threading.Thread(target=self.filter_output_from_child)
+        self.output_filter_thread.daemon = True
+        self.output_filter_thread.start()
+        
         self.output('Ready\n')
     
     def on_window_destroy(self,widget):
@@ -864,15 +870,9 @@ class RunManager(object):
         try:
             for run_file in run_files:
                 self.to_child.put(['compile',[labscript_file,run_file]])
-                while True:
-                    signal,data = self.from_child.get()
-                    if signal == 'stdout':
-                        self.output(data)
-                    elif signal == 'stderr':
-                        self.output(data,red=True)
-                    elif signal == 'done':
-                        success = data
-                        break
+                signal, data = self.from_child_minus_output.get()
+                assert signal == 'done'
+                success = data
                 if self.aborted or not success:
                     break
                 if self.run:
@@ -883,6 +883,21 @@ class RunManager(object):
         except Exception as e :
             self.output(str(e)+'\n',red=True)
             self.aborted = True
+    
+    def filter_output_from_child(self):
+        """A loop which receieves data from the child process
+        asynchronously. Pipes stdout and stderr to the outputbox, and
+        everything else to self.from_child_minus_output, which is used
+        by the above function compile_labscript()"""
+        while True:
+            signal, data = self.from_child.get()
+            if signal == 'stdout':
+                self.output(data)
+            elif signal == 'stderr':
+                self.output(data,red=True)
+            else:
+                self.from_child_minus_output.put([signal, data])
+
                 
     def submit_job(self, run_file):
         server = self.builder.get_object('entry_server').get_text()
