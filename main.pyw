@@ -64,7 +64,13 @@ def setup_logging():
         sys.stdout = sys.stderr = open(os.devnull,'w')
     logger.setLevel(logging.DEBUG)
     return logger
-    
+
+def error_dialog(message):
+    dialog =  gtk.MessageDialog(app.window, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_WARNING, 
+                                buttons=(gtk.BUTTONS_OK), message_format = message)
+    result = dialog.run()
+    dialog.destroy()
+            
 class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
     __gsignals__    = { 'clicked' :
                         (gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, (gobject.TYPE_STRING,)) , }
@@ -74,7 +80,21 @@ class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
     def do_activate(self, event, widget, path, background_area, cell_area, flags):
         self.emit('clicked', path)
 
+
 class GroupTab(object):
+
+    # Useful constants for liststore operations:
+    N_COLUMNS = 6
+    NAME = 0
+    VALUE = 1
+    UNITS = 2
+    EXPANSION = 3
+    DELETE_ICON = 4
+    EDITABLE = 5
+
+    NEW_GLOBAL_STRING = '<Click to add new global>'
+    DELETE_ICON_STRING = 'gtk-delete'
+    
     def __init__(self, app, filepath, name):
         self.name = name
         self.filepath = filepath
@@ -91,23 +111,27 @@ class GroupTab(object):
         self.global_treeview = self.builder.get_object('global_treeview')
         self.tab = gtk.HBox()
         
-        self.delete_column = self.builder.get_object('delete_column')
+        self.column_delete = self.builder.get_object('column_delete')
+        self.column_name = self.builder.get_object('column_name')
+        self.column_value = self.builder.get_object('column_value')
+        self.column_units = self.builder.get_object('column_units')
+        self.column_expansion = self.builder.get_object('column_expansion')
         delete_cell_renderer = CellRendererClickablePixbuf()
-        self.delete_column.pack_end(delete_cell_renderer)
-        self.delete_column.add_attribute(delete_cell_renderer,"stock-id",3)
+        self.column_delete.pack_end(delete_cell_renderer)
+        self.column_delete.add_attribute(delete_cell_renderer,"stock-id",3)
         delete_cell_renderer.connect("clicked",self.on_delete_global)
         
-        #get a stock close button image
+        # get a stock close button image
         close_image = gtk.image_new_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
         image_w, image_h = gtk.icon_size_lookup(gtk.ICON_SIZE_MENU)
         
-        #make the close button
+        # make the close button
         btn = gtk.Button()
         btn.set_relief(gtk.RELIEF_NONE)
         btn.set_focus_on_click(False)
         btn.add(close_image)
         
-        #this reduces the size of the button
+        # this reduces the size of the button
         style = gtk.RcStyle()
         style.xthickness = 0
         style.ythickness = 0
@@ -128,22 +152,43 @@ class GroupTab(object):
         
         self.notebook.show()
 
-        #connect the close button
+        # connect the close button
         btn.connect('clicked', self.on_closetab_button_clicked)
 
         self.builder.connect_signals(self)
         
         self.globals = []
         
+        # For backward compatability, add 'expansion' settings to this
+        # globals file, if it doesn't contain any.  If they are added,
+        # display a warning so the user knows they need to set expansion
+        # settings.
+#        if runmanager.add_expansion_groups(self.filepath):
+#            error_dialog('The globals file %s was created before runmanager\'s \'expansion settings\' '%self.filepath +
+#                         'feature was introduced.\n\nLists will not be automatically expanded with ' + 
+#                         'cartesian products unless specified with \'outer\' in the expansion settings column.\n\n' + 
+#                         'You\'ll want to do this before running any experiments using this globals file. ' +
+#                         'This message won\'t be shown again for this globals file.')
         global_vars = runmanager.get_globalslist(self.filepath,self.name)
         
         for global_var in global_vars:
-            value = runmanager.get_value(self.filepath,self.name,global_var)
-            units = runmanager.get_units(self.filepath,self.name,global_var)
-            self.global_liststore.append((global_var,value,units,"gtk-delete",True,True))
+            value = runmanager.get_value(self.filepath, self.name, global_var)
+            units = runmanager.get_units(self.filepath, self.name, global_var)
+            # temporarily disabled whilst feature is being developed:
+            expansion = None #runmanager.get_expansion(self.filepath, self.name, global_var)
+            row = [None]*self.N_COLUMNS
+            row[self.NAME] = global_var
+            row[self.VALUE] = value
+            row[self.UNITS] = units
+            row[self.EXPANSION] = expansion
+            row[self.DELETE_ICON] = self.DELETE_ICON_STRING
+            row[self.EDITABLE] = True
+            self.global_liststore.append(row)
         
         # Add line to add a new global
-        self.global_liststore.append(("<Click to add global>","","",None,False,False))
+        row = [None]*self.N_COLUMNS
+        row[self.NAME] = self.NEW_GLOBAL_STRING
+        self.global_liststore.append(row)
         
     def on_closetab_button_clicked(self,*args):
         # close tab
@@ -158,64 +203,102 @@ class GroupTab(object):
         self.tablabel.set_text(self.name)
     
     def close_tab(self):
-        # Get the page number of the tab we wanted to close
+        # Get the page number of the tab we wanted to close:
         pagenum = self.notebook.page_num(self.toplevel)
-        # And close it
+        # And close it:
         self.notebook.remove_page(pagenum)
     
-    def on_edit_name(self,cellrenderer,path,new_text):
-        iter = self.global_liststore.get_iter(path)
-        image = self.global_liststore.get(iter,3)[0]       
-        # If the delete image is None, then add a new global!
-        if not image:
-            if new_text == "<Click to add global>":
+    def focus_cell(self, column, path):
+        # Focus the target cell for editing. Do this asynchronously, as a gobject.idle:
+        def focus_value_cell():
+            # gobject.idle_add isn't threadsafe, must acquire the gtk lock:
+            with gtk.gdk.lock:
+                self.global_treeview.set_cursor(path,column,True)
+        gobject.idle_add(focus_value_cell)
+            
+    def on_edit_name(self, cellrenderer, path, new_text):
+        icon_name = self.global_liststore[path][self.DELETE_ICON]
+        # if the icon_name is blank, then the user is editing the 'add
+        # new global' row (which does not have a delete button). So in
+        # this case we create a new global:
+        if not icon_name:
+            if new_text == self.NEW_GLOBAL_STRING:
+                # The user quit the editing without entering a name for
+                # their new global. Do not create a new global:
                 return
-                
-            runmanager.new_global(self.filepath,self.name,new_text)
-
-            self.global_liststore.insert_after(iter,("<Click to add global>","","",None,False,False))
-            self.global_liststore.set(iter,0,new_text,3,"gtk-delete",4,True,5,True)
+            try:    
+                runmanager.new_global(self.filepath,self.name,new_text)
+            except Exception as e:
+                error_dialog(str(e))
+                return
+            # Set the properties of this row to that of a new global:
+            row = self.global_liststore[path]
+            row[self.NAME] = new_text
+            row[self.DELETE_ICON] = self.DELETE_ICON_STRING
+            row[self.EDITABLE] = True
             
-            # Handle weird bug where hitting "tab" after typing the name causes the treeview rendering to break
-            # We fix the issue by first moving to the cell without entering edit mode, and then we set up a gobject timeout add
-            # to enter editing mode immediately
-            self.global_treeview.set_cursor(self.global_liststore.get_path(iter),self.global_treeview.get_column(2),False)
-            gobject.timeout_add(1, self.global_treeview.set_cursor,self.global_liststore.get_path(iter),self.global_treeview.get_column(2),True)
+            # Re-add a row to the bottom for adding a new global
+            row = [None]*self.N_COLUMNS
+            row[self.NAME] = self.NEW_GLOBAL_STRING
+            self.global_liststore.append(row)
             
+            # Focus the value cell for editing next:
+            self.focus_cell(self.column_value, path)
                 
-        # We are editing an exiting global
+        # Otherwise, we are editing an existing global:
         else:    
-            name = self.global_liststore.get(iter,0)[0] 
-            runmanager.rename_global(self.filepath, self.name, name, new_text)
-            self.global_liststore.set_value(iter,0,new_text)
+            name = self.global_liststore[path][self.NAME]
+            try:
+                runmanager.rename_global(self.filepath, self.name, name, new_text)
+            except Exception as e:
+                error_dialog(str(e))
+                return
+            self.global_liststore[path][self.NAME] = new_text
         
-    def on_edit_value(self,cellrenderer,path,new_text):
-        iter = self.global_liststore.get_iter(path)
-        name = self.global_liststore.get(iter,0)[0]  
-        runmanager.set_value(self.filepath, self.name, name, new_text)
-        self.global_liststore.set_value(iter,1,new_text)
+    def on_edit_value(self, cellrenderer, path, new_text):
+        name = self.global_liststore[path][self.NAME]
+        existing_value = self.global_liststore[path][self.VALUE]
+        if new_text == existing_value:
+            # Prevent focussing of units field (which might happen below)
+            # if there was no actual change:
+            return
+        try:
+            runmanager.set_value(self.filepath, self.name, name, new_text)
+        except Exception as e:
+            error_dialog(str(e))
+            return
+        self.global_liststore[path][self.VALUE] = new_text
         # If the units box is empty, make it focussed and editable to encourage people to set units!
-        units = self.global_liststore.get(iter,2)[0]  
+        units = self.global_liststore[path][self.UNITS]
         if not units:
-            # Handle weird bug where hitting "tab" after typing the name causes the treeview rendering to break
-            # We fix the issue by first moving to the cell without entering edit mode, and then we set up a gobject timeout add
-            # to enter editing mode immediately
-            self.global_treeview.set_cursor(path,self.global_treeview.get_column(3),False)
-            gobject.timeout_add(1, self.global_treeview.set_cursor,path,self.global_treeview.get_column(3),True)
-                
+            self.focus_cell(self.column_units, path)
     
-    def on_edit_units(self,cellrenderer,path,new_text):
-        iter = self.global_liststore.get_iter(path)
-        name = self.global_liststore.get(iter,0)[0]  
-        runmanager.set_units(self.filepath, self.name, name, new_text)
-        self.global_liststore.set_value(iter,2,new_text)
+    def on_edit_units(self, cellrenderer, path, new_text):
+        name = self.global_liststore[path][self.NAME]
+        try:
+            runmanager.set_units(self.filepath, self.name, name, new_text)
+        except Exception as e:
+            error_dialog(str(e))
+            return
+        self.global_liststore[path][self.UNITS] = new_text
+        
+    def on_edit_expansion(self, cellrenderer, path, new_text):
+        # temporarily disabled whilst feature is being developed:
+        return
+        name = self.global_liststore[path][self.NAME]
+        try:
+            runmanager.set_expansion(self.filepath, self.name, name, new_text)
+        except Exception as e:
+            error_dialog(str(e))
+            return
+        self.global_liststore[path][self.EXPANSION] = new_text
     
     def on_delete_global(self,cellrenderer,path):
-        iter = self.global_liststore.get_iter(path)
-        name = self.global_liststore.get(iter,0)[0] 
-        image = self.global_liststore.get(iter,3)[0] 
-        # If the image is None, we have the "<click here to add>" entry, ignore!
-        if not image:
+        name = self.global_liststore[path][self.NAME] 
+        icon_name = self.global_liststore[path][self.DELETE_ICON]
+        # if the icon_name is blank, then the user clicking the space next
+        # to the the 'add new global' row, which is not to be deleted:
+        if not icon_name:
             return
         
         md = gtk.MessageDialog(self.app.window, 
@@ -224,10 +307,15 @@ class GroupTab(object):
         md.set_default_response(gtk.RESPONSE_CANCEL)
         result = md.run()
         md.destroy()
-        if result == gtk.RESPONSE_OK:
-            runmanager.delete_global(self.filepath,self.name,name)
-            # Remove from the liststore
-            self.global_liststore.remove(iter)
+        if result == gtk.RESPONSE_OK:   
+            try:
+                runmanager.delete_global(self.filepath,self.name,name)
+            except Exception as e:
+                error_dialog(str(e))
+                return
+            # Remove from the liststore:
+            del self.global_liststore[path]
+        
         
 class RunManager(object):
     def __init__(self):
@@ -270,16 +358,16 @@ class RunManager(object):
         self.group_treeview = self.builder.get_object('group_treeview')
         self.current_h5_store = self.builder.get_object('current_h5_store')
         self.current_h5_file = self.builder.get_object('current_h5_file')
-        self.add_column = self.builder.get_object('add_column')
+        self.column_add = self.builder.get_object('column_add')
         add_cell_renderer = CellRendererClickablePixbuf()
-        self.add_column.pack_end(add_cell_renderer)
-        self.add_column.add_attribute(add_cell_renderer,"stock-id",2)
+        self.column_add.pack_end(add_cell_renderer)
+        self.column_add.add_attribute(add_cell_renderer,"stock-id",2)
         add_cell_renderer.connect("clicked",self.on_toggle_group)
         
-        self.delete_column = self.builder.get_object('delete_column')
+        self.column_delete = self.builder.get_object('column_delete')
         delete_cell_renderer = CellRendererClickablePixbuf()
-        self.delete_column.pack_end(delete_cell_renderer)
-        self.delete_column.add_attribute(delete_cell_renderer,"stock-id",3)
+        self.column_delete.pack_end(delete_cell_renderer)
+        self.column_delete.add_attribute(delete_cell_renderer,"stock-id",3)
         delete_cell_renderer.connect("clicked",self.on_delete_group)
         
         self.window.show()
@@ -476,7 +564,7 @@ class RunManager(object):
             inconsistent = False
             first_state = self.group_store.get(child_iter,1)[0]
             while child_iter:
-                # If state doesn't mathc the first one and the options are visible (not the child used to add a new group)
+                # If state doesn't match the first one and the options are visible (not the child used to add a new group)
                 # Then break out and set the state to inconsistent
                 if self.group_store.get(child_iter,1)[0] != first_state and self.group_store.get(child_iter,6)[0]:
                     inconsistent = True             

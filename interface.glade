@@ -838,12 +838,12 @@
                         <property name="expander_column">treeviewcolumn4</property>
                         <property name="search_column">0</property>
                         <child>
-                          <object class="GtkTreeViewColumn" id="add_column">
+                          <object class="GtkTreeViewColumn" id="column_add">
                             <property name="resizable">True</property>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkTreeViewColumn" id="delete_column"/>
+                          <object class="GtkTreeViewColumn" id="column_delete"/>
                         </child>
                         <child>
                           <object class="GtkTreeViewColumn" id="treeviewcolumn3">

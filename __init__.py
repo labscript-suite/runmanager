@@ -17,6 +17,22 @@ import mise
 def new_globals_file(filename):
     with h5py.File(filename,'w') as f:
         f.create_group('globals')
+
+def add_expansion_groups(filename):
+    """backward compatability, for globals files which don't have
+    expansion groups. Create them if it doesn't exist. Return whether
+    any new groups were created"""
+    modified = False
+    with h5py.File(filename,'a') as f:
+        for groupname in get_grouplist(filename):
+            group = f['globals'][groupname]
+            if not 'expansion' in group:
+                modified = True
+                subgroup = group.create_group('expansion')
+                # Initialise all expansion settings to blank strings:
+                for name in get_globalslist(filename, groupname):
+                    subgroup.attrs[name] = '' 
+    return modified
     
 def get_grouplist(filename):
     with h5py.File(filename,'r') as f:
@@ -26,12 +42,13 @@ def get_grouplist(filename):
         # before its file gets dereferenced:
         return list(grouplist)
         
-def new_group(filename,groupname):
+def new_group(filename, groupname):
     with h5py.File(filename,'a') as f:
         group = f['globals'].create_group(groupname)
-        units = group.create_group('units')
-    
-def rename_group(filename,oldgroupname,newgroupname):
+        group.create_group('units')
+#        group.create_group('expansion')
+        
+def rename_group(filename, oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
         # No rename!
         return
@@ -39,59 +56,72 @@ def rename_group(filename,oldgroupname,newgroupname):
         f.copy(f['globals'][oldgroupname], '/globals/%s'%newgroupname)
         del f['globals'][oldgroupname]
     
-def delete_group(filename,groupname):
+def delete_group(filename, groupname):
     with h5py.File(filename,'a') as f:
         del f['globals'][groupname]
     
-def get_globalslist(filename,groupname):
+def get_globalslist(filename, groupname):
     with h5py.File(filename,'r') as f:
         group = f['globals'][groupname]
         # File closes after this function call, so have to convert
         # the attrs to a dict before its file gets dereferenced:
         return dict(group.attrs)
     
-def new_global(filename,groupname,globalname):
+def new_global(filename, groupname, globalname):
     with h5py.File(filename,'a') as f:
         group = f['globals'][groupname]
         if globalname in group.attrs:
             raise Exception('Can\'t create global: target name already exists.')
         group.attrs[globalname] = ''
         f['globals'][groupname]['units'].attrs[globalname] = ''
+#        f['globals'][groupname]['expansion'].attrs[globalname] = ''
     
-def rename_global(filename,groupname,oldglobalname,newglobalname):
+def rename_global(filename, groupname, oldglobalname, newglobalname):
     if oldglobalname == newglobalname:
         # No rename!
         return
     value = get_value(filename, groupname, oldglobalname)
     units = get_units(filename, groupname, oldglobalname)
+#    expansion = get_expansion(filename, groupname, oldglobalname)
     with h5py.File(filename,'a') as f:
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
             raise Exception('Can\'t rename: target name already exists.')
         group.attrs[newglobalname] = value
         group['units'].attrs[newglobalname] = units
+#        group['expansion'].attrs[newglobalname] = expansion
         del group.attrs[oldglobalname]
         del group['units'].attrs[oldglobalname]
-
-def get_value(filename,groupname,globalname):
+#        del group['expansion'].attrs[oldglobalname]
+        
+def get_value(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname].attrs[globalname]
         return value
                 
-def set_value(filename,groupname,globalname, value):
+def set_value(filename, groupname, globalname, value):
     with h5py.File(filename,'a') as f:
         f['globals'][groupname].attrs[globalname] = value
     
-def get_units(filename,groupname,globalname):
+def get_units(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname]['units'].attrs[globalname]
         return value
 
-def set_units(filename,groupname,globalname, units):
+def set_units(filename, groupname, globalname, units):
     with h5py.File(filename,'a') as f:
         f['globals'][groupname]['units'].attrs[globalname] = units
-    
-def delete_global(filename,groupname,globalname):
+
+def get_expansion(filename, groupname, globalname):
+    with h5py.File(filename,'r') as f:
+        value = f['globals'][groupname]['expansion'].attrs[globalname]
+        return value  
+        
+def set_expansion(filename, groupname, globalname, expansion):
+    with h5py.File(filename,'a') as f:
+        f['globals'][groupname]['expansion'].attrs[globalname] = expansion
+                  
+def delete_global(filename, groupname, globalname):
     with h5py.File(filename,'a') as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
