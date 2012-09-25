@@ -84,16 +84,28 @@ class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
 class GroupTab(object):
 
     # Useful constants for liststore operations:
-    N_COLUMNS = 6
+    N_COLUMNS = 12
     NAME = 0
     VALUE = 1
     UNITS = 2
     EXPANSION = 3
     DELETE_ICON = 4
     EDITABLE = 5
-
+    VALUE_BG_COLOR = 6
+    VALUE_ERROR_VISIBLE = 7
+    VALUE_IS_BOOL = 8
+    VALUE_BOOL_STATE = 9
+    VALUE_BOOL_BG_COLOR = 10
+    UNITS_EDITABLE = 11
+    
     NEW_GLOBAL_STRING = '<Click to add new global>'
-    DELETE_ICON_STRING = 'gtk-delete'
+    DELETE_ICON_STRING = 'gtk-remove'
+    
+    COLOR_ERROR = '#FF9999' # light red
+    COLOR_OK = '#AAFFCC' # light green
+    COLOR_WHITE = '#FFFFFF'
+    COLOR_BOOL_ON = '#66FF33' # bright green
+    COLOR_BOOL_OFF = '#608060' # dark green
     
     def __init__(self, app, filepath, name):
         self.name = name
@@ -109,6 +121,8 @@ class GroupTab(object):
         self.label_h5_path = self.builder.get_object('label_h5_path')
         self.global_liststore = self.builder.get_object('global_liststore')
         self.global_treeview = self.builder.get_object('global_treeview')
+        
+        self.global_treeview.set_hover_selection(True)
         self.tab = gtk.HBox()
         
         self.column_delete = self.builder.get_object('column_delete')
@@ -118,12 +132,13 @@ class GroupTab(object):
         self.column_expansion = self.builder.get_object('column_expansion')
         delete_cell_renderer = CellRendererClickablePixbuf()
         self.column_delete.pack_end(delete_cell_renderer)
-        self.column_delete.add_attribute(delete_cell_renderer,"stock-id",3)
+        self.column_delete.add_attribute(delete_cell_renderer,"stock-id",self.DELETE_ICON)
         delete_cell_renderer.connect("clicked",self.on_delete_global)
         
         # get a stock close button image
         close_image = gtk.image_new_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
         image_w, image_h = gtk.icon_size_lookup(gtk.ICON_SIZE_MENU)
+        
         
         # make the close button
         btn = gtk.Button()
@@ -183,11 +198,16 @@ class GroupTab(object):
             row[self.EXPANSION] = expansion
             row[self.DELETE_ICON] = self.DELETE_ICON_STRING
             row[self.EDITABLE] = True
+            row[self.VALUE_BG_COLOR] = self.COLOR_WHITE
+            row[self.UNITS_EDITABLE] = True
+            # Check if the row has a boolean value, update its settings accordingly:
+            self.apply_bool_settings(row)
             self.global_liststore.append(row)
         
         # Add line to add a new global
         row = [None]*self.N_COLUMNS
         row[self.NAME] = self.NEW_GLOBAL_STRING
+        row[self.VALUE_BG_COLOR] = self.COLOR_WHITE
         self.global_liststore.append(row)
         
     def on_closetab_button_clicked(self,*args):
@@ -213,7 +233,7 @@ class GroupTab(object):
         def focus_value_cell():
             # gobject.idle_add isn't threadsafe, must acquire the gtk lock:
             with gtk.gdk.lock:
-                self.global_treeview.set_cursor(path,column,True)
+                self.global_treeview.set_cursor(path, column, True)
         gobject.idle_add(focus_value_cell)
             
     def on_edit_name(self, cellrenderer, path, new_text):
@@ -236,6 +256,7 @@ class GroupTab(object):
             row[self.NAME] = new_text
             row[self.DELETE_ICON] = self.DELETE_ICON_STRING
             row[self.EDITABLE] = True
+            row[self.UNITS_EDITABLE] = True
             
             # Re-add a row to the bottom for adding a new global
             row = [None]*self.N_COLUMNS
@@ -268,11 +289,46 @@ class GroupTab(object):
             error_dialog(str(e))
             return
         self.global_liststore[path][self.VALUE] = new_text
+        
+        # Check for Boolean values:
+        self.apply_bool_settings(self.global_liststore[path])
+        
         # If the units box is empty, make it focussed and editable to encourage people to set units!
         units = self.global_liststore[path][self.UNITS]
         if not units:
             self.focus_cell(self.column_units, path)
     
+    def apply_bool_settings(self, row):
+        value = row[self.VALUE]
+        if value == 'True':
+            row[self.UNITS] = 'Bool'
+            row[self.UNITS_EDITABLE] = False
+            row[self.VALUE_IS_BOOL] = True
+            row[self.VALUE_BOOL_STATE] = True
+            row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_BOOL_ON
+        elif value == 'False':
+            row[self.UNITS] = 'Bool'
+            row[self.UNITS_EDITABLE] = False
+            row[self.VALUE_IS_BOOL] = True
+            row[self.VALUE_BOOL_STATE] = False
+            row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_BOOL_OFF
+        else:
+            row[self.UNITS_EDITABLE] = True
+            row[self.VALUE_IS_BOOL] = False
+            row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_WHITE
+            
+    def on_toggle_bool_toggled(self, cellrenderer, path):
+        row = self.global_liststore[path]
+        current_state = row[self.VALUE_BOOL_STATE]
+        new_state = not current_state
+        row[self.VALUE_BOOL_STATE] = new_state
+        if new_state:
+            row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_BOOL_ON
+            row[self.VALUE] = 'True'
+        else:
+            row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_BOOL_OFF
+            row[self.VALUE] = 'False'
+        
     def on_edit_units(self, cellrenderer, path, new_text):
         name = self.global_liststore[path][self.NAME]
         try:
