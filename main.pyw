@@ -10,6 +10,7 @@ import urllib, urllib2, socket
 
 import gtk
 import gobject
+import glib
 import pango
 
 import h5py
@@ -84,7 +85,7 @@ class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
 class GroupTab(object):
 
     # Useful constants for liststore operations:
-    N_COLUMNS = 12
+    N_COLUMNS = 13
     NAME = 0
     VALUE = 1
     UNITS = 2
@@ -92,18 +93,18 @@ class GroupTab(object):
     DELETE_ICON = 4
     EDITABLE = 5
     VALUE_BG_COLOR = 6
-    VALUE_ERROR_VISIBLE = 7
+    VALUE_ERROR_ICON = 7
     VALUE_IS_BOOL = 8
     VALUE_BOOL_STATE = 9
     VALUE_BOOL_BG_COLOR = 10
     UNITS_EDITABLE = 11
+    TOOLTIP = 12
     
     NEW_GLOBAL_STRING = '<Click to add new global>'
     DELETE_ICON_STRING = 'gtk-remove'
-    
+    ERROR_ICON_STRING = 'gtk-dialog-warning'
     COLOR_ERROR = '#FF9999' # light red
     COLOR_OK = '#AAFFCC' # light green
-    COLOR_WHITE = '#FFFFFF'
     COLOR_BOOL_ON = '#66FF33' # bright green
     COLOR_BOOL_OFF = '#608060' # dark green
     
@@ -135,10 +136,11 @@ class GroupTab(object):
         self.column_delete.add_attribute(delete_cell_renderer,"stock-id",self.DELETE_ICON)
         delete_cell_renderer.connect("clicked",self.on_delete_global)
         
+        # get a stock error image:
+        self.tab_error_icon = gtk.image_new_from_stock(gtk.STOCK_DIALOG_WARNING, gtk.ICON_SIZE_MENU)
+        
         # get a stock close button image
         close_image = gtk.image_new_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
-        image_w, image_h = gtk.icon_size_lookup(gtk.ICON_SIZE_MENU)
-        
         
         # make the close button
         btn = gtk.Button()
@@ -156,8 +158,10 @@ class GroupTab(object):
         self.tablabel.set_ellipsize(pango.ELLIPSIZE_END)
         self.tablabel.set_tooltip_text(self.name)
         self.tab.pack_start(self.tablabel)
+        self.tab.pack_start(self.tab_error_icon,False,False)
         self.tab.pack_start(btn, False, False)
         self.tab.show_all()
+        self.tab_error_icon.hide()
         self.notebook.append_page(self.toplevel, tab_label = self.tab)                     
         
         self.notebook.set_tab_reorderable(self.toplevel,True)
@@ -187,7 +191,6 @@ class GroupTab(object):
             row[self.EXPANSION] = expansion
             row[self.DELETE_ICON] = self.DELETE_ICON_STRING
             row[self.EDITABLE] = True
-            row[self.VALUE_BG_COLOR] = self.COLOR_WHITE
             row[self.UNITS_EDITABLE] = True
             # Check if the row has a boolean value, update its settings accordingly:
             self.apply_bool_settings(row)
@@ -196,8 +199,9 @@ class GroupTab(object):
         # Add line to add a new global
         row = [None]*self.N_COLUMNS
         row[self.NAME] = self.NEW_GLOBAL_STRING
-        row[self.VALUE_BG_COLOR] = self.COLOR_WHITE
         self.global_liststore.append(row)
+        
+        app.preparse_globals_required.set()
         
     def on_closetab_button_clicked(self,*args):
         # close tab
@@ -254,7 +258,7 @@ class GroupTab(object):
             
             # Focus the value cell for editing next:
             self.focus_cell(self.column_value, path)
-                
+                            
         # Otherwise, we are editing an existing global:
         else:    
             name = self.global_liststore[path][self.NAME]
@@ -264,6 +268,10 @@ class GroupTab(object):
                 error_dialog(str(e))
                 return
             self.global_liststore[path][self.NAME] = new_text
+            # Clear its highlight and tooltip until it is re-evaluated by the preparser:
+            self.global_liststore[path][self.VALUE_BG_COLOR] = None
+            self.global_liststore[path][self.TOOLTIP] = 'group inactive, or expression still being evaluated'
+        app.preparse_globals_required.set()
         
     def on_edit_value(self, cellrenderer, path, new_text):
         name = self.global_liststore[path][self.NAME]
@@ -278,7 +286,10 @@ class GroupTab(object):
             error_dialog(str(e))
             return
         self.global_liststore[path][self.VALUE] = new_text
-        
+        # Clear its highlight and tooltip until it is re-evaluated by the preparser:
+        self.global_liststore[path][self.VALUE_BG_COLOR] = None
+        self.global_liststore[path][self.TOOLTIP] = 'Expression still being evaluated...'
+            
         # Check for Boolean values:
         self.apply_bool_settings(self.global_liststore[path])
         
@@ -286,7 +297,8 @@ class GroupTab(object):
         units = self.global_liststore[path][self.UNITS]
         if not units:
             self.focus_cell(self.column_units, path)
-    
+        app.preparse_globals_required.set()
+        
     def apply_bool_settings(self, row):
         value = row[self.VALUE]
         if value == 'True':
@@ -304,19 +316,29 @@ class GroupTab(object):
         else:
             row[self.UNITS_EDITABLE] = True
             row[self.VALUE_IS_BOOL] = False
-            row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_WHITE
+            row[self.VALUE_BOOL_BG_COLOR] = None
             
     def on_toggle_bool_toggled(self, cellrenderer, path):
         row = self.global_liststore[path]
+        name = row[self.NAME]
         current_state = row[self.VALUE_BOOL_STATE]
         new_state = not current_state
+        try:
+            runmanager.set_value(self.filepath, self.name, name, 'True' if new_state else 'False')
+        except Exception as e:
+            error_dialog(str(e))
+            return
         row[self.VALUE_BOOL_STATE] = new_state
+        # Clear its highlight and tooltip until it is re-evaluated by the preparser:
+        row[self.VALUE_BG_COLOR] = None
+        row[self.TOOLTIP] = 'Expression still being evaluated...'
         if new_state:
             row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_BOOL_ON
             row[self.VALUE] = 'True'
         else:
             row[self.VALUE_BOOL_BG_COLOR] = self.COLOR_BOOL_OFF
             row[self.VALUE] = 'False'
+        app.preparse_globals_required.set()
         
     def on_edit_units(self, cellrenderer, path, new_text):
         name = self.global_liststore[path][self.NAME]
@@ -335,7 +357,11 @@ class GroupTab(object):
             error_dialog(str(e))
             return
         self.global_liststore[path][self.EXPANSION] = new_text
-    
+        # Clear its highlight and tooltip until it is re-evaluated by the preparser:
+        self.global_liststore[path][self.VALUE_BG_COLOR] = None
+        self.global_liststore[path][self.TOOLTIP] = 'Expression still being evaluated...'
+        app.preparse_globals_required.set()
+        
     def on_delete_global(self,cellrenderer,path):
         name = self.global_liststore[path][self.NAME] 
         icon_name = self.global_liststore[path][self.DELETE_ICON]
@@ -358,8 +384,38 @@ class GroupTab(object):
                 return
             # Remove from the liststore:
             del self.global_liststore[path]
+        app.preparse_globals_required.set()
         
-        
+    def update_parse_indication(self, evaled_globals):
+        if self.name in evaled_globals:
+            tab_contains_errors = False
+            for row in self.global_liststore:
+                name = row[self.NAME]
+                if name == self.NEW_GLOBAL_STRING:
+                    continue
+                value = evaled_globals[self.name][name]
+                if isinstance(value, Exception):
+                    row[self.VALUE_BG_COLOR] = self.COLOR_ERROR
+                    row[self.VALUE_ERROR_ICON] = self.ERROR_ICON_STRING
+                    tooltip = '%s: %s'%(value.__class__.__name__, value.message)
+                    tab_contains_errors = True
+                else:
+                    row[self.VALUE_BG_COLOR] = self.COLOR_OK
+                    row[self.VALUE_ERROR_ICON] = None
+                    tooltip = repr(value)
+                row[self.TOOLTIP] = glib.markup_escape_text(tooltip)
+            if tab_contains_errors:
+                self.tab_error_icon.show()
+            else:
+                self.tab_error_icon.hide()
+        else:
+            # Clear everything:
+            self.tab_error_icon.hide()
+            for row in self.global_liststore:
+                row[self.VALUE_ERROR_ICON] = None
+                row[self.VALUE_BG_COLOR] = None
+                row[self.TOOLTIP] = 'Group inactive'
+            
 class RunManager(object):
     def __init__(self):
         config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
@@ -455,6 +511,13 @@ class RunManager(object):
         self.output_filter_thread = threading.Thread(target=self.filter_output_from_child)
         self.output_filter_thread.daemon = True
         self.output_filter_thread.start()
+        
+        # Start the thread which preparses globals and updates the GUI in the background:
+        self.preparse_globals_thread = threading.Thread(target=self.preparse_globals)
+        self.preparse_globals_thread.daemon = True
+        # An Event for tabs to let the thread know when there are new values needing parsing:
+        self.preparse_globals_required = threading.Event()
+        self.preparse_globals_thread.start()
         
         self.output('Ready\n')
     
@@ -596,7 +659,8 @@ class RunManager(object):
         elif self.group_store.iter_depth(iter) > 0:
             # check to see if we should set the parent (top level) checkbox to an inconsistent state!
             self.update_parent_checkbox(iter,new_state)
-            
+        self.preparse_globals_required.set()
+        
     def update_parent_checkbox(self,iter,child_state):
         # Get iter for top level
         parent_iter = self.group_store.iter_parent(iter)
@@ -697,6 +761,7 @@ class RunManager(object):
                 if group.filepath == filepath and group.name == old_name:
                     group.update_name(new_text)
                     break
+        self.preparse_globals_required.set()
         
     def on_delete_group(self,cellrenderer,path):
         iter = self.group_store.get_iter(path)
@@ -741,7 +806,8 @@ class RunManager(object):
                         gt.close_tab()
                         self.opentabs.remove(gt)
                         break
-    
+        self.preparse_globals_required.set()
+        
     def on_toggle_group(self,cellrenderer,path):
         iter = self.group_store.get_iter(path)  
 
@@ -789,7 +855,8 @@ class RunManager(object):
             else:
                 # no image, which means the "<click here to add"> line, so return!
                 return
-    
+        self.preparse_globals_required.set()
+        
     # This function is poorly named. It actually only updates the +/x icon in the group list!   
     # This function is called by the GroupTab class to clean up the state of the group treeview
     def close_tab(self,filepath,group_name):
@@ -815,7 +882,8 @@ class RunManager(object):
                     iter2 = self.group_store.iter_next(iter2)
                 break
             iter = self.group_store.iter_next(iter)
-    
+        self.preparse_globals_required.set()
+        
     def labscript_file_selected(self,chooser):
         filename = chooser.get_filename()
         self.mk_output_dir(filename)
@@ -984,13 +1052,24 @@ class RunManager(object):
                     active_groups[group_name] = filepath
         return active_groups
                     
-    def parse_globals(self):
+    def parse_globals(self,raise_exceptions=True):
         active_groups = self.get_active_groups()
         sequence_globals = runmanager.get_globals(active_groups)
-        evaled_globals = runmanager.evaluate_globals(sequence_globals)
+        evaled_globals = runmanager.evaluate_globals(sequence_globals,raise_exceptions)
         shots = runmanager.expand_globals(sequence_globals,evaled_globals)
         return sequence_globals, shots, evaled_globals
         
+    def preparse_globals(self):
+        while True:
+            # Wait until we're needed:
+            self.preparse_globals_required.wait()
+            self.preparse_globals_required.clear()
+            # Do some work:
+            sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False)
+            for tab in self.opentabs:
+                with gtk.gdk.lock:
+                    tab.update_parse_indication(evaled_globals)
+    
     def make_h5_files(self, sequence_globals, shots):
         labscript_file = self.chooser_labscript_file.get_filename()
         if not labscript_file:
@@ -1037,7 +1116,6 @@ class RunManager(object):
             else:
                 self.from_child_minus_output.put([signal, data])
 
-                
     def submit_job(self, run_file):
         server = self.builder.get_object('entry_server').get_text()
         port = int(self.exp_config.get('ports','BLACS'))
@@ -1086,7 +1164,7 @@ if __name__ == "__main__":
     
     ##########
 #    import tracelog
-#    tracelog.log('runmanager_lines.log',['__main__','runmanager','<string>'])
+#    tracelog.log('runmanager_lines.log',['__main__','runmanager','<string>'],sub='h5py')
     ##########
     
     with gtk.gdk.lock:

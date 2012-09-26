@@ -207,27 +207,36 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     all_globals = {}
     results = {}
     expansions = {}
+    # Pre-fill the results dictionary with groups, this is needed for
+    # storing exceptions in the case of globals with the same name being
+    # defined in multiple groups (all of them get the exception):
     for group_name in sequence_globals:
         results[group_name] = {}
+    multiply_defined_globals = set()
+    for group_name in sequence_globals:
         for global_name in sequence_globals[group_name]:
             if global_name in all_globals:
                 # The same global is defined twice. Either raise an
                 # exception, or store the exception for each place it is
                 # defined, depending on whether raise_exceptions is True:
                 groups_with_same_global = []
-                for group_name in sequence_globals:
-                    if global_name in sequence_globals[group_name]:
-                        groups_with_same_global.append(group_name)
-                exception = ValueError('Global named \'%s\' is defined in multiple active groups:'%global_name + 
-                                       '\n'.join(groups_with_same_global))
+                for other_group_name in sequence_globals:
+                    if global_name in sequence_globals[other_group_name]:
+                        groups_with_same_global.append(other_group_name)
+                exception = ValueError('Global named \'%s\' is defined in multiple active groups:\n    '%global_name + 
+                                       '\n    '.join(groups_with_same_global))
                 if raise_exceptions:
                     raise exception
-                for group_name in groups_with_same_global:
-                    results[group_name][global_name] = exception
-                continue
+                for other_group_name in groups_with_same_global:
+                    results[other_group_name][global_name] = exception
+                multiply_defined_globals.add(global_name)
             all_globals[global_name], units, expansion = sequence_globals[group_name][global_name]
             expansions[global_name] = expansion
             
+    # Do not attempt to evaluate globals which are multiply defined:
+    for global_name in multiply_defined_globals:
+        del all_globals[global_name]
+
     # Eval the expressions in the same namespace as each other:
     evaled_globals = {}
     sandbox = {}
@@ -277,7 +286,10 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     # Assemble results into a dictionary of the same format as sequence_globals:
     for group_name in sequence_globals:
         for global_name in sequence_globals[group_name]:
-            results[group_name][global_name] = evaled_globals[global_name]
+            # Do not attempt to override exception objects already stored
+            # as the result of multiply defined globals:
+            if not global_name in results[group_name]:
+                results[group_name][global_name] = evaled_globals[global_name]
             
     return results
 
