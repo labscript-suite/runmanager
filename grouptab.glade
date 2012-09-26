@@ -30,6 +30,8 @@
       <column type="gboolean"/>
       <!-- column-name tooltip -->
       <column type="gchararray"/>
+      <!-- column-name expansion_icon -->
+      <column type="GdkPixbuf"/>
     </columns>
   </object>
   <object class="GtkVBox" id="tab_toplevel">
@@ -237,6 +239,12 @@
                   <attributes>
                     <attribute name="editable">5</attribute>
                     <attribute name="text">3</attribute>
+                  </attributes>
+                </child>
+                <child>
+                  <object class="GtkCellRendererPixbuf" id="pixbuf_expansion_icon"/>
+                  <attributes>
+                    <attribute name="pixbuf">13</attribute>
                   </attributes>
                 </child>
               </object>

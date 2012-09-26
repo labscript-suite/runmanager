@@ -85,7 +85,7 @@ class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
 class GroupTab(object):
 
     # Useful constants for liststore operations:
-    N_COLUMNS = 13
+    N_COLUMNS = 14
     NAME = 0
     VALUE = 1
     UNITS = 2
@@ -99,6 +99,7 @@ class GroupTab(object):
     VALUE_BOOL_BG_COLOR = 10
     UNITS_EDITABLE = 11
     TOOLTIP = 12
+    EXPANSION_ICON = 13
     
     NEW_GLOBAL_STRING = '<Click to add new global>'
     DELETE_ICON_STRING = 'gtk-remove'
@@ -107,6 +108,8 @@ class GroupTab(object):
     COLOR_OK = '#AAFFCC' # light green
     COLOR_BOOL_ON = '#66FF33' # bright green
     COLOR_BOOL_OFF = '#608060' # dark green
+    ICON_OUTER = gtk.gdk.pixbuf_new_from_file('outer.png')
+    ICON_ZIP = gtk.gdk.pixbuf_new_from_file('zip.png')
     
     def __init__(self, app, filepath, name):
         self.name = name
@@ -189,6 +192,10 @@ class GroupTab(object):
             row[self.VALUE] = value
             row[self.UNITS] = units
             row[self.EXPANSION] = expansion
+            if expansion == 'outer':
+                row[self.EXPANSION_ICON] = self.ICON_OUTER
+            elif expansion:
+                row[self.EXPANSION_ICON] = self.ICON_ZIP
             row[self.DELETE_ICON] = self.DELETE_ICON_STRING
             row[self.EDITABLE] = True
             row[self.UNITS_EDITABLE] = True
@@ -360,6 +367,10 @@ class GroupTab(object):
         # Clear its highlight and tooltip until it is re-evaluated by the preparser:
         self.global_liststore[path][self.VALUE_BG_COLOR] = None
         self.global_liststore[path][self.TOOLTIP] = 'Expression still being evaluated...'
+        if new_text == 'outer':
+            self.global_liststore[path][self.EXPANSION_ICON] = self.ICON_OUTER
+        elif new_text:
+            self.global_liststore[path][self.EXPANSION_ICON] = self.ICON_ZIP
         app.preparse_globals_required.set()
         
     def on_delete_global(self,cellrenderer,path):
