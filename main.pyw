@@ -174,23 +174,12 @@ class GroupTab(object):
         
         self.globals = []
         
-        # For backward compatability, add 'expansion' settings to this
-        # globals file, if it doesn't contain any.  If they are added,
-        # display a warning so the user knows they need to set expansion
-        # settings.
-#        if runmanager.add_expansion_groups(self.filepath):
-#            error_dialog('The globals file %s was created before runmanager\'s \'expansion settings\' '%self.filepath +
-#                         'feature was introduced.\n\nLists will not be automatically expanded with ' + 
-#                         'cartesian products unless specified with \'outer\' in the expansion settings column.\n\n' + 
-#                         'You\'ll want to do this before running any experiments using this globals file. ' +
-#                         'This message won\'t be shown again for this globals file.')
         global_vars = runmanager.get_globalslist(self.filepath,self.name)
         
         for global_var in global_vars:
             value = runmanager.get_value(self.filepath, self.name, global_var)
             units = runmanager.get_units(self.filepath, self.name, global_var)
-            # temporarily disabled whilst feature is being developed:
-            expansion = None #runmanager.get_expansion(self.filepath, self.name, global_var)
+            expansion = runmanager.get_expansion(self.filepath, self.name, global_var)
             row = [None]*self.N_COLUMNS
             row[self.NAME] = global_var
             row[self.VALUE] = value
@@ -339,8 +328,6 @@ class GroupTab(object):
         self.global_liststore[path][self.UNITS] = new_text
         
     def on_edit_expansion(self, cellrenderer, path, new_text):
-        # temporarily disabled whilst feature is being developed:
-        return
         name = self.global_liststore[path][self.NAME]
         try:
             runmanager.set_expansion(self.filepath, self.name, name, new_text)
@@ -477,7 +464,7 @@ class RunManager(object):
     
     def output(self,text,red=False):
         self.to_output_box.put(['stderr' if red else 'stdout',text])
-    
+            
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
             self.popped_out = not self.popped_out
@@ -999,8 +986,9 @@ class RunManager(object):
                     
     def parse_globals(self):
         active_groups = self.get_active_groups()
-        sequence_globals = runmanager.get_sequence_globals(active_groups)
-        shots, all_globals, evaled_globals = runmanager.get_shot_globals(sequence_globals,full_output=True)
+        sequence_globals = runmanager.get_globals(active_groups)
+        evaled_globals = runmanager.evaluate_globals(sequence_globals)
+        shots = runmanager.expand_globals(sequence_globals,evaled_globals)
         return sequence_globals, shots, evaled_globals
         
     def make_h5_files(self, sequence_globals, shots):
@@ -1095,6 +1083,11 @@ if __name__ == "__main__":
     gtk.gdk.threads_init()
     
     app = RunManager()
+    
+    ##########
+#    import tracelog
+#    tracelog.log('runmanager_lines.log',['__main__','runmanager','<string>'])
+    ##########
     
     with gtk.gdk.lock:
         gtk.main()

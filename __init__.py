@@ -20,21 +20,33 @@ def new_globals_file(filename):
 
 def add_expansion_groups(filename):
     """backward compatability, for globals files which don't have
-    expansion groups. Create them if it doesn't exist. Return whether
-    any new groups were created"""
+    expansion groups. Create them if they don't exist. Guess expansion
+    settings based on datatypes, if possible."""
     modified = False
     with h5py.File(filename,'a') as f:
-        for groupname in get_grouplist(filename):
+        for groupname in f['globals']:
             group = f['globals'][groupname]
             if not 'expansion' in group:
                 modified = True
                 subgroup = group.create_group('expansion')
                 # Initialise all expansion settings to blank strings:
                 for name in get_globalslist(filename, groupname):
-                    subgroup.attrs[name] = '' 
-    return modified
+                    subgroup.attrs[name] = ''
+    if modified:
+        groups = {group_name: filename for group_name in get_grouplist(filename)}
+        sequence_globals = get_globals(groups)
+        evaled_globals = evaluate_globals(sequence_globals, raise_exceptions=False)
+        for group_name in evaled_globals:
+            for global_name in evaled_globals[group_name]:
+                value = evaled_globals[group_name][global_name]
+                expansion = guess_expansion_type(value)
+                set_expansion(filename, group_name, global_name, expansion)
     
 def get_grouplist(filename):
+    # For backward compatability, add 'expansion' settings to this
+    # globals file, if it doesn't contain any.  Guess expansion settings
+    # if possible.
+    add_expansion_groups(filename)
     with h5py.File(filename,'r') as f:
         grouplist = f['globals']
         # File closes after this function call, so have to
@@ -46,7 +58,7 @@ def new_group(filename, groupname):
     with h5py.File(filename,'a') as f:
         group = f['globals'].create_group(groupname)
         group.create_group('units')
-#        group.create_group('expansion')
+        group.create_group('expansion')
         
 def rename_group(filename, oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
@@ -74,7 +86,7 @@ def new_global(filename, groupname, globalname):
             raise Exception('Can\'t create global: target name already exists.')
         group.attrs[globalname] = ''
         f['globals'][groupname]['units'].attrs[globalname] = ''
-#        f['globals'][groupname]['expansion'].attrs[globalname] = ''
+        f['globals'][groupname]['expansion'].attrs[globalname] = ''
     
 def rename_global(filename, groupname, oldglobalname, newglobalname):
     if oldglobalname == newglobalname:
@@ -82,17 +94,17 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
         return
     value = get_value(filename, groupname, oldglobalname)
     units = get_units(filename, groupname, oldglobalname)
-#    expansion = get_expansion(filename, groupname, oldglobalname)
+    expansion = get_expansion(filename, groupname, oldglobalname)
     with h5py.File(filename,'a') as f:
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
             raise Exception('Can\'t rename: target name already exists.')
         group.attrs[newglobalname] = value
         group['units'].attrs[newglobalname] = units
-#        group['expansion'].attrs[newglobalname] = expansion
+        group['expansion'].attrs[newglobalname] = expansion
         del group.attrs[oldglobalname]
         del group['units'].attrs[oldglobalname]
-#        del group['expansion'].attrs[oldglobalname]
+        del group['expansion'].attrs[oldglobalname]
         
 def get_value(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
@@ -125,6 +137,26 @@ def delete_global(filename, groupname, globalname):
     with h5py.File(filename,'a') as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
+
+def guess_expansion_type(value):
+    if isinstance(value, pylab.ndarray) or  isinstance(value, list):
+        return 'outer'
+    else:
+        return ''
+
+def iterator_to_tuple(iterator, max_length=1000000):
+    # We want to prevent infinite length tuples, but we cannot know
+    # whether they are infinite or not in advance. So we'll convert to
+    # a tuple only if the length is less than max_length:
+    temp_list = []
+    for i, element in enumerate(iterator):
+        temp_list.append(element)
+        if i == max_length:
+            raise ValueError('This iterator is very long, possibly infinite. ' +
+                             'Runmanager cannot create an infinite number of shots. ' + 
+                             'If you really want an iterator longer than %d, '%max_length +
+                             'please modify runmanager.iterator_to_tuple and increase max_length.')
+    return tuple(temp_list)
         
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
@@ -140,7 +172,7 @@ def get_all_groups(h5_files):
             groups[group_name] = path
     return groups
     
-def get_sequence_globals(groups):
+def get_globals(groups):
     """Takes a dictionary of group_name: h5_file pairs and pulls the
     globals out of the groups in their files.  The globals are strings
     storing python expressions at this point. All these globals are
@@ -154,28 +186,49 @@ def get_sequence_globals(groups):
         for global_name in globals_list:
             value = get_value(filepath,group_name,global_name)
             units = get_units(filepath,group_name,global_name)
-            sequence_globals[group_name][global_name] = value, units
+            expansion = get_expansion(filepath,group_name,global_name)
+            sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
-    
-def get_shot_globals(sequence_globals,full_output=False):
-    """Takes a dictionary of globals as returned by get_sequence_globals,
-    and first flattens it to just the globals themselves, without
-    regard to what group they belong to. The expressions for the globals
-    are then evaluated with eval. If the result is a numpy array or a
-    list, then this value is used. Otherwise the result is put into a
-    single-element list: [value]. These global lists are then ripe for
-    feeding into itertools.product, which they then are. This function
-    then returns a list of dictionaries, each dictionary representing
-    one shot. These dictionaries are of the form {global_name: value}"""
-    # Flatten all the groups into one dictionary of {global_name: expression} pairs:
+
+def evaluate_globals(sequence_globals, raise_exceptions=True):
+    """Takes a dictionary of globals as returned by get_globals. These
+    globals are unevaluated strings.  Evaluates them all in the same
+    namespace so that the expressions can refer to each other. Iterates
+    to allow for NameErrors to be resolved by subsequently defined
+    globals. Throws an exception if this does not result in all errors
+    going away. The exception contains the messages of all exceptions
+    which failed to be resolved. If raise_exceptions is False, any
+    evaluations resulting in an exception will instead return the
+    exception object in the results dictionary"""
+
+    # Flatten all the groups into one dictionary of {global_name:
+    # expression} pairs. Also create the group structure of the results
+    # dict, which has the same structure as sequence_globals:
     all_globals = {}
+    results = {}
+    expansions = {}
     for group_name in sequence_globals:
+        results[group_name] = {}
         for global_name in sequence_globals[group_name]:
-            if global_name in all_globals:  
-                raise ValueError('Error parsing %s from group %s. Global name is already defined in another group.'%(global_name,group_name))
-            all_globals[global_name], units = sequence_globals[group_name][global_name]
-    
-    # Eval the expressions, storing them all as lists or numpy arrays:        
+            if global_name in all_globals:
+                # The same global is defined twice. Either raise an
+                # exception, or store the exception for each place it is
+                # defined, depending on whether raise_exceptions is True:
+                groups_with_same_global = []
+                for group_name in sequence_globals:
+                    if global_name in sequence_globals[group_name]:
+                        groups_with_same_global.append(group_name)
+                exception = ValueError('Global named \'%s\' is defined in multiple active groups:'%global_name + 
+                                       '\n'.join(groups_with_same_global))
+                if raise_exceptions:
+                    raise exception
+                for group_name in groups_with_same_global:
+                    results[group_name][global_name] = exception
+                continue
+            all_globals[global_name], units, expansion = sequence_globals[group_name][global_name]
+            expansions[global_name] = expansion
+            
+    # Eval the expressions in the same namespace as each other:
     evaled_globals = {}
     sandbox = {}
     exec('from pylab import *',sandbox,sandbox)
@@ -188,19 +241,21 @@ def get_shot_globals(sequence_globals,full_output=False):
         for global_name, expression in globals_to_eval.copy().items():
             try:
                 value = eval(expression,sandbox)
-                # Put the global into the namespace so other globals can use it:
-                sandbox[global_name] = value
-                del globals_to_eval[global_name]
+                # Need to know the length of any generators, convert to tuple:
+                if isinstance(value,types.GeneratorType):
+                    value = iterator_to_tuple(value)
+                # Make sure if we're zipping or outer-producting this value, that it can
+                # be iterated over:
+                if expansions[global_name]:
+                    test = iter(value)
             except Exception as e:
                 # Don't raise, just append the error to a list, we'll display them all later.
                 errors.append((global_name,e))
                 continue
-            if isinstance(value,types.GeneratorType):
-               evaled_globals[global_name] = [tuple(value)]
-            elif isinstance(value, pylab.ndarray) or  isinstance(value, list):
-                evaled_globals[global_name] = value
-            else:
-                evaled_globals[global_name] = [value]
+            # Put the global into the namespace so other globals can use it:
+            sandbox[global_name] = value
+            del globals_to_eval[global_name]
+            evaled_globals[global_name] = value
         if len(errors) == previous_errors:
             # Since some globals may refer to others, we expect maybe
             # some NameErrors to have occured.  There should be fewer
@@ -208,24 +263,87 @@ def get_shot_globals(sequence_globals,full_output=False):
             # that are required become defined. If there are not fewer
             # errors, then there is something else wrong and we should
             # raise it.
-            message = 'Error parsing globals:\n'
-            for global_name, e in errors:
-                message += '%s: %s\n'%(global_name,str(e))
-            raise Exception(message)
+            if raise_exceptions:
+                message = 'Error parsing globals:\n'
+                for global_name, exception in errors:
+                    message += '%s: %s\n'%(global_name,str(exception))
+                raise Exception(message)
+            else:
+                for global_name, exception in errors:
+                    evaled_globals[global_name] = exception
+                break
         previous_errors = len(errors)
-        
-    # Do a cartesian product over the resulting lists of values:
-    global_names = evaled_globals.keys()
+    
+    # Assemble results into a dictionary of the same format as sequence_globals:
+    for group_name in sequence_globals:
+        for global_name in sequence_globals[group_name]:
+            results[group_name][global_name] = evaled_globals[global_name]
+            
+    return results
+
+def expand_globals(sequence_globals, evaled_globals):
+    """Expands iterable globals according to their expansion
+    settings. Creates a number of 'axes' which are to be outer product'ed
+    together. Some of these axes have only one element, these are globals
+    that do not vary. Some have a set of globals being zipped together,
+    iterating in lock-step. Others contain a single global varying
+    across its values (the globals set to 'outer' expansion). Returns
+    a list of shots, each element of which is a dictionary for that
+    shot's globals."""
+    values = {}
+    expansions = {}
+    for group_name in sequence_globals:
+        for global_name in sequence_globals[group_name]:
+            expression, units, expansion = sequence_globals[group_name][global_name]
+            value = evaled_globals[group_name][global_name]
+            values[global_name] = value
+            expansions[global_name] = expansion
+            
+    # Get a list of the zip keys in use:
+    zip_keys = set(expansions.values())
+    try:
+        zip_keys.remove('outer')
+    except KeyError:
+        pass
+    axes = [] 
+    global_names = []
+    for zip_key in zip_keys:
+        axis = []
+        for global_name in expansions:
+            if expansions[global_name] == zip_key:
+                value = values[global_name]
+                if not zip_key:
+                    # Wrap up non-iterating globals (with zip_key = '') in a
+                    # one-element list. When zipped and then outer product'ed,
+                    # this will give us the result we want:
+                    value = [value]
+                axis.append(value)
+                global_names.append(global_name)
+        axis = zip(*axis)
+        axes.append(axis)
+    
+    # Give each global being outer-product'ed its own axis. It gets
+    # wrapped up in a list and zipped with itself so that it is in the
+    # same format as the zipped globals, ready for outer-producting
+    # together:
+    for global_name in expansions:
+        if expansions[global_name] == 'outer':
+            value = values[global_name]
+            axis = [value]
+            axis = zip(*axis)
+            axes.append(axis)
+            global_names.append(global_name)
+
     shots = []
-    for global_values in itertools.product(*evaled_globals.values()):
+    for axis_values in itertools.product(*axes):
+        # values here is a tuple of tuples, with the outer list being over
+        # the axes. We need to flatten it to get our individual values out
+        # for each global, since we no longer care what axis they are on:
+        global_values = [value for axis in axis_values for value in axis]
         shot_globals = dict(zip(global_names,global_values))
         shots.append(shot_globals)
-        
-    if full_output:
-        return shots, all_globals, evaled_globals
-    else:
-        return shots
-
+    return shots
+    
 def generate_sequence_id(scriptname):
     """Our convention for generating sequence ids. Just a timestamp and
     the name of the labscript that the run file is to be compiled with."""
@@ -234,20 +352,19 @@ def generate_sequence_id(scriptname):
     return timestamp + '_' + scriptbase      
         
 def make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle=False):
-    """Does what it says. sequence_globals and shots are of the
-    datatypes returned by get_sequence_globals and get_shots, one
-    is a nested dictionary with string values, and the other a flat
-    dictionary. sequence_id should be some identifier unique to this
-    sequence, use generate_sequence_id to follow convention. shuffle will
-    randomise the order that the run files are generated in with respect
-    to which element of shots they come from. This function returns a
-    *generator*. The run files are not actually created until you loop
-    over this generator (which gives you the filepaths). This is useful
-    for not having to clean up as many unused files in the event of
-    failed compilation of labscripts. If you want all the run files to
-    be created at some point, simply convert the returned generator to a
-    list. The filenames the run files are given is simply the sequence_id
-    with increasing integers appended."""
+    """Does what it says. sequence_globals and shots are of the datatypes
+    returned by get_globals and get_shots, one is a nested dictionary with
+    string values, and the other a flat dictionary. sequence_id should
+    be some identifier unique to this sequence, use generate_sequence_id
+    to follow convention. shuffle will randomise the order that the run
+    files are generated in with respect to which element of shots they
+    come from. This function returns a *generator*. The run files are
+    not actually created until you loop over this generator (which gives
+    you the filepaths). This is useful for not having to clean up as many
+    unused files in the event of failed compilation of labscripts. If you
+    want all the run files to be created at some point, simply convert
+    the returned generator to a list. The filenames the run files are
+    given is simply the sequence_id with increasing integers appended."""
     basename = os.path.join(output_folder,sequence_id)
     nruns = len(shots)
     ndigits = int(pylab.ceil(pylab.log10(nruns)))
@@ -261,9 +378,9 @@ def make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle=
 def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run_no, n_runs):
     """Does what it says. runglobals is a dict of this run's globals,
     the format being the same as that of one element of the list returned
-    by get_shot_globals.  sequence_globals is a nested dictionary of the
-    type returned by get_sequence_globals. Every run file needs a sequence
-    ID, generate one with generate_sequence_id. This doesn't have to match
+    by expand_globals.  sequence_globals is a nested dictionary of the
+    type returned by get_globals. Every run file needs a sequence ID,
+    generate one with generate_sequence_id. This doesn't have to match
     the filename of the run file you end up using, though is usually does
     (exceptions being things like connection tables). run_no and n_runs
     must be provided, if this run file is part of a sequence, then they
@@ -278,9 +395,11 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
             for groupname, groupvars in sequenceglobals.items():
                 group = f['globals'].create_group(groupname)
                 unitsgroup = group.create_group('units')
-                for name, (value, units) in groupvars.items():
+                expansiongroup = group.create_group('expansion')
+                for name, (value, units, expansion) in groupvars.items():
                     group.attrs[name] = value
                     unitsgroup.attrs[name] = units
+                    expansiongroup.attrs[name] = expansion
         for name, value in runglobals.items():
             try:
                 f['globals'].attrs[name] = value
@@ -295,8 +414,9 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path)
     """Creates a run file output_path, using all the globals from
     globals_files. Uses labscript_file only to generate a sequence ID"""
     groups = get_all_groups(globals_files)
-    sequence_globals = get_sequence_globals(groups)
-    shots,all_globals,evaled_globals = get_shot_globals(sequence_globals,full_output=True)
+    sequence_globals = get_globals(groups)
+    evaled_globals = evaluate_globals(sequence_globals)
+    shots = expand_globals(sequence_globals, evaled_globals)
     if len(shots) > 1:
         scanning_globals = []
         for global_name in evaled_globals:
@@ -387,6 +507,3 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
         stream_queue.put(['stderr', error])
         done_callback(False)
 
-    
-
-    
