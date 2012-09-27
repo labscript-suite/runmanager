@@ -229,11 +229,17 @@ class GroupTab(object):
         self.notebook.remove_page(pagenum)
     
     def focus_cell(self, column, path):
+        # Get the name of the global for the row we want. This is
+        # necessary because the liststore may re-order itself according
+        # to its sorting. So we have to lookup the target cell by name:
+        name = self.global_liststore[path][self.NAME]
         # Focus the target cell for editing. Do this asynchronously, as a gobject.idle:
         def focus_value_cell():
-            # gobject.idle_add isn't threadsafe, must acquire the gtk lock:
+            # gobject.idles aren't threadsafe, must acquire the gtk lock:
             with gtk.gdk.lock:
-                self.global_treeview.set_cursor(path, column, True)
+                for path, row in enumerate(self.global_liststore):
+                    if row[self.NAME] == name:
+                        self.global_treeview.set_cursor(path, column, True)
         gobject.idle_add(focus_value_cell)
             
     def on_edit_name(self, cellrenderer, path, new_text):
@@ -269,6 +275,9 @@ class GroupTab(object):
         # Otherwise, we are editing an existing global:
         else:    
             name = self.global_liststore[path][self.NAME]
+            if new_text == name:
+                # Do nothing if there was no change:
+                return
             try:
                 runmanager.rename_global(self.filepath, self.name, name, new_text)
             except Exception as e:
@@ -278,14 +287,13 @@ class GroupTab(object):
             # Clear its highlight and tooltip until it is re-evaluated by the preparser:
             self.global_liststore[path][self.VALUE_BG_COLOR] = None
             self.global_liststore[path][self.TOOLTIP] = 'group inactive, or expression still being evaluated'
-        app.preparse_globals_required.set()
+            app.preparse_globals_required.set()
         
     def on_edit_value(self, cellrenderer, path, new_text):
         name = self.global_liststore[path][self.NAME]
         existing_value = self.global_liststore[path][self.VALUE]
         if new_text == existing_value:
-            # Prevent focussing of units field (which might happen below)
-            # if there was no actual change:
+            # Do nothing if there was no change:
             return
         try:
             runmanager.set_value(self.filepath, self.name, name, new_text)
@@ -304,7 +312,8 @@ class GroupTab(object):
         units = self.global_liststore[path][self.UNITS]
         if not units:
             self.focus_cell(self.column_units, path)
-        app.preparse_globals_required.set()
+        else:
+            app.preparse_globals_required.set()
         
     def apply_bool_settings(self, row):
         value = row[self.VALUE]
@@ -355,6 +364,7 @@ class GroupTab(object):
             error_dialog(str(e))
             return
         self.global_liststore[path][self.UNITS] = new_text
+        app.preparse_globals_required.set()
         
     def on_edit_expansion(self, cellrenderer, path, new_text):
         name = self.global_liststore[path][self.NAME]
@@ -372,7 +382,16 @@ class GroupTab(object):
         elif new_text:
             self.global_liststore[path][self.EXPANSION_ICON] = self.ICON_ZIP
         app.preparse_globals_required.set()
-        
+    
+    def on_editing_cancelled(self, cellrenderer):
+        text = cellrenderer.get_property ("text")
+        # If the user has left a field blank, the other fields still
+        # need parsing. This needs to be done after the cursor has been
+        # moved automatically to the next cell (preparsing is not done
+        # when this happens, so we'd better do preparsing now):
+        if not text:
+            app.preparse_globals_required.set()
+            
     def on_delete_global(self,cellrenderer,path):
         name = self.global_liststore[path][self.NAME] 
         icon_name = self.global_liststore[path][self.DELETE_ICON]

@@ -157,7 +157,7 @@
                 <property name="clickable">True</property>
                 <property name="reorderable">True</property>
                 <property name="sort_indicator">True</property>
-                <property name="sort_column_id">1</property>
+                <property name="sort_column_id">0</property>
                 <child>
                   <object class="GtkCellRendererText" id="text_name">
                     <property name="editable">True</property>
@@ -180,6 +180,8 @@
                 <property name="sort_column_id">1</property>
                 <child>
                   <object class="GtkCellRendererText" id="text_value">
+                    <property name="xalign">0</property>
+                    <signal name="editing-canceled" handler="on_editing_cancelled" swapped="no"/>
                     <signal name="edited" handler="on_edit_value" swapped="no"/>
                   </object>
                   <attributes>
@@ -189,7 +191,9 @@
                   </attributes>
                 </child>
                 <child>
-                  <object class="GtkCellRendererPixbuf" id="pixbuf_error"/>
+                  <object class="GtkCellRendererPixbuf" id="pixbuf_error">
+                    <property name="xalign">1</property>
+                  </object>
                   <attributes>
                     <attribute name="cell-background">6</attribute>
                     <attribute name="stock-id">7</attribute>
@@ -205,9 +209,10 @@
                 <property name="clickable">True</property>
                 <property name="reorderable">True</property>
                 <property name="sort_indicator">True</property>
-                <property name="sort_column_id">3</property>
+                <property name="sort_column_id">2</property>
                 <child>
                   <object class="GtkCellRendererText" id="text_units">
+                    <signal name="editing-canceled" handler="on_editing_cancelled" swapped="no"/>
                     <signal name="edited" handler="on_edit_units" swapped="no"/>
                   </object>
                   <attributes>
@@ -232,6 +237,11 @@
               <object class="GtkTreeViewColumn" id="column_expansion">
                 <property name="resizable">True</property>
                 <property name="title" translatable="yes">Expansion</property>
+                <property name="expand">True</property>
+                <property name="clickable">True</property>
+                <property name="reorderable">True</property>
+                <property name="sort_indicator">True</property>
+                <property name="sort_column_id">3</property>
                 <child>
                   <object class="GtkCellRendererText" id="text_expansion">
                     <signal name="edited" handler="on_edit_expansion" swapped="no"/>
@@ -242,7 +252,9 @@
                   </attributes>
                 </child>
                 <child>
-                  <object class="GtkCellRendererPixbuf" id="pixbuf_expansion_icon"/>
+                  <object class="GtkCellRendererPixbuf" id="pixbuf_expansion_icon">
+                    <property name="xalign">1</property>
+                  </object>
                   <attributes>
                     <attribute name="pixbuf">13</attribute>
                   </attributes>
