@@ -13,6 +13,7 @@ import gobject
 import glib
 import pango
 
+#import h5_lock
 import h5py
 from zmq import ZMQError
 
@@ -730,7 +731,7 @@ class RunManager(object):
         # set this to the current location of the h5_chooser
         if self.globals_path:     
             chooser.set_current_folder(self.globals_path)
-        else:
+        elif self.chooser_labscript_file.get_current_folder() is not None:
             chooser.set_current_folder(self.chooser_labscript_file.get_current_folder())
         
         response = chooser.run()
@@ -791,7 +792,6 @@ class RunManager(object):
                 if group.filepath == filepath and group.name == old_name:
                     group.update_name(new_text)
                     break
-        self.preparse_globals_required.set()
         
     def on_delete_group(self,cellrenderer,path):
         iter = self.group_store.get_iter(path)
@@ -885,7 +885,6 @@ class RunManager(object):
             else:
                 # no image, which means the "<click here to add"> line, so return!
                 return
-        self.preparse_globals_required.set()
         
     # This function is poorly named. It actually only updates the +/x icon in the group list!   
     # This function is called by the GroupTab class to clean up the state of the group treeview
@@ -1090,6 +1089,8 @@ class RunManager(object):
         return sequence_globals, shots, evaled_globals
         
     def preparse_globals(self):
+        # Silence spurious HDF5 errors:
+        h5py._errors.silence_errors()
         while True:
             # Wait until we're needed:
             self.preparse_globals_required.wait()
@@ -1194,8 +1195,8 @@ if __name__ == "__main__":
     
     ##########
 #    import tracelog
-#    tracelog.log('runmanager_lines.log',['__main__','runmanager','<string>'],sub='h5py')
-    ##########
+#    tracelog.log('runmanager_trace.log',['__main__','runmanager','h5_lock','zlock'])
+#    ##########
     
     with gtk.gdk.lock:
         gtk.main()

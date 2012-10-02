@@ -23,16 +23,22 @@ def add_expansion_groups(filename):
     expansion groups. Create them if they don't exist. Guess expansion
     settings based on datatypes, if possible."""
     modified = False
-    with h5py.File(filename,'a') as f:
+    # Don't open in write mode unless we have to:
+    with h5py.File(filename,'r') as f:
+        requires_expansion_group = []
         for groupname in f['globals']:
             group = f['globals'][groupname]
             if not 'expansion' in group:
-                modified = True
+                requires_expansion_group.append(groupname)
+    if requires_expansion_group:
+        group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group] 
+        with h5py.File(filename,'a') as f:
+            for groupname, globalslist in zip(requires_expansion_group, group_globalslists):
+                group = f['globals'][groupname]
                 subgroup = group.create_group('expansion')
                 # Initialise all expansion settings to blank strings:
-                for name in get_globalslist(filename, groupname):
+                for name in globalslist:
                     subgroup.attrs[name] = ''
-    if modified:
         groups = {group_name: filename for group_name in get_grouplist(filename)}
         sequence_globals = get_globals(groups)
         evaled_globals = evaluate_globals(sequence_globals, raise_exceptions=False)
