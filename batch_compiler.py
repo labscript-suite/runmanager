@@ -45,6 +45,6 @@ class BatchProcessor(object):
             labscript.labscript_cleanup()
                    
 if __name__ == '__main__':
-    to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True, redirect_output=True)
+    to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True)
     module_watcher = ModuleWatcher(sys.stderr) # Make sure modified modules are reloaded
     batch_processor = BatchProcessor(to_parent,from_parent,kill_lock)

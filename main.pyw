@@ -502,8 +502,7 @@ class RunManager(object):
         
         self.window.show()
         
-        self.to_output_box = Queue.Queue()
-        self.output_box = OutputBox(self.scrolledwindow_output,self.to_output_box)
+        self.output_box = OutputBox(self.scrolledwindow_output)
         
         self.window.set_icon_from_file(os.path.join('runmanager.svg'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
@@ -529,19 +528,13 @@ class RunManager(object):
         gobject.timeout_add(1000, self.update_output_dir)
         self.current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
         # Start the compiler subprocess:
-        self.to_child, self.from_child, child = subproc_utils.subprocess_with_queues('batch_compiler.py')
+        self.to_child, self.from_child, child = subproc_utils.subprocess_with_queues('batch_compiler.py', self.output_box.port)
         
         # Start the loop that allows compilations to be queued up:
         self.compile_queue = Queue.Queue()
         self.compile_queue_thread = threading.Thread(target=self.compile_loop)
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
-        
-        # Start the thread which filters stdout and stderr from the child process:
-        self.from_child_minus_output = Queue.Queue()
-        self.output_filter_thread = threading.Thread(target=self.filter_output_from_child)
-        self.output_filter_thread.daemon = True
-        self.output_filter_thread.start()
         
         # Start the thread which preparses globals and updates the GUI in the background:
         self.preparse_globals_thread = threading.Thread(target=self.preparse_globals)
@@ -557,7 +550,7 @@ class RunManager(object):
         gtk.main_quit()
     
     def output(self,text,red=False):
-        self.to_output_box.put(['stderr' if red else 'stdout',text])
+        self.output_box.output(text, red)
             
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
@@ -1119,7 +1112,7 @@ class RunManager(object):
         try:
             for run_file in run_files:
                 self.to_child.put(['compile',[labscript_file,run_file]])
-                signal, data = self.from_child_minus_output.get()
+                signal, data = self.from_child.get()
                 assert signal == 'done'
                 success = data
                 if self.aborted or not success:
@@ -1133,20 +1126,6 @@ class RunManager(object):
             self.output(str(e)+'\n',red=True)
             self.aborted = True
     
-    def filter_output_from_child(self):
-        """A loop which receieves data from the child process
-        asynchronously. Pipes stdout and stderr to the outputbox, and
-        everything else to self.from_child_minus_output, which is used
-        by the above function compile_labscript()"""
-        while True:
-            signal, data = self.from_child.get()
-            if signal == 'stdout':
-                self.output(data)
-            elif signal == 'stderr':
-                self.output(data,red=True)
-            else:
-                self.from_child_minus_output.put([signal, data])
-
     def submit_job(self, run_file):
         server = self.builder.get_object('entry_server').get_text()
         port = int(self.exp_config.get('ports','BLACS'))
