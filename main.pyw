@@ -13,8 +13,7 @@ import gobject
 import glib
 import pango
 
-#import h5_lock
-import h5py
+import h5_lock, h5py
 from zmq import ZMQError
 
 import lyse

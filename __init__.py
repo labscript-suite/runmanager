@@ -8,7 +8,7 @@ import types
 import threading
 import traceback
 
-import h5py
+import h5_lock, h5py
 import pylab
 
 import subproc_utils
