@@ -502,7 +502,7 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
                 break
     except Exception:
         error = traceback.format_exc()
-        subproc_utils.zmq_get_multipart(stream_port, data=['stderr', error])
+        subproc_utils.zmq_push_multipart(stream_port, data=['stderr', error])
         to_child.put(['quit',None])
         retcode = child.communicate()
         raise
@@ -523,6 +523,8 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
         thread.start()
     except Exception:
         error = traceback.format_exc()
-        subproc_utils.zmq_get_multipart(stream_port, data=['stderr', error])
-        done_callback(False)
+        subproc_utils.zmq_push_multipart(stream_port, data=['stderr', error])
+        t = threading.Thread(target=done_callback,args=(False,))
+        t.daemon=True
+        t.start()
 
