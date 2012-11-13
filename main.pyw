@@ -1,5 +1,7 @@
 import os
 import sys
+import excepthook
+
 import time
 import itertools
 import logging, logging.handlers
@@ -18,13 +20,11 @@ from zmq import ZMQError
 
 import lyse
 import pylab
-import excepthook
 from LabConfig import LabConfig, config_prefix
 import shared_drive
 import runmanager
 import subproc_utils
 from subproc_utils.gtk_components import OutputBox
-
 
 # This provides debug info without having to run from a terminal, and
 # avoids a stupid crash on Windows when there is no command window:
