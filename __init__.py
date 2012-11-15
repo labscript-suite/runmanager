@@ -183,17 +183,21 @@ def get_globals(groups):
     globals out of the groups in their files.  The globals are strings
     storing python expressions at this point. All these globals are
     packed into a new dictionary, keyed by group_name, where the values
-    are dictionaries which look like {global_name: (expression, units), ...}"""
+    are dictionaries which look like {global_name: (expression, units, expansion), ...}"""
+    # get a list of filepaths:
+    filepaths = set(groups.values())
     sequence_globals = {}
-    for group_name in groups:
-        sequence_globals[group_name] = {}
-        filepath = groups[group_name]
-        globals_list = get_globalslist(filepath,group_name)
-        for global_name in globals_list:
-            value = get_value(filepath,group_name,global_name)
-            units = get_units(filepath,group_name,global_name)
-            expansion = get_expansion(filepath,group_name,global_name)
-            sequence_globals[group_name][global_name] = value, units, expansion
+    for filepath in filepaths:
+        groups_from_this_file = [g for g, f in groups.items() if f==filepath] 
+        with h5py.File(filepath,'r') as f:
+            for group_name in groups_from_this_file:
+                sequence_globals[group_name] = {}
+                globals_group = f['globals'][group_name]
+                for global_name in globals_group.attrs:
+                    value = globals_group.attrs[global_name]
+                    units = globals_group['units'].attrs[global_name]
+                    expansion = globals_group['expansion'].attrs[global_name]
+                    sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
 
 def evaluate_globals(sequence_globals, raise_exceptions=True):
