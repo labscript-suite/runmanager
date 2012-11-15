@@ -71,7 +71,13 @@ def error_dialog(message):
                                 buttons=(gtk.BUTTONS_OK), message_format = message)
     result = dialog.run()
     dialog.destroy()
-            
+
+def error_dialog_from_thread(message):
+    def f():
+        with gtk.gdk.lock:
+            error_dialog(message)
+    gobject.idle_add(f)
+    
 class CellRendererClickablePixbuf(gtk.CellRendererPixbuf):
     __gsignals__    = { 'clicked' :
                         (gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, (gobject.TYPE_STRING,)) , }
@@ -939,12 +945,14 @@ class RunManager(object):
             raise Exception("No editor path was specified in the lab config file")
     
     def update_output_dir(self):
-        current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
-        if current_day_dir_suffix != self.current_day_dir_suffix:        
-            self.current_day_dir_suffix = current_day_dir_suffix
-            if self.chooser_labscript_file.get_filename():
-                self.mk_output_dir(self.chooser_labscript_file.get_filename())
-        return True
+        # gtk idles are not threadsafe, must acquire gtk lock:
+        with gtk.gdk.lock:
+            current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
+            if current_day_dir_suffix != self.current_day_dir_suffix:        
+                self.current_day_dir_suffix = current_day_dir_suffix
+                if self.chooser_labscript_file.get_filename():
+                    self.mk_output_dir(self.chooser_labscript_file.get_filename())
+            return True
     
     # Makes the output dir for a labscript file
     # If force set is true, we force the output directory back to what it should be
@@ -1003,7 +1011,8 @@ class RunManager(object):
         so this saves Vim users from reselecting the labscript file constantly."""
         if not chooser.get_filename():
             def keep_current_filename(filename):
-                chooser.select_filename(filename)
+                with gtk.gdk.lock:
+                    chooser.select_filename(filename)
             if self.current_labscript_file:
                 gobject.timeout_add(100, keep_current_filename,self.current_labscript_file)
                               
@@ -1059,7 +1068,7 @@ class RunManager(object):
     def on_abort_clicked(self, *args):
         self.aborted = True
     
-    def get_active_groups(self):
+    def update_active_groups(self):
         active_groups = {} # goupname: filepath
         for toplevel in self.group_store:
             filepath = toplevel[0]
@@ -1071,11 +1080,15 @@ class RunManager(object):
                     if group_name in active_groups:
                         raise ValueError('There are two active groups named %s. Active groups must have unique names to be used together.'%group_name)
                     active_groups[group_name] = filepath
-        return active_groups
+        self.active_groups = active_groups
                     
-    def parse_globals(self,raise_exceptions=True):
-        active_groups = self.get_active_groups()
-        sequence_globals = runmanager.get_globals(active_groups)
+    def parse_globals(self, raise_exceptions=True):
+        if raise_exceptions:
+            # Since the following might raise an exception, callers
+            # requiring an update of active groups must call it themselves
+            # before calling this function. Also this function requires the gtk lock:
+            self.update_active_groups()
+        sequence_globals = runmanager.get_globals(self.active_groups)
         evaled_globals = runmanager.evaluate_globals(sequence_globals,raise_exceptions)
         shots = runmanager.expand_globals(sequence_globals,evaled_globals)
         return sequence_globals, shots, evaled_globals
@@ -1088,6 +1101,12 @@ class RunManager(object):
             self.preparse_globals_required.wait()
             self.preparse_globals_required.clear()
             # Do some work:
+            with gtk.gdk.lock:
+                try:
+                    self.update_active_groups()
+                except Exception as e:
+                    error_dialog_from_thread(str(e))
+                    continue
             sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False)
             for tab in self.opentabs:
                 with gtk.gdk.lock:
