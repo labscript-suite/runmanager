@@ -14,6 +14,11 @@ import pylab
 import subproc_utils
 import mise
 
+class ExpansionError(Exception):
+    """An exception class so that error handling code can tell when a
+    parsing exception was caused by a mismatch with the expansion mode"""
+    pass
+    
 def new_globals_file(filename):
     with h5py.File(filename,'w') as f:
         f.create_group('globals')
@@ -266,7 +271,10 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 # Make sure if we're zipping or outer-producting this value, that it can
                 # be iterated over:
                 if expansions[global_name]:
-                    test = iter(value)
+                    try:
+                        test = iter(value)
+                    except Exception as e:
+                        raise ExpansionError(str(e))
             except Exception as e:
                 # Don't raise, just append the error to a list, we'll display them all later.
                 errors.append((global_name,e))

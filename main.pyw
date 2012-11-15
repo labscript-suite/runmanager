@@ -387,6 +387,8 @@ class GroupTab(object):
             self.global_liststore[path][self.EXPANSION_ICON] = self.ICON_OUTER
         elif new_text:
             self.global_liststore[path][self.EXPANSION_ICON] = self.ICON_ZIP
+        else:
+            self.global_liststore[path][self.EXPANSION_ICON] = None
         app.preparse_globals_required.set()
     
     def on_editing_cancelled(self, cellrenderer):
@@ -422,7 +424,7 @@ class GroupTab(object):
             del self.global_liststore[path]
         app.preparse_globals_required.set()
         
-    def update_parse_indication(self, evaled_globals):
+    def update_parse_indication(self, sequence_globals, evaled_globals):
         if self.name in evaled_globals:
             tab_contains_errors = False
             for row in self.global_liststore:
@@ -430,6 +432,14 @@ class GroupTab(object):
                 if name == self.NEW_GLOBAL_STRING:
                     continue
                 value = evaled_globals[self.name][name]
+                ignore, ignore, expansion = sequence_globals[self.name][name]
+                row[self.EXPANSION] = expansion
+                if expansion == 'outer':
+                    row[self.EXPANSION_ICON] = self.ICON_OUTER
+                elif expansion:
+                    row[self.EXPANSION_ICON] = self.ICON_ZIP
+                else:
+                    row[self.EXPANSION_ICON] = None
                 if isinstance(value, Exception):
                     row[self.VALUE_BG_COLOR] = self.COLOR_ERROR
                     row[self.VALUE_ERROR_ICON] = self.ERROR_ICON_STRING
@@ -517,6 +527,7 @@ class RunManager(object):
         
         self.opentabs = []
         self.grouplist = []
+        self.previous_evaled_globals = {}
         self.popped_out = False
         self.making_new_file = False
         self.compile = True
@@ -1092,6 +1103,36 @@ class RunManager(object):
         evaled_globals = runmanager.evaluate_globals(sequence_globals,raise_exceptions)
         shots = runmanager.expand_globals(sequence_globals,evaled_globals)
         return sequence_globals, shots, evaled_globals
+    
+    def guess_expansion_modes(self, evaled_globals):
+        # Do nothing if there were exceptions:
+        for group_name in evaled_globals:
+            for global_name in evaled_globals[group_name]:
+                value = evaled_globals[group_name][global_name]
+                if isinstance(value, Exception):
+                    # Let ExpansionErrors through through, as they occur
+                    # when the user has changed the value without changing
+                    # the expansion type:
+                    if isinstance(value, runmanager.ExpansionError):
+                        continue
+                    return False
+        # Did the guessed expansion type for any of the globals change?
+        expansion_types_changed = False
+        for group_name in evaled_globals:
+            for global_name in evaled_globals[group_name]:
+                new_value = evaled_globals[group_name][global_name]
+                try:
+                    previous_value = self.previous_evaled_globals[group_name][global_name]
+                except KeyError:
+                    continue
+                new_guess = runmanager.guess_expansion_type(new_value)
+                previous_guess = runmanager.guess_expansion_type(previous_value)
+                if new_guess != previous_guess:
+                    filename = self.active_groups[group_name]
+                    runmanager.set_expansion(filename, group_name, global_name, new_guess)
+                    expansion_types_changed = True
+        self.previous_evaled_globals = evaled_globals
+        return expansion_types_changed
         
     def preparse_globals(self):
         # Silence spurious HDF5 errors:
@@ -1107,10 +1148,15 @@ class RunManager(object):
                 except Exception as e:
                     error_dialog_from_thread(str(e))
                     continue
-            sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False)
+            # Expansion mode is automatically updated when the global's type changes. If this occurs,
+            # we will have to parse again to include the change: 
+            expansions_changed = True
+            while expansions_changed:
+                sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False)
+                expansions_changed = self.guess_expansion_modes(evaled_globals)
             for tab in self.opentabs:
                 with gtk.gdk.lock:
-                    tab.update_parse_indication(evaled_globals)
+                    tab.update_parse_indication(sequence_globals, evaled_globals)
     
     def make_h5_files(self, sequence_globals, shots):
         labscript_file = self.chooser_labscript_file.get_filename()
