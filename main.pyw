@@ -621,7 +621,8 @@ class RunManager(object):
                                                gtk.STOCK_SAVE,gtk.RESPONSE_OK))
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
-        chooser.set_do_overwrite_confirmation(True) 
+        chooser.set_do_overwrite_confirmation(True)
+        chooser.set_local_only(False)
         
         if self.globals_path:     
             chooser.set_current_folder(self.globals_path)
@@ -646,6 +647,7 @@ class RunManager(object):
                                                gtk.STOCK_SAVE,gtk.RESPONSE_OK))
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
+        chooser.set_local_only(False)
         # set this to the current location of the h5_chooser
         if self.globals_path:     
             chooser.set_current_folder(self.globals_path)
@@ -737,6 +739,7 @@ class RunManager(object):
                                                gtk.STOCK_OPEN,gtk.RESPONSE_OK))
         chooser.add_filter(self.builder.get_object('filefilter1'))
         chooser.set_default_response(gtk.RESPONSE_OK)
+        chooser.set_local_only(False)
         # set this to the current location of the h5_chooser
         if self.globals_path:     
             chooser.set_current_folder(self.globals_path)
