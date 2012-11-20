@@ -214,6 +214,9 @@ class GroupTab(object):
         row[self.NAME] = self.NEW_GLOBAL_STRING
         self.global_liststore.append(row)
         
+        # Sort by name
+        self.global_liststore.set_sort_column_id(self.NAME, gtk.SORT_ASCENDING)
+        
         app.preparse_globals_required.set()
         
     def on_closetab_button_clicked(self,*args):
