@@ -469,7 +469,16 @@ class GroupTab(object):
                 row[self.VALUE_ERROR_ICON] = None
                 row[self.VALUE_BG_COLOR] = None
                 row[self.TOOLTIP] = 'Group inactive'
-            
+
+
+class ParameterSpaceOverview(object):
+    def __init__(self, container):
+        self.builder = gtk.Builder()
+        self.builder.add_from_file('parameter_space_overview.glade')
+        toplevel = self.builder.get_object('toplevel')
+        container.add(toplevel)
+
+
 class RunManager(object):
     def __init__(self):
         config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
@@ -512,6 +521,7 @@ class RunManager(object):
         self.current_h5_store = self.builder.get_object('current_h5_store')
         self.current_h5_file = self.builder.get_object('current_h5_file')
         self.column_add = self.builder.get_object('column_add')
+        overview_page = self.builder.get_object('overview_page')
         add_cell_renderer = CellRendererClickablePixbuf()
         self.column_add.pack_end(add_cell_renderer)
         self.column_add.add_attribute(add_cell_renderer,"stock-id",2)
@@ -526,7 +536,7 @@ class RunManager(object):
         self.window.show()
         
         self.output_box = OutputBox(self.scrolledwindow_output)
-        
+        self.parameter_space_overview = ParameterSpaceOverview(overview_page)
         self.window.set_icon_from_file(os.path.join('runmanager.svg'))
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
