@@ -273,13 +273,18 @@ class GroupTab(object):
             row[self.EDITABLE] = True
             row[self.UNITS_EDITABLE] = True
             
-            # Re-add a row to the bottom for adding a new global
+           
+            # Focus the value cell for editing next:
+            self.focus_cell(self.column_value, path)
+            
+            # Re-add a row to the bottom for adding a new global.
+            # This must be after the above focus call, otherwise
+            # sorting of the liststore may make the indices wrong.
             row = [None]*self.N_COLUMNS
             row[self.NAME] = self.NEW_GLOBAL_STRING
             self.global_liststore.append(row)
             
-            # Focus the value cell for editing next:
-            self.focus_cell(self.column_value, path)
+
                             
         # Otherwise, we are editing an existing global:
         else:    
