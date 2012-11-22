@@ -478,7 +478,10 @@ class ParameterSpaceOverview(object):
         toplevel = self.builder.get_object('toplevel')
         container.add(toplevel)
 
-
+    def set_axes(self, axes):
+        for axis in axes:
+            pass
+            
 class RunManager(object):
     def __init__(self):
         config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
@@ -541,6 +544,7 @@ class RunManager(object):
         self.builder.get_object('filefilter1').add_pattern('*.h5')
         self.builder.get_object('filefilter2').add_pattern('*.py')
         self.chooser_labscript_file.set_current_folder(self.exp_config.get('paths','labscriptlib')) # Will only happen if folder exists
+        
         self.builder.connect_signals(self)
         
         self.opentabs = []
