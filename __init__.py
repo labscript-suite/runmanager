@@ -202,6 +202,16 @@ def get_globals(groups):
                     value = globals_group.attrs[global_name]
                     units = globals_group['units'].attrs[global_name]
                     expansion = globals_group['expansion'].attrs[global_name]
+                    # Replace numpy empty strings with python empty strings.
+                    # There is a bug where numpy empty strings can't be pickled.
+                    # This is a problem since runmanager pickles these things to
+                    # send them to mise:
+                    if isinstance(value,str) and value == '':
+                        value = ''
+                    if isinstance(units,str) and value == '':
+                        value = ''
+                    if isinstance(expansion,str) and value == '':
+                        value = ''
                     sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
 
