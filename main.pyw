@@ -566,7 +566,7 @@ class RunManager(object):
         gobject.timeout_add(1000, self.update_output_dir)
         self.current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
         # Start the compiler subprocess:
-        self.to_child, self.from_child, child = subproc_utils.subprocess_with_queues('batch_compiler.py', self.output_box.port)
+        self.to_child, self.from_child, self.child = subproc_utils.subprocess_with_queues('batch_compiler.py', self.output_box.port)
         
         # Start the loop that allows compilations to be queued up:
         self.compile_queue = Queue.Queue()
@@ -589,7 +589,12 @@ class RunManager(object):
     
     def output(self,text,red=False):
         self.output_box.output(text, red)
-            
+    
+    def on_kill_child_clicked(self, *ignore):
+        self.child.terminate()
+        self.from_child.put(['done', False])
+        self.to_child, self.from_child, self.child = subproc_utils.subprocess_with_queues('batch_compiler.py', self.output_box.port) 
+        
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
             self.popped_out = not self.popped_out

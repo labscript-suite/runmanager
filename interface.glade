@@ -50,10 +50,10 @@
                     <property name="layout_style">spread</property>
                     <child>
                       <object class="GtkButton" id="button_run">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
                         <signal name="clicked" handler="engage" swapped="no"/>
                         <child>
@@ -96,11 +96,11 @@
                     </child>
                     <child>
                       <object class="GtkButton" id="button_abort">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="sensitive">False</property>
                         <property name="can_focus">False</property>
                         <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
                         <signal name="clicked" handler="on_abort_clicked" swapped="no"/>
                         <child>
@@ -153,9 +153,45 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
-                      <object class="GtkLabel" id="label3">
+                      <object class="GtkButton" id="button5">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="receives_default">True</property>
+                        <property name="relief">none</property>
+                        <signal name="clicked" handler="on_kill_child_clicked" swapped="no"/>
+                        <child>
+                          <object class="GtkHBox" id="hbox8">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <child>
+                              <object class="GtkImage" id="image14">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="stock">gtk-refresh</property>
+                                <property name="icon-size">1</property>
+                              </object>
+                              <packing>
+                                <property name="expand">True</property>
+                                <property name="fill">True</property>
+                                <property name="position">0</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="label3">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="label" translatable="yes">Restart
+subprocess</property>
+                              </object>
+                              <packing>
+                                <property name="expand">True</property>
+                                <property name="fill">True</property>
+                                <property name="position">1</property>
+                              </packing>
+                            </child>
+                          </object>
+                        </child>
                       </object>
                       <packing>
                         <property name="expand">True</property>
@@ -165,10 +201,10 @@
                     </child>
                     <child>
                       <object class="GtkToggleButton" id="toggle_shuffle">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
                         <property name="focus_on_click">False</property>
                         <child>
@@ -259,11 +295,11 @@
                     <child>
                       <object class="GtkRadioButton" id="radiobutton_compile">
                         <property name="label" translatable="yes">Compile</property>
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">False</property>
                         <property name="border_width">10</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="active">True</property>
                         <property name="draw_indicator">True</property>
                         <signal name="toggled" handler="toggle_compile_or_mise" swapped="no"/>
@@ -277,11 +313,11 @@
                     <child>
                       <object class="GtkRadioButton" id="radiobutton_mise">
                         <property name="label" translatable="yes">Send to mise</property>
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">False</property>
                         <property name="border_width">10</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="active">True</property>
                         <property name="draw_indicator">True</property>
                         <property name="group">radiobutton_compile</property>
@@ -311,10 +347,10 @@
                         <child>
                           <object class="GtkCheckButton" id="checkbutton_view">
                             <property name="label" translatable="yes">View run(s)</property>
+                            <property name="use_action_appearance">False</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">False</property>
-                            <property name="use_action_appearance">False</property>
                             <property name="draw_indicator">True</property>
                             <signal name="toggled" handler="toggle_view" swapped="no"/>
                           </object>
@@ -327,10 +363,10 @@
                         <child>
                           <object class="GtkCheckButton" id="checkbutton_run">
                             <property name="label" translatable="yes">Run experiment(s)</property>
+                            <property name="use_action_appearance">False</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">False</property>
-                            <property name="use_action_appearance">False</property>
                             <property name="draw_indicator">True</property>
                             <signal name="toggled" handler="toggle_run" swapped="no"/>
                           </object>
@@ -488,7 +524,7 @@
                     <property name="right_attach">2</property>
                     <property name="top_attach">1</property>
                     <property name="bottom_attach">2</property>
-                    <property name="x_options"/>
+                    <property name="x_options"></property>
                   </packing>
                 </child>
                 <child>
@@ -513,11 +549,11 @@
                 </child>
                 <child>
                   <object class="GtkButton" id="edit_script">
+                    <property name="use_action_appearance">False</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
                     <property name="tooltip_text" translatable="yes">Edit labscript</property>
-                    <property name="use_action_appearance">False</property>
                     <property name="relief">none</property>
                     <property name="focus_on_click">False</property>
                     <signal name="clicked" handler="on_edit_script" swapped="no"/>
@@ -532,17 +568,17 @@
                   <packing>
                     <property name="left_attach">2</property>
                     <property name="right_attach">3</property>
-                    <property name="x_options"/>
+                    <property name="x_options"></property>
                     <property name="x_padding">4</property>
                   </packing>
                 </child>
                 <child>
                   <object class="GtkButton" id="edit_script1">
+                    <property name="use_action_appearance">False</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
                     <property name="tooltip_text" translatable="yes">Reset output directory (only applies if output directory has been manually changed)</property>
-                    <property name="use_action_appearance">False</property>
                     <property name="relief">none</property>
                     <property name="focus_on_click">False</property>
                     <signal name="clicked" handler="on_reset_dir" swapped="no"/>
@@ -559,7 +595,7 @@
                     <property name="right_attach">3</property>
                     <property name="top_attach">1</property>
                     <property name="bottom_attach">2</property>
-                    <property name="x_options"/>
+                    <property name="x_options"></property>
                     <property name="x_padding">4</property>
                   </packing>
                 </child>
@@ -655,11 +691,11 @@
                 </child>
                 <child>
                   <object class="GtkButton" id="button_popout">
+                    <property name="use_action_appearance">False</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
                     <property name="tooltip_text" translatable="yes">Pop out into separate window</property>
-                    <property name="use_action_appearance">False</property>
                     <property name="relief">none</property>
                     <signal name="clicked" handler="pop_out_in" swapped="no"/>
                     <child>
@@ -726,10 +762,10 @@
                 </child>
                 <child>
                   <object class="GtkButton" id="button3">
+                    <property name="use_action_appearance">False</property>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="receives_default">True</property>
-                    <property name="use_action_appearance">False</property>
                     <property name="relief">none</property>
                     <child>
                       <object class="GtkImage" id="image12">
@@ -762,10 +798,10 @@
                     <property name="can_focus">False</property>
                     <child>
                       <object class="GtkButton" id="button1">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
                         <signal name="clicked" handler="on_open_h5_file" swapped="no"/>
                         <child>
@@ -809,10 +845,10 @@
                     </child>
                     <child>
                       <object class="GtkButton" id="button4">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
                         <signal name="clicked" handler="on_new_file_clicked" swapped="no"/>
                         <child>
@@ -856,10 +892,10 @@
                     </child>
                     <child>
                       <object class="GtkButton" id="button2">
+                        <property name="use_action_appearance">False</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="receives_default">True</property>
-                        <property name="use_action_appearance">False</property>
                         <property name="relief">none</property>
                         <signal name="clicked" handler="on_diff_file" swapped="no"/>
                         <child>
