@@ -208,10 +208,10 @@ def get_globals(groups):
                     # send them to mise:
                     if isinstance(value,str) and value == '':
                         value = ''
-                    if isinstance(units,str) and value == '':
-                        value = ''
-                    if isinstance(expansion,str) and value == '':
-                        value = ''
+                    if isinstance(units,str) and units == '':
+                        units = ''
+                    if isinstance(expansion,str) and expansion == '':
+                        expansion = ''
                     sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
 
