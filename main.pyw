@@ -1221,15 +1221,12 @@ class RunManager(object):
             self.aborted = True
     
     def submit_job(self, run_file):
-        server = self.builder.get_object('entry_server').get_text()
+        host = self.builder.get_object('entry_server').get_text()
         port = int(self.exp_config.get('ports','BLACS'))
-        # Workaround to force python not to use IPv6 for the request:
-        address  = socket.gethostbyname(server)
-        run_file = run_file.replace(self.shared_drive_prefix,'Z:/').replace('/','\\')
+        agnostic_path = shared_drive.path_to_agnostic(run_file)
         self.output('Submitting run file %s.\n'%os.path.basename(run_file))
-        params = urllib.urlencode({'filepath': run_file})
         try:
-            response = urllib2.urlopen('http://%s:%d'%(address,port), params, 2).read()
+            response = subproc_utils.zmq_get(port, host, data=agnostic_path)
             if 'added successfully' in response:
                 self.output(response)
             else:
