@@ -626,9 +626,12 @@ class RunManager(object):
                 if type(global_groups) is list:
                     grouplist_new = []
                     for g in global_groups:
-                        i = grouplist.index(g)
-                        grouplist_new.append(grouplist[i])
-                        grouplist.remove(grouplist[i])
+                        try:
+                            i = grouplist.index(g)
+                            grouplist_new.append(grouplist[i])
+                            grouplist.remove(grouplist[i])
+                        except ValueError:
+                            self.output('        Could not find group \'%s\' in file \'%s\'\n\n'%(g,globals_file))
                     grouplist = grouplist_new + grouplist
                 # Append to Tree View
                 parent = self.group_store.prepend(None, (globals_file, False, 'gtk-close', None, 0, 0, 1))            
