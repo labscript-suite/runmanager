@@ -619,46 +619,49 @@ class RunManager(object):
             default_globals = eval(self.exp_config.get('runmanager', 'default_global_files'))
             self.output('Loading default files and groups:\n')
             for globals_file, global_groups in default_globals.items():
-                # open the file
-                self.output('   ' + globals_file + '\n')
-                grouplist = runmanager.get_grouplist(globals_file) 
-                # reorder the grouplist if a list of groups is specified
-                if type(global_groups) is list:
-                    grouplist_new = []
-                    for g in global_groups:
-                        try:
-                            i = grouplist.index(g)
-                            grouplist_new.append(grouplist[i])
-                            grouplist.remove(grouplist[i])
-                        except ValueError:
-                            self.output('        Could not find group \'%s\' in file \'%s\'\n\n'%(g,globals_file))
-                    grouplist = grouplist_new + grouplist
-                # Append to Tree View
-                parent = self.group_store.prepend(None, (globals_file, False, 'gtk-close', None, 0, 0, 1))            
-                for name in grouplist:
-                    self.group_store.append(parent, (name, False, 'gtk-add', 'gtk-remove', 0, 1, 1))                 
-                self.group_treeview.expand_row(self.group_store.get_path(parent), True) 
-                # Add editable option for adding groups
-                add = self.group_store.append(parent,('<Click to add group>', False, None, None, 0, 1, 0)) 
-                self.group_treeview.set_cursor(self.group_store.get_path(add), self.group_treeview.get_column(2), True)
-                # Recurse Tree View and create tab for groups as required 
-                if self.group_store.iter_has_child(parent):
-                    child_iter = self.group_store.iter_children(parent)
-                    while child_iter:
-                        if type(global_groups) == str:
-                            if global_groups.lower() == 'all':
-                                self.on_toggle_group(None, self.group_store.get_path(child_iter))
-                        elif type(global_groups) == list:
-                            child_name = self.group_store.get_value(child_iter, 0)
-                            if child_name in global_groups:
-                                self.on_toggle_group(None, self.group_store.get_path(child_iter))
-                        child_iter = self.group_store.iter_next(child_iter)    
-                
-                # Mark all groups in the file as active
-                class FakeCellRendererToggle(object):
-                    def get_active(self):
-                        return False
-                self.on_global_toggle(FakeCellRendererToggle(),self.group_store.get_path(parent))
+                try:
+                    # open the file
+                    grouplist = runmanager.get_grouplist(globals_file) 
+                    self.output('   ' + globals_file + '\n')
+                    # reorder the grouplist if a list of groups is specified
+                    if type(global_groups) is list:
+                        grouplist_new = []
+                        for g in global_groups:
+                            try:
+                                i = grouplist.index(g)
+                                grouplist_new.append(grouplist[i])
+                                grouplist.remove(grouplist[i])
+                            except ValueError:
+                                self.output('        Could not find group \'%s\' in file \'%s\'\n\n'%(g,globals_file))
+                        grouplist = grouplist_new + grouplist
+                    # Append to Tree View
+                    parent = self.group_store.prepend(None, (globals_file, False, 'gtk-close', None, 0, 0, 1))            
+                    for name in grouplist:
+                        self.group_store.append(parent, (name, False, 'gtk-add', 'gtk-remove', 0, 1, 1))                 
+                    self.group_treeview.expand_row(self.group_store.get_path(parent), True) 
+                    # Add editable option for adding groups
+                    add = self.group_store.append(parent,('<Click to add group>', False, None, None, 0, 1, 0)) 
+                    self.group_treeview.set_cursor(self.group_store.get_path(add), self.group_treeview.get_column(2), True)
+                    # Recurse Tree View and create tab for groups as required 
+                    if self.group_store.iter_has_child(parent):
+                        child_iter = self.group_store.iter_children(parent)
+                        while child_iter:
+                            if type(global_groups) == str:
+                                if global_groups.lower() == 'all':
+                                    self.on_toggle_group(None, self.group_store.get_path(child_iter))
+                            elif type(global_groups) == list:
+                                child_name = self.group_store.get_value(child_iter, 0)
+                                if child_name in global_groups:
+                                    self.on_toggle_group(None, self.group_store.get_path(child_iter))
+                            child_iter = self.group_store.iter_next(child_iter)    
+                    
+                    # Mark all groups in the file as active
+                    class FakeCellRendererToggle(object):
+                        def get_active(self):
+                            return False
+                    self.on_global_toggle(FakeCellRendererToggle(),self.group_store.get_path(parent))
+                except IOError:
+                    self.output('   Could not open %s \n' % globals_file)
             self.output('\n')
         except (LabConfig.NoSectionError, LabConfig.NoOptionError):
             self.output('No default h5 files listed in ' + config_path + '\n\n')
