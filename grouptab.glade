@@ -181,7 +181,8 @@
                 <child>
                   <object class="GtkCellRendererText" id="text_value">
                     <property name="xalign">0</property>
-                    <signal name="editing-canceled" handler="on_editing_cancelled" swapped="no"/>
+                    <signal name="editing-canceled" handler="on_editing_cancelled_value" swapped="no"/>
+                    <signal name="editing-started" handler="on_editing_started" swapped="no"/>
                     <signal name="edited" handler="on_edit_value" swapped="no"/>
                   </object>
                   <attributes>
@@ -212,7 +213,8 @@
                 <property name="sort_column_id">2</property>
                 <child>
                   <object class="GtkCellRendererText" id="text_units">
-                    <signal name="editing-canceled" handler="on_editing_cancelled" swapped="no"/>
+                    <signal name="editing-canceled" handler="on_editing_cancelled_units" swapped="no"/>
+                    <signal name="editing-started" handler="on_editing_started" swapped="no"/>
                     <signal name="edited" handler="on_edit_units" swapped="no"/>
                   </object>
                   <attributes>

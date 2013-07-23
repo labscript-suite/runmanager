@@ -214,6 +214,10 @@ class GroupTab(object):
         row[self.NAME] = self.NEW_GLOBAL_STRING
         self.global_liststore.append(row)
         
+        # Variable required to fix bug with GTK that passes the incorrect cellrenderer to
+        # the editing-cancelled callback when rows are reordered
+        self.editing_started_name = None
+        
         # Sort by name
         self.global_liststore.set_sort_column_id(self.NAME, gtk.SORT_ASCENDING)
         
@@ -237,11 +241,7 @@ class GroupTab(object):
         # And close it:
         self.notebook.remove_page(pagenum)
     
-    def focus_cell(self, column, path):
-        # Get the name of the global for the row we want. This is
-        # necessary because the liststore may re-order itself according
-        # to its sorting. So we have to lookup the target cell by name:
-        name = self.global_liststore[path][self.NAME]
+    def focus_cell(self, column, name):
         # Focus the target cell for editing. Do this asynchronously, as a gobject.idle:
         def focus_value_cell():
             # gobject.idles aren't threadsafe, must acquire the gtk lock:
@@ -275,7 +275,7 @@ class GroupTab(object):
             
            
             # Focus the value cell for editing next:
-            self.focus_cell(self.column_value, path)
+            self.focus_cell(self.column_value, new_text)
             
             # Re-add a row to the bottom for adding a new global.
             # This must be after the above focus call, otherwise
@@ -314,18 +314,23 @@ class GroupTab(object):
         except Exception as e:
             error_dialog(str(e))
             return
-        self.global_liststore[path][self.VALUE] = new_text
+            
         # Clear its highlight and tooltip until it is re-evaluated by the preparser:
+        self.global_liststore[path][self.VALUE] = new_text
+        # Get the new path for the instance when the rows are reodered (i.e. sorted by Value)
+        for path, row in enumerate(self.global_liststore):
+            if row[self.NAME] == name:
+                break # this updates path
+                
         self.global_liststore[path][self.VALUE_BG_COLOR] = None
         self.global_liststore[path][self.TOOLTIP] = 'Expression still being evaluated...'
-            
         # Check for Boolean values:
         self.apply_bool_settings(self.global_liststore[path])
         
         # If the units box is empty, make it focussed and editable to encourage people to set units!
         units = self.global_liststore[path][self.UNITS]
         if not units:
-            self.focus_cell(self.column_units, path)
+            self.focus_cell(self.column_units, name)
         else:
             app.preparse_globals_required.set()
         
@@ -399,14 +404,42 @@ class GroupTab(object):
             self.global_liststore[path][self.EXPANSION_ICON] = None
         app.preparse_globals_required.set()
     
-    def on_editing_cancelled(self, cellrenderer):
-        text = cellrenderer.get_property ("text")
+    def on_editing_cancelled_units(self, cellrenderer):
+        # Note: cellrenderer is not always correct when rows are reordered
+        # Get the path from the row name
+        for path, row in enumerate(self.global_liststore):
+            if row[self.NAME] == self.editing_started_name:
+                break # this sets path
+        
+        units = self.global_liststore[path][self.UNITS]
+        
         # If the user has left a field blank, the other fields still
         # need parsing. This needs to be done after the cursor has been
         # moved automatically to the next cell (preparsing is not done
         # when this happens, so we'd better do preparsing now):
-        if not text:
+        if not units:
             app.preparse_globals_required.set()
+            
+    def on_editing_cancelled_value(self, cellrenderer):
+        # Note: cellrenderer is not always correct when rows are reordered
+        # Get the path from the row name
+        for path, row in enumerate(self.global_liststore):
+            if row[self.NAME] == self.editing_started_name:
+                break # this sets path
+        
+        value = self.global_liststore[path][self.VALUE]
+        
+        # If the user has left a field blank, the other fields still
+        # need parsing. This needs to be done after the cursor has been
+        # moved automatically to the next cell (preparsing is not done
+        # when this happens, so we'd better do preparsing now):
+        if not value:
+            app.preparse_globals_required.set()
+            
+    def on_editing_started(self, cellrenderer, editable, path):
+        # Get the name of the row being edited for later use by on_editing_cancelled
+        # This is required due to editing-cancelled callback returning wrong cellrenderer
+        self.editing_started_name = self.global_liststore[path][self.NAME]
             
     def on_delete_global(self,cellrenderer,path):
         name = self.global_liststore[path][self.NAME] 
@@ -494,7 +527,7 @@ class RunManager(object):
                                            "labscriptlib",
                                           ],
                                  }
-        self.exp_config = LabConfig(config_path,required_config_params)
+        self.exp_config = LabConfig(config_path, required_config_params)
         
         
         self.builder = gtk.Builder()
@@ -559,9 +592,9 @@ class RunManager(object):
         self.aborted = False
         self.current_labscript_file = None
         
-        self.shared_drive_prefix = self.exp_config.get('paths','shared_drive')
+        self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         
-        self.globals_path = None
+        self.globals_path = self.exp_config.get('paths', 'experiment_shot_storage')
         # Add timeout to watch for output folder changes when the day rolls over
         gobject.timeout_add(1000, self.update_output_dir)
         self.current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
@@ -581,6 +614,53 @@ class RunManager(object):
         self.preparse_globals_required = threading.Event()
         self.preparse_globals_thread.start()
         
+        # Load default files and groups
+        try:
+            default_globals = eval(self.exp_config.get('runmanager', 'default_global_files'))
+            self.output('Loading default files and groups:\n')
+            for globals_file, global_groups in default_globals.items():
+                # open the file
+                self.output('   ' + globals_file + '\n')
+                grouplist = runmanager.get_grouplist(globals_file) 
+                # reorder the grouplist if a list of groups is specified
+                if type(global_groups) is list:
+                    grouplist_new = []
+                    for g in global_groups:
+                        i = grouplist.index(g)
+                        grouplist_new.append(grouplist[i])
+                        grouplist.remove(grouplist[i])
+                    grouplist = grouplist_new + grouplist
+                # Append to Tree View
+                parent = self.group_store.prepend(None, (globals_file, False, 'gtk-close', None, 0, 0, 1))            
+                for name in grouplist:
+                    self.group_store.append(parent, (name, False, 'gtk-add', 'gtk-remove', 0, 1, 1))                 
+                self.group_treeview.expand_row(self.group_store.get_path(parent), True) 
+                # Add editable option for adding groups
+                add = self.group_store.append(parent,('<Click to add group>', False, None, None, 0, 1, 0)) 
+                self.group_treeview.set_cursor(self.group_store.get_path(add), self.group_treeview.get_column(2), True)
+                # Recurse Tree View and create tab for groups as required 
+                if self.group_store.iter_has_child(parent):
+                    child_iter = self.group_store.iter_children(parent)
+                    while child_iter:
+                        if type(global_groups) == str:
+                            if global_groups.lower() == 'all':
+                                self.on_toggle_group(None, self.group_store.get_path(child_iter))
+                        elif type(global_groups) == list:
+                            child_name = self.group_store.get_value(child_iter, 0)
+                            if child_name in global_groups:
+                                self.on_toggle_group(None, self.group_store.get_path(child_iter))
+                        child_iter = self.group_store.iter_next(child_iter)    
+                
+                # Mark all groups in the file as active
+                class FakeCellRendererToggle(object):
+                    def get_active(self):
+                        return False
+                self.on_global_toggle(FakeCellRendererToggle(),self.group_store.get_path(parent))
+            self.output('\n')
+        except (LabConfig.NoSectionError, LabConfig.NoOptionError):
+            self.output('No default h5 files listed in ' + config_path + '\n\n')
+        
+        # All set!
         self.output('Ready\n')
     
     def on_window_destroy(self,widget):
@@ -813,7 +893,7 @@ class RunManager(object):
         
                   
             runmanager.new_group(filepath, new_text)
-            self.group_store.insert_before(parent,iter,(new_text,True,"gtk-close","gtk-delete",0,1,1))
+            self.group_store.insert_before(parent,iter,(new_text,True,"gtk-close","gtk-remove",0,1,1))
             # Update parent checkbox state
             self.update_parent_checkbox(iter,True)
             
