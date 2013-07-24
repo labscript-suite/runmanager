@@ -618,7 +618,7 @@ class RunManager(object):
         try:
             default_globals = eval(self.exp_config.get('runmanager', 'default_global_files'))
             self.output('Loading default files and groups:\n')
-            for globals_file, global_groups in default_globals.items():
+            for globals_file, global_groups in default_globals:
                 try:
                     # open the file
                     grouplist = runmanager.get_grouplist(globals_file) 
@@ -632,7 +632,7 @@ class RunManager(object):
                                 grouplist_new.append(grouplist[i])
                                 grouplist.remove(grouplist[i])
                             except ValueError:
-                                self.output('        Could not find group \'%s\' in file \'%s\'\n\n'%(g,globals_file))
+                                self.output("        Could not find group '%s' in file '%s'\n\n" % (g, globals_file), red=True)
                         grouplist = grouplist_new + grouplist
                     # Append to Tree View
                     parent = self.group_store.prepend(None, (globals_file, False, 'gtk-close', None, 0, 0, 1))            
@@ -661,11 +661,27 @@ class RunManager(object):
                             return False
                     self.on_global_toggle(FakeCellRendererToggle(),self.group_store.get_path(parent))
                 except IOError:
-                    self.output('   Could not open %s \n' % globals_file)
+                    self.output('   Could not open %s \n' % globals_file, red=True)
             self.output('\n')
         except (LabConfig.NoSectionError, LabConfig.NoOptionError):
             self.output('No default h5 files listed in ' + config_path + '\n\n')
-        
+        except (SyntaxError, ValueError):
+            self.output("default_global_files in %s must be a list of tuples of the form:\n" %config_path +
+                        "   * ('h5file', [group1, group2, ... ]), or\n" +
+                        "   * ('h5file', 'All'), or\n" +
+                        "   * ('h5file', None)\n\n", red=True)
+        except Exception as e:
+            self.output(str(e)+'\n',red=True)
+        try:
+            filename = self.exp_config.get('runmanager', 'default_labscript_file')
+            print filename
+            self.mk_output_dir(filename)
+            self.current_labscript_file = filename
+        except (LabConfig.NoSectionError, LabConfig.NoOptionError):
+            self.output('No default labscript file listed in ' + config_path + '\n\n')
+        except Exception as e:
+            self.output(str(e)+'\n',red=True)
+
         # All set!
         self.output('Ready\n')
     
