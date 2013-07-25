@@ -662,7 +662,6 @@ class RunManager(object):
                     self.on_global_toggle(FakeCellRendererToggle(),self.group_store.get_path(parent))
                 except IOError:
                     self.output('   Could not open %s \n' % globals_file, red=True)
-            self.output('\n')
         except (LabConfig.NoSectionError, LabConfig.NoOptionError):
             self.output('No default h5 files listed in ' + config_path + '\n\n')
         except (SyntaxError, ValueError):
@@ -674,11 +673,20 @@ class RunManager(object):
             self.output(str(e)+'\n',red=True)
         try:
             filename = self.exp_config.get('runmanager', 'default_labscript_file')
-            print filename
+            self.output('   ' + filename + '\n\n')
             self.mk_output_dir(filename)
             self.current_labscript_file = filename
         except (LabConfig.NoSectionError, LabConfig.NoOptionError):
             self.output('No default labscript file listed in ' + config_path + '\n\n')
+        except Exception as e:
+            self.output(str(e)+'\n',red=True)
+        try:
+            default_run_experiment = self.exp_config.get('runmanager', 'default_run_experiment')
+            if default_run_experiment.lower() == 'true':
+                self.run = True
+                self.checkbutton_run.set_active(self.run)
+        except (LabConfig.NoSectionError, LabConfig.NoOptionError):
+            pass
         except Exception as e:
             self.output(str(e)+'\n',red=True)
 
