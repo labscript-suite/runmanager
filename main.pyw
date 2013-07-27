@@ -26,10 +26,14 @@ import runmanager
 import subproc_utils
 from subproc_utils.gtk_components import OutputBox
 
+# Set working directory to runmanager folder, resolving symlinks
+runmanager_dir = os.path.dirname(os.path.realpath(__file__))
+os.chdir(runmanager_dir)
+
 # This provides debug info without having to run from a terminal, and
 # avoids a stupid crash on Windows when there is no command window:
 if not sys.stdout.isatty():
-    sys.stdout = sys.stderr = open('debug.log','w',1)
+    sys.stdout = sys.stderr = open('debug.log', 'w', 1)
     
 if os.name == 'nt':
     # Make it not look so terrible (if icons and themes are installed):
@@ -674,7 +678,7 @@ class RunManager(object):
             self.output(str(e)+'\n',red=True)
         try:
             filename = self.exp_config.get('runmanager', 'default_labscript_file')
-            print filename
+            self.output('   ' + filename + '\n\n')
             self.mk_output_dir(filename)
             self.current_labscript_file = filename
         except (LabConfig.NoSectionError, LabConfig.NoOptionError):
