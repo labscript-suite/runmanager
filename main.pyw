@@ -15,10 +15,7 @@ import gobject
 import glib
 import pango
 
-import zlock
-# This must happen before importing h5_lock:
-zlock.set_client_process_name('runmanager')
-import h5_lock, h5py
+import zlock, h5_lock, h5py
 from zmq import ZMQError
 
 import lyse
@@ -32,6 +29,9 @@ from subproc_utils.gtk_components import OutputBox
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
 os.chdir(runmanager_dir)
+
+# Set a meaningful name for zlock's client id:
+zlock.set_client_process_name('runmanager')
 
 # This provides debug info without having to run from a terminal, and
 # avoids a stupid crash on Windows when there is no command window:
