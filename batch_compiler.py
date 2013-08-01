@@ -5,10 +5,6 @@ import excepthook
 from subproc_utils import setup_connection_with_parent
 from filewatcher.modulewatcher import ModuleWatcher
 
-# Supress labscript's automatic initialisation (labscript looks in the __main__ module for this):
-labscript_auto_init = False
-import labscript
-
 class BatchProcessor(object):
     def __init__(self, to_parent, from_parent, kill_lock):
         self.to_parent = to_parent
@@ -46,5 +42,10 @@ class BatchProcessor(object):
                    
 if __name__ == '__main__':
     to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True)
+    
+    # Supress labscript's automatic initialisation (labscript looks in the __main__ module for this):
+    labscript_auto_init = False
+    import labscript
+    
     module_watcher = ModuleWatcher() # Make sure modified modules are reloaded
     batch_processor = BatchProcessor(to_parent,from_parent,kill_lock)

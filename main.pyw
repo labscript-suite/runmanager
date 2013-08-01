@@ -15,6 +15,9 @@ import gobject
 import glib
 import pango
 
+import zlock
+# This must happen before importing h5_lock:
+zlock.set_client_process_name('runmanager')
 import h5_lock, h5py
 from zmq import ZMQError
 
