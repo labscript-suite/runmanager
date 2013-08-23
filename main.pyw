@@ -1240,7 +1240,7 @@ class RunManager(object):
                     active_groups[group_name] = filepath
         self.active_groups = active_groups
                     
-    def parse_globals(self, raise_exceptions=True):
+    def parse_globals(self, raise_exceptions=True,expand_globals=True):
         if raise_exceptions:
             # Since the following might raise an exception, callers
             # requiring an update of active groups must call it themselves
@@ -1248,7 +1248,10 @@ class RunManager(object):
             self.update_active_groups()
         sequence_globals = runmanager.get_globals(self.active_groups)
         evaled_globals = runmanager.evaluate_globals(sequence_globals,raise_exceptions)
-        shots = runmanager.expand_globals(sequence_globals,evaled_globals)
+        if expand_globals:
+            shots = runmanager.expand_globals(sequence_globals,evaled_globals)
+        else:
+            shots = []
         return sequence_globals, shots, evaled_globals
     
     def guess_expansion_modes(self, evaled_globals):
@@ -1299,7 +1302,7 @@ class RunManager(object):
             # we will have to parse again to include the change: 
             expansions_changed = True
             while expansions_changed:
-                sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False)
+                sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False, expand_globals = False)
                 expansions_changed = self.guess_expansion_modes(evaled_globals)
             for tab in self.opentabs:
                 with gtk.gdk.lock:
