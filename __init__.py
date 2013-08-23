@@ -7,6 +7,7 @@ import subprocess
 import types
 import threading
 import traceback
+import tokenize,token, StringIO
 
 import h5_lock, h5py
 import pylab
@@ -46,7 +47,7 @@ def add_expansion_groups(filename):
                     subgroup.attrs[name] = ''
         groups = {group_name: filename for group_name in get_grouplist(filename)}
         sequence_globals = get_globals(groups)
-        evaled_globals = evaluate_globals(sequence_globals, raise_exceptions=False)
+        evaled_globals, global_hierarchy = evaluate_globals(sequence_globals, raise_exceptions=False)
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
                 value = evaled_globals[group_name][global_name]
@@ -215,6 +216,63 @@ def get_globals(groups):
                     sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
 
+def check_for_circular_dependency(global_hierarchy, global_name, original):
+    if global_name == original:
+        return True
+    
+    if global_name in global_hierarchy:
+        #iterate over each dependency of global name and see if it somehow depends on original
+        for name in global_hierarchy[global_name]:
+            result = check_for_circular_dependency(global_hierarchy, name, original)
+            if result:
+                return True
+    
+    return False
+    
+def create_dependency_list(sandbox,global_hierarchy,globals_to_eval,global_name,expansions):
+    continue_loop = True
+    while continue_loop:
+        # this will be set back to True if we have a name error we manage to resolve
+        #
+        continue_loop = False
+        try:
+            value = eval(globals_to_eval[global_name],sandbox)
+            if isinstance(value,types.GeneratorType):
+                value = iterator_to_tuple(value)
+            # Make sure if we're zipping or outer-producting this value, that it can
+            # be iterated over:
+            if expansions[global_name]:
+                try:
+                    test = iter(value)
+                except Exception as e:
+                    raise ExpansionError(str(e))      
+            return value
+        except NameError as e:
+            global_hierarchy.setdefault(global_name,[])
+            missing_var = str(e).replace('name \'','').replace('\' is not defined','')
+            if missing_var not in global_hierarchy[global_name]:
+                global_hierarchy[global_name].append(missing_var)
+            
+            # does the missing var rely on something that uses this variable
+            if check_for_circular_dependency(global_hierarchy, missing_var, global_name):
+                # what do we do here?
+                return e
+            
+            # now evalulate this mising global 
+            if missing_var in globals_to_eval:
+                result = create_dependency_list(sandbox.copy(),global_hierarchy,globals_to_eval,missing_var,expansions)
+                if isinstance(result,Exception):
+                    return e #return the local exception, not the one further down the dependency chain
+                else:                    
+                    sandbox[missing_var] = result  
+                    continue_loop = True
+            else:
+                # if the missing variale is not in the globals list, we should break out of this!
+                return e
+        except Exception as e:
+            return e   
+    return Exception('An undefined error occured when evaluating this global')
+    
 def evaluate_globals(sequence_globals, raise_exceptions=True):
     """Takes a dictionary of globals as returned by get_globals. These
     globals are unevaluated strings.  Evaluates them all in the same
@@ -232,6 +290,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     all_globals = {}
     results = {}
     expansions = {}
+    global_hierarchy = {}
     # Pre-fill the results dictionary with groups, this is needed for
     # storing exceptions in the case of globals with the same name being
     # defined in multiple groups (all of them get the exception):
@@ -262,54 +321,97 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     for global_name in multiply_defined_globals:
         del all_globals[global_name]
 
-    # Eval the expressions in the same namespace as each other:
+        
+    ###########################################
+    # functions for creatingd dependency list #
+    ###########################################
+    
+        
+    # for each global, find the other globals it depends on, and record them as a dependency
+    start_time = time.time()
+    exec_time = 0
+    globals_to_eval = all_globals.copy()
     evaled_globals = {}
     sandbox = {}
     exec('from pylab import *',sandbox,sandbox)
     exec('from runmanager.functions import *',sandbox,sandbox)
     exec('from mise import MiseParameter',sandbox,sandbox)
-    globals_to_eval = all_globals.copy()
-    previous_errors = -1
-    while globals_to_eval:
-        errors = []
-        for global_name, expression in globals_to_eval.copy().items():
-            try:
-                value = eval(expression,sandbox)
-                # Need to know the length of any generators, convert to tuple:
-                if isinstance(value,types.GeneratorType):
-                    value = iterator_to_tuple(value)
-                # Make sure if we're zipping or outer-producting this value, that it can
-                # be iterated over:
-                if expansions[global_name]:
-                    try:
-                        test = iter(value)
-                    except Exception as e:
-                        raise ExpansionError(str(e))
-            except Exception as e:
-                # Don't raise, just append the error to a list, we'll display them all later.
-                errors.append((global_name,e))
-                continue
-            # Put the global into the namespace so other globals can use it:
-            sandbox[global_name] = value
-            del globals_to_eval[global_name]
-            evaled_globals[global_name] = value
-        if len(errors) == previous_errors:
-            # Since some globals may refer to others, we expect maybe
-            # some NameErrors to have occured.  There should be fewer
-            # NameErrors each iteration of this while loop, as globals
-            # that are required become defined. If there are not fewer
-            # errors, then there is something else wrong and we should
-            # raise it.
-            if raise_exceptions:
-                message = 'Error parsing globals:\n'
-                for global_name, exception in errors:
-                    message += '%s: %s\n'%(global_name,str(exception))
-                raise Exception(message)
-            else:
-                for global_name, exception in errors:
-                    evaled_globals[global_name] = exception
-                break
-        previous_errors = len(errors)
+    for global_name in globals_to_eval:
+        e1 = time.time()
+        clean_sandbox = sandbox.copy()
+        exec_time += time.time()-e1
+        evaled_globals[global_name] = create_dependency_list(clean_sandbox,global_hierarchy,globals_to_eval,global_name,expansions)
+    print 'Time taken: %.6f'%(time.time()-start_time)
+    print 'Exec time: %.6f'%(exec_time)
+    print global_hierarchy
+    print '\n\n'
+        
+    # better dependency check
+    sandbox = {}
+    # exec('from pylab import *',sandbox,sandbox)
+    # exec('from runmanager.functions import *',sandbox,sandbox)
+    # exec('from mise import MiseParameter',sandbox,sandbox)
+    
+    # for global_name, expression in all_globals.items():
+        # try:
+            # eval(expression,sandbox)
+        # except NameError:
+            # tokens = tokenize.generate_tokens(StringIO.StringIO(expression).readline)
+            # for toknum, tokval, _, _, _ in tokens:
+                # if toknum == token.NAME and tokval in all_globals:
+                    # global_hierarchy.setdefault(global_name,[])
+                    # global_hierarchy[global_name].append(tokval)
+    # print global_hierarchy
+    
+    # Eval the expressions in the same namespace as each other:
+    # evaled_globals = {}
+    # sandbox = {}
+    # exec('from pylab import *',sandbox,sandbox)
+    # exec('from runmanager.functions import *',sandbox,sandbox)
+    # exec('from mise import MiseParameter',sandbox,sandbox)
+    # globals_to_eval = all_globals.copy()
+    # previous_errors = -1
+    # while globals_to_eval:
+        # errors = []
+        # for global_name, expression in globals_to_eval.copy().items():
+            # try:
+                # value = eval(expression,sandbox)
+                # # Need to know the length of any generators, convert to tuple:
+                # if isinstance(value,types.GeneratorType):
+                    # value = iterator_to_tuple(value)
+                # # Make sure if we're zipping or outer-producting this value, that it can
+                # # be iterated over:
+                # if expansions[global_name]:
+                    # try:
+                        # test = iter(value)
+                    # except Exception as e:
+                        # raise ExpansionError(str(e))
+            # except Exception as e:
+                # # Don't raise, just append the error to a list, we'll display them all later.
+                # errors.append((global_name,e))
+                # continue
+            # # Put the global into the namespace so other globals can use it:
+            # sandbox[global_name] = value
+            # del globals_to_eval[global_name]
+            # evaled_globals[global_name] = value
+        # if len(errors) == previous_errors:
+            # # Since some globals may refer to others, we expect maybe
+            # # some NameErrors to have occured.  There should be fewer
+            # # NameErrors each iteration of this while loop, as globals
+            # # that are required become defined. If there are not fewer
+            # # errors, then there is something else wrong and we should
+            # # raise it.
+            # if raise_exceptions:
+                # message = 'Error parsing globals:\n'
+                # for global_name, exception in errors:
+                    # message += '%s: %s\n'%(global_name,str(exception))
+                # raise Exception(message)
+            # else:
+                # for global_name, exception in errors:
+                    # evaled_globals[global_name] = exception
+                # break
+        # previous_errors = len(errors)
+    # print 'Time taken: %.6f'%(time.time()-start_time)
     
     # Assemble results into a dictionary of the same format as sequence_globals:
     for group_name in sequence_globals:
@@ -319,7 +421,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             if not global_name in results[group_name]:
                 results[group_name][global_name] = evaled_globals[global_name]
             
-    return results
+    return results, global_hierarchy
 
 def expand_globals(sequence_globals, evaled_globals):
     """Expands iterable globals according to their expansion
@@ -455,7 +557,7 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path)
     globals_files. Uses labscript_file only to generate a sequence ID"""
     groups = get_all_groups(globals_files)
     sequence_globals = get_globals(groups)
-    evaled_globals = evaluate_globals(sequence_globals)
+    evaled_globals, global_hierarchy = evaluate_globals(sequence_globals)
     shots = expand_globals(sequence_globals, evaled_globals)
     if len(shots) > 1:
         scanning_globals = []

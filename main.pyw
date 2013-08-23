@@ -590,6 +590,8 @@ class RunManager(object):
         self.opentabs = []
         self.grouplist = []
         self.previous_evaled_globals = {}
+        self.previous_global_hierarchy = {}
+        self.previous_expansion_types = {}
         self.popped_out = False
         self.making_new_file = False
         self.compile = True
@@ -808,7 +810,7 @@ class RunManager(object):
             # get a dictionary of the sequence_globals for the file to diff
             sequence_globals_1 = run.get_globals_raw()
             # get a dictionary of the sequence globals based on the current globals
-            sequence_globals, shots, evaled_globals = self.parse_globals()
+            sequence_globals, shots, evaled_globals, global_hierarchy = self.parse_globals()
             sequence_globals_2 = {}
             for globals_group in sequence_globals.values():
                 for key, val in globals_group.items():
@@ -1184,7 +1186,7 @@ class RunManager(object):
         try:
             logger.info('in try statement')
             logger.info('about to parse_globals')
-            sequenceglobals, shots, evaled_globals = self.parse_globals()
+            sequenceglobals, shots, evaled_globals, global_hierarchy = self.parse_globals()
             if self.compile:
                 logger.info('about to make_h5_files globals')
                 labscript_file, run_files = self.make_h5_files(sequenceglobals, shots)
@@ -1247,14 +1249,14 @@ class RunManager(object):
             # before calling this function. Also this function requires the gtk lock:
             self.update_active_groups()
         sequence_globals = runmanager.get_globals(self.active_groups)
-        evaled_globals = runmanager.evaluate_globals(sequence_globals,raise_exceptions)
+        evaled_globals, global_hierarchy = runmanager.evaluate_globals(sequence_globals,raise_exceptions)
         if expand_globals:
             shots = runmanager.expand_globals(sequence_globals,evaled_globals)
         else:
             shots = []
-        return sequence_globals, shots, evaled_globals
+        return sequence_globals, shots, evaled_globals, global_hierarchy
     
-    def guess_expansion_modes(self, evaled_globals):
+    def guess_expansion_modes(self, evaled_globals, global_hierarchy):
         # Do nothing if there were exceptions:
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
@@ -1268,6 +1270,7 @@ class RunManager(object):
                     return False
         # Did the guessed expansion type for any of the globals change?
         expansion_types_changed = False
+        expansion_types = {}
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
                 new_value = evaled_globals[group_name][global_name]
@@ -1277,11 +1280,63 @@ class RunManager(object):
                     continue
                 new_guess = runmanager.guess_expansion_type(new_value)
                 previous_guess = runmanager.guess_expansion_type(previous_value)
-                if new_guess != previous_guess:
+                if global_name == 'B_G':
+                    print 'global B_G new guess is %s and old guess is %s'%(new_guess,previous_guess)
+                if new_guess == 'outer':
+                    expansion_types[global_name] = {'previous_guess':previous_guess,
+                                                    'new_guess':new_guess,
+                                                    'group_name':group_name,
+                                                    'value':value
+                                                    }
+                elif new_guess != previous_guess:
                     filename = self.active_groups[group_name]
                     runmanager.set_expansion(filename, group_name, global_name, new_guess)
                     expansion_types_changed = True
+        # recursively find dependencies and add them to a zip group!
+        def find_dependencies(global_name, global_hierarchy):
+            results = set()
+            for name, dependencies in global_hierarchy.items():
+                if global_name in dependencies:
+                    print 'found that %s depends on %s'%(name,global_name)
+                    results.add(name)
+                    results = results.union(find_dependencies(name,global_hierarchy))
+                    print results
+            return results            
+            
+        for global_name in sorted(expansion_types):
+            # we have a global that does not depend on anything that has an expansion type of 'outer'            
+            if global_name not in global_hierarchy and not isinstance(expansion_types[global_name]['value'], runmanager.ExpansionError):
+                print 'found global: %s'%global_name
+                current_dependencies = find_dependencies(global_name,global_hierarchy)
+                print 'current dependencies: %s'%(str(current_dependencies))
+                # if this global has other globals that use it, then add them all to a zip group with the name of this global
+                if current_dependencies:
+                    for dependency in current_dependencies:
+                        expansion_types[dependency]['new_guess'] = str(global_name)
+                    expansion_types[global_name]['new_guess'] = str(global_name)
+                    
+        for global_name in sorted(self.previous_expansion_types):            
+            if global_name not in self.previous_global_hierarchy and not isinstance(self.previous_expansion_types[global_name]['value'], runmanager.ExpansionError):
+                old_dependencies = find_dependencies(global_name,self.previous_global_hierarchy)
+                print 'old dependencies: %s'%(str(old_dependencies))
+                # if this global has other globals that use it, then add them all to a zip group with the name of this global
+                if old_dependencies:
+                    for dependency in old_dependencies:
+                        if dependency in expansion_types:
+                            expansion_types[dependency]['previous_guess'] = str(global_name)
+                    if global_name in expansion_types:
+                        expansion_types[global_name]['previous_guess'] = str(global_name)
+                    
+        for global_name, guesses in expansion_types.items():
+            if guesses['new_guess'] != guesses['previous_guess']:
+                print 'updating expansion type of global %s to %s'%(global_name,guesses['new_guess'])
+                filename = self.active_groups[guesses['group_name']]
+                runmanager.set_expansion(filename, str(guesses['group_name']), str(global_name), str(guesses['new_guess']))
+                expansion_types_changed = True
+            
         self.previous_evaled_globals = evaled_globals
+        self.previous_global_hierarchy = global_hierarchy
+        self.previous_expansion_types = expansion_types
         return expansion_types_changed
         
     def preparse_globals(self):
@@ -1302,8 +1357,8 @@ class RunManager(object):
             # we will have to parse again to include the change: 
             expansions_changed = True
             while expansions_changed:
-                sequence_globals, shots, evaled_globals = self.parse_globals(raise_exceptions = False, expand_globals = False)
-                expansions_changed = self.guess_expansion_modes(evaled_globals)
+                sequence_globals, shots, evaled_globals, global_hierarchy = self.parse_globals(raise_exceptions = False, expand_globals = False)
+                expansions_changed = self.guess_expansion_modes(evaled_globals,global_hierarchy)
             for tab in self.opentabs:
                 with gtk.gdk.lock:
                     tab.update_parse_indication(sequence_globals, evaled_globals)
