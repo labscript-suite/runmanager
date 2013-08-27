@@ -592,6 +592,7 @@ class RunManager(object):
         self.previous_evaled_globals = {}
         self.previous_global_hierarchy = {}
         self.previous_expansion_types = {}
+        self.previous_expansions = {}
         self.popped_out = False
         self.making_new_file = False
         self.compile = True
@@ -1277,12 +1278,15 @@ class RunManager(object):
                 try:
                     previous_value = self.previous_evaled_globals[group_name][global_name]
                 except KeyError:
-                    continue
+                    # This variable is only used to guess the expansion type so we can set it to
+                    # '0' which will result in an expansion type guess of '' (emptys string)
+                    # This will either result in nothing being done to the expansion type or the expansion
+                    # type being found to be 'outer', which will then make it go through the machinery below
+                    previous_value = 0  
+                    
                 new_guess = runmanager.guess_expansion_type(new_value)
                 previous_guess = runmanager.guess_expansion_type(previous_value)
-                if global_name == 'blah':
-                    print 'global blah new guess is %s and old guess is %s'%(new_guess,previous_guess)
-                    print new_value
+                
                 if new_guess == 'outer':
                     expansion_types[global_name] = {'previous_guess':previous_guess,
                                                     'new_guess':new_guess,
@@ -1295,16 +1299,13 @@ class RunManager(object):
                     expansions[global_name] = new_guess
                     expansion_types_changed = True
                     
-        print expansion_types
         # recursively find dependencies and add them to a zip group!
         def find_dependencies(global_name, global_hierarchy):
             results = set()
             for name, dependencies in global_hierarchy.items():
                 if global_name in dependencies:
-                    print 'found that %s depends on %s'%(name,global_name)
                     results.add(name)
                     results = results.union(find_dependencies(name,global_hierarchy))
-                    print results
             return results           
 
         def global_depends_on_global_with_outer_product(global_name,global_hierarchy,expansions):
@@ -1318,9 +1319,7 @@ class RunManager(object):
         for global_name in sorted(expansion_types):
             # we have a global that does not depend on anything that has an expansion type of 'outer'            
             if not global_depends_on_global_with_outer_product(global_name,global_hierarchy,expansions) and not isinstance(expansion_types[global_name]['value'], runmanager.ExpansionError):
-                print 'found global: %s'%global_name
                 current_dependencies = find_dependencies(global_name,global_hierarchy)
-                print 'current dependencies: %s'%(str(current_dependencies))
                 # if this global has other globals that use it, then add them all to a zip group with the name of this global
                 if current_dependencies:
                     for dependency in current_dependencies:
@@ -1330,9 +1329,8 @@ class RunManager(object):
                     expansions[global_name] = str(global_name)
                     
         for global_name in sorted(self.previous_expansion_types):            
-            if not global_depends_on_global_with_outer_product(global_name,self.previous_global_hierarchy,expansions) and not isinstance(self.previous_expansion_types[global_name]['value'], runmanager.ExpansionError):
+            if not global_depends_on_global_with_outer_product(global_name,self.previous_global_hierarchy,self.previous_expansions) and not isinstance(self.previous_expansion_types[global_name]['value'], runmanager.ExpansionError):
                 old_dependencies = find_dependencies(global_name,self.previous_global_hierarchy)
-                print 'old dependencies: %s'%(str(old_dependencies))
                 # if this global has other globals that use it, then add them all to a zip group with the name of this global
                 if old_dependencies:
                     for dependency in old_dependencies:
@@ -1343,7 +1341,6 @@ class RunManager(object):
                     
         for global_name, guesses in expansion_types.items():
             if guesses['new_guess'] != guesses['previous_guess']:
-                print 'updating expansion type of global %s to %s'%(global_name,guesses['new_guess'])
                 filename = self.active_groups[guesses['group_name']]
                 runmanager.set_expansion(filename, str(guesses['group_name']), str(global_name), str(guesses['new_guess']))
                 expansions[global_name] = guesses['new_guess']
@@ -1364,6 +1361,7 @@ class RunManager(object):
         self.previous_evaled_globals = evaled_globals
         self.previous_global_hierarchy = global_hierarchy
         self.previous_expansion_types = expansion_types
+        self.previous_expansions = expansions
         return expansion_types_changed
         
     def preparse_globals(self):
