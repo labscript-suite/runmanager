@@ -278,6 +278,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 if toknum == token.NAME and tokval in all_globals:
                     global_hierarchy.setdefault(global_name,[])
                     global_hierarchy[global_name].append(tokval)
+        except Exception as e:
+            pass
     
     #Eval the expressions in the same namespace as each other:
     evaled_globals = {}
