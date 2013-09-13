@@ -550,12 +550,14 @@ class RunManager(object):
         self.output_page = self.builder.get_object('output_page')
         self.scrolledwindow_output = self.builder.get_object('scrolledwindow_output')
         self.chooser_output_directory = self.builder.get_object('chooser_output_directory')
+        self.entry_server = self.builder.get_object('entry_server')
         self.radiobutton_compile = self.builder.get_object('radiobutton_compile')
         self.radiobutton_mise = self.builder.get_object('radiobutton_mise')
         self.checkbutton_view = self.builder.get_object('checkbutton_view')
         self.checkbutton_run = self.builder.get_object('checkbutton_run')
         self.checkbuttons_box = self.builder.get_object('checkbuttons_box')
         self.mise_server_box = self.builder.get_object('mise_server_box')
+        self.entry_mise_server = self.builder.get_object('entry_mise_server')
         self.toggle_shuffle = self.builder.get_object('toggle_shuffle')
         self.button_abort = self.builder.get_object('button_abort')
         self.outputscrollbar = self.scrolledwindow_output.get_vadjustment()
@@ -706,6 +708,227 @@ class RunManager(object):
     def on_window_destroy(self,widget):
         self.to_child.put(['quit',None])
         gtk.main_quit()
+    
+    def on_save_configuration(self,widget):
+        # TODO: Pop up a file chooser and ask for the filename to save to
+        chooser = gtk.FileChooserDialog(title='Save runmanager state',action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                                    buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
+                                               gtk.STOCK_SAVE,gtk.RESPONSE_OK))
+        chooser.set_default_response(gtk.RESPONSE_OK)
+        chooser.set_do_overwrite_confirmation(True)
+        chooser.set_local_only(False)        
+        chooser.set_current_folder(config_prefix)
+        
+        # create filter
+        filter = gtk.FileFilter()
+        filter.set_name('INI Files')
+        filter.add_pattern('*.ini')
+        chooser.add_filter(filter)
+        
+        chooser.set_current_name('.ini')
+        response = chooser.run()
+        filename = chooser.get_filename()
+        chooser.destroy()
+        if response == gtk.RESPONSE_OK:
+            self.save_configuration(filename)
+    
+    def save_configuration(self,filename=None):
+        if filename is None:
+            filename = os.path.join(config_prefix,'%s_runmanager.ini'%socket.gethostname())
+        
+        runmanager_config = LabConfig(filename)
+        
+        # Get the files open
+        h5_files_open = []
+        for row in self.group_store:    
+            # get the groups of the file
+            groups = row.iterchildren()
+            
+            group_data = []
+            for group in groups:
+                page_number = -1
+                for group_tab in self.opentabs:
+                    if group_tab.name == group[0] and group_tab.filepath == row[0]:
+                        page_number = self.notebook.page_num(group_tab.toplevel)
+                        break
+                                      
+                group_data.append((group[0],group[1],page_number))
+                
+            h5_files_open.insert(0,(row[0],group_data))
+            
+        # save globals info
+        runmanager_config.set('runmanager_state','globals_files',repr(h5_files_open))
+                
+        # save labscript file
+        runmanager_config.set('runmanager_state','labscript_file',str(self.chooser_labscript_file.get_filename()))
+        # save labscript folder
+        runmanager_config.set('runmanager_state','labscript_folder',self.chooser_labscript_file.get_current_folder())
+        # save todays experiment directory
+        runmanager_config.set('runmanager_state','todays_output_dir',self.todays_experiment_dir if hasattr(self,'todays_experiment_dir') else '')
+        # save output dir
+        runmanager_config.set('runmanager_state','output_dir',self.chooser_output_directory.get_filename())
+        # save control server
+        runmanager_config.set('runmanager_state','control_server',self.entry_server.get_text())
+        # save shuffle
+        runmanager_config.set('runmanager_state','shuffle',str(self.toggle_shuffle.get_active()))
+        # save compile/send to mise
+        runmanager_config.set('runmanager_state','compile_or_mise','compile' if self.radiobutton_compile.get_active() else 'mise')
+        # save view run checkbox
+        runmanager_config.set('runmanager_state','view_runs',str(self.checkbutton_view.get_active()))
+        # save run experiment checkbox
+        runmanager_config.set('runmanager_state','run_experiment',str(self.checkbutton_run.get_active()))
+        # save mise server
+        runmanager_config.set('runmanager_state','mise_server',self.entry_mise_server.get_text())
+        # save visible tab
+        runmanager_config.set('runmanager_state','visible_page',str(self.notebook.get_current_page()))
+        
+        
+    def on_load_configuration(self,filename):
+        chooser = gtk.FileChooserDialog(title='Load state',action=gtk.FILE_CHOOSER_ACTION_OPEN,
+                                    buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
+                                               gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+        chooser.set_default_response(gtk.RESPONSE_OK)
+        chooser.set_local_only(False)     
+        chooser.set_current_folder(config_prefix)        
+        
+        # create filter
+        filter = gtk.FileFilter()
+        filter.set_name('INI Files')
+        filter.add_pattern('*.ini')
+        chooser.add_filter(filter)
+        
+        response = chooser.run()
+        filename = chooser.get_filename()
+        chooser.destroy()
+        if response == gtk.RESPONSE_OK:
+            self.load_configuration(filename)
+        
+    def load_configuration(self,filename=None):
+        config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
+        if filename is None:
+            filename = os.path.join(config_prefix,'%s_runmanager.ini'%socket.gethostname())
+        runmanager_config = LabConfig([filename,config_path])
+        
+        # Close all open h5 files
+        i = 0
+        for filerow in self.group_store:
+            groups = filerow.iterchildren()
+            for group in groups:
+                for group_tab in self.opentabs:
+                    if group_tab.filepath == filerow[0] and group_tab.name == group[0]:
+                        group_tab.close_tab()
+                        self.opentabs.remove(group_tab)
+                        break
+            del self.group_store[(i,)]                        
+        
+        # Now open the ones specified in the config file
+        h5files = eval(runmanager_config.get('runmanager_state','globals_files'))
+        
+        # tabs to reorder
+        reorder_data = {}        
+        for h5file in h5files:
+            try:
+                filepath,group_data = h5file                
+                # Add/Open the file
+                self.open_h5_file(filepath)
+            except Exception as e:
+                self.output(str(e)+'\n',red=True)
+                continue  
+                
+                
+            for group in group_data:
+                try:
+                    name,active,page_number = group                      
+                    for filerow in self.group_store:
+                        if filerow[0] == filepath:
+                            # get the groups of the file
+                            children = filerow.iterchildren()
+                            for row in children:
+                                if row[0] == name:
+                                    # restore active state         
+                                    if active:
+                                        row[1] = True # Set checkbox checked
+                                        row[4] = False # checkbox not inconsistent
+                                    else:
+                                        row[1] = False
+                                        row[4] = False
+                                        
+                                    # restore group
+                                    if page_number > 0:
+                                        row[2] = "gtk-close"
+                                        self.opentabs.append(GroupTab(self,filepath,name))
+                                        #store reorder information
+                                        reorder_data[page_number] = self.opentabs[-1]
+                                    break
+                            break
+                    
+                   
+                    
+                except Exception as e:
+                    self.output(str(e)+'\n',red=True)
+                    continue  
+            
+            self.update_parent_checkbox_by_file(filepath)
+            
+        for page_number, widget in reorder_data.items():
+           self.notebook.reorder_child(widget.toplevel,page_number)
+        
+        try:
+            # restore everything else:
+            # restore labscript file
+            self.chooser_labscript_file.set_filename(runmanager_config.get('runmanager_state','labscript_file'))
+            # restore labscript folder
+            #self.chooser_labscript_file.set_current_folder(runmanager_config.get('runmanager_state','labscript_folder'))
+            # restore todays experiment directory
+            self.todays_experiment_dir = runmanager_config.get('runmanager_state','todays_output_dir')
+            # restore output dir
+            self.chooser_output_directory.set_filename(runmanager_config.get('runmanager_state','output_dir'))
+            # restore control server
+            self.entry_server.set_text(runmanager_config.get('runmanager_state','control_server'))
+            # restore shuffle
+            self.toggle_shuffle.set_active(True if runmanager_config.get('runmanager_state','shuffle') == 'True' else False)
+            # restore compile/send to mise
+            if runmanager_config.get('runmanager_state','compile_or_mise') == 'mise':
+                self.radiobutton_compile.set_active(False)
+                self.radiobutton_mise.set_active(True)
+            else:
+                self.radiobutton_compile.set_active(True)
+                self.radiobutton_mise.set_active(False)
+            # restore view run checkbox
+            self.checkbutton_view.set_active(True if runmanager_config.get('runmanager_state','view_runs') == 'True' else False)
+            # restore run experiment checkbox
+            self.checkbutton_run.set_active(True if runmanager_config.get('runmanager_state','run_experiment') == 'True' else False)
+            # restore mise server
+            self.entry_mise_server.set_text(runmanager_config.get('runmanager_state','mise_server'))
+            # restore visible tab
+            self.notebook.set_current_page(int(runmanager_config.get('runmanager_state','visible_page')))
+        except Exception as e:
+            self.output(str(e)+'\n',red=True)
+         
+    def update_parent_checkbox_by_file(self,filepath):
+        for row in self.group_store:
+            if row[0] == filepath:
+                # are the children (groups) in an inconsistent state?
+                inconsistent = False
+                first_state = None
+                for group in row.iterchildren():
+                    if not group[6]:
+                        continue #ignore the "click to add" entry
+                        
+                    if first_state is None:
+                        first_state = group[1]
+                    elif group[1] != first_state:
+                        inconsistent = True             
+                        break
+                row[4] = inconsistent
+                
+                # If we are not in an inconsistent state, make sure the parent checkbox matches the children
+                if not inconsistent:
+                    if first_state is None: # if there are no groups
+                        first_state = False 
+                    row[1] = first_state
+                break # once we've found the relevant file, break out of the loop
+    
     
     def output(self,text,red=False):
         self.output_box.output(text, red)
@@ -898,25 +1121,28 @@ class RunManager(object):
         d = chooser.get_current_folder()
         chooser.destroy()
         if response == gtk.RESPONSE_OK:
-            # Check that the file isn't already in the list!
-            iter = self.group_store.get_iter_root()
-            while iter:
-                fp = self.group_store.get(iter,0)[0]
-                if fp == f:
-                    return
-                iter = self.group_store.iter_next(iter)
+            self.open_h5_file(f)
             
-            # open the file!            
-            grouplist = runmanager.get_grouplist(f) 
-            # Append to Tree View
-            parent = self.group_store.prepend(None,(f,False,"gtk-close",None,0,0,1))            
-            for name in grouplist:
-                self.group_store.append(parent,(name,False,"gtk-add","gtk-remove",0,1,1))  
-                            
-            self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
-            # Add editable option for adding!
-            add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
-            self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
+    def open_h5_file(self,filename):
+        # Check that the file isn't already in the list!
+        iter = self.group_store.get_iter_root()
+        while iter:
+            fp = self.group_store.get(iter,0)[0]
+            if fp == filename:
+                return
+            iter = self.group_store.iter_next(iter)
+        
+        # open the file!            
+        grouplist = runmanager.get_grouplist(filename) 
+        # Append to Tree View
+        parent = self.group_store.prepend(None,(filename,False,"gtk-close",None,0,0,1))            
+        for name in grouplist:
+            self.group_store.append(parent,(name,False,"gtk-add","gtk-remove",0,1,1))  
+                        
+        self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
+        # Add editable option for adding!
+        add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
+        self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
 
     def on_add_group(self,cellrenderer,path,new_text):
         # Find the filepath      
