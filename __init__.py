@@ -19,6 +19,27 @@ class ExpansionError(Exception):
     """An exception class so that error handling code can tell when a
     parsing exception was caused by a mismatch with the expansion mode"""
     pass
+
+    
+class TraceDictionary(dict):
+    def __init__(self,*args,**kwargs):
+        self.trace_data = None
+        dict.__init__(self,*args,**kwargs)
+    
+    def start_trace(self):
+        self.trace_data = []
+    
+    def __getitem__(self,key):
+        if self.trace_data is not None:
+            if key not in self.trace_data:
+                self.trace_data.append(key)
+        return dict.__getitem__(self,key)
+    
+    def stop_trace(self):
+        trace_data = self.trace_data
+        self.trace_data = None
+        return trace_data
+    
     
 def new_globals_file(filename):
     with h5py.File(filename,'w') as f:
@@ -264,26 +285,10 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     for global_name in multiply_defined_globals:
         del all_globals[global_name]
 
-    # for each global, find the other globals it depends on, and record them as a dependency
-    sandbox = {}
-    exec('from pylab import *',sandbox,sandbox)
-    exec('from runmanager.functions import *',sandbox,sandbox)
-    exec('from mise import MiseParameter',sandbox,sandbox)    
-    for global_name, expression in all_globals.items():
-        try:
-            eval(expression,sandbox)
-        except NameError:
-            tokens = tokenize.generate_tokens(StringIO.StringIO(expression).readline)
-            for toknum, tokval, _, _, _ in tokens:
-                if toknum == token.NAME and tokval in all_globals:
-                    global_hierarchy.setdefault(global_name,[])
-                    global_hierarchy[global_name].append(tokval)
-        except Exception as e:
-            pass
-    
     #Eval the expressions in the same namespace as each other:
     evaled_globals = {}
-    sandbox = {}
+    # we use a "TraceDictionary" to track which globals another global depends on
+    sandbox = TraceDictionary()
     exec('from pylab import *',sandbox,sandbox)
     exec('from runmanager.functions import *',sandbox,sandbox)
     exec('from mise import MiseParameter',sandbox,sandbox)
@@ -292,6 +297,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     while globals_to_eval:
         errors = []
         for global_name, expression in globals_to_eval.copy().items():
+            # start the trace to determine which globals this global depends on
+            sandbox.start_trace()
             try:
                 value = eval(expression,sandbox)
                 # Need to know the length of any generators, convert to tuple:
@@ -307,11 +314,22 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             except Exception as e:
                 # Don't raise, just append the error to a list, we'll display them all later.
                 errors.append((global_name,e))
+                sandbox.stop_trace()
                 continue
             # Put the global into the namespace so other globals can use it:
             sandbox[global_name] = value
             del globals_to_eval[global_name]
             evaled_globals[global_name] = value
+            
+            # get the results from the global trace
+            trace_data = sandbox.stop_trace()
+            # Only store names of globals (not other functions)
+            for key in list(trace_data): # copy the list before iterating over it
+                if key not in all_globals:
+                    trace_data.remove(key)                    
+            if trace_data:
+                global_hierarchy[global_name] = trace_data
+                
         if len(errors) == previous_errors:
             # Since some globals may refer to others, we expect maybe
             # some NameErrors to have occured.  There should be fewer
@@ -337,7 +355,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             # as the result of multiply defined globals:
             if not global_name in results[group_name]:
                 results[group_name][global_name] = evaled_globals[global_name]
-            
+
     return results, global_hierarchy, expansions
 
 def expand_globals(sequence_globals, evaled_globals):
