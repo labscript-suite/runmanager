@@ -18,7 +18,6 @@ import pango
 import zlock, h5_lock, h5py
 from zmq import ZMQError
 
-import lyse
 import pylab
 from LabConfig import LabConfig, config_prefix
 import shared_drive
@@ -1038,19 +1037,29 @@ class RunManager(object):
         f = chooser.get_filename()
         d = chooser.get_current_folder()
         chooser.destroy()
-        if response == gtk.RESPONSE_OK:         
-            # instantiate a lyse Run object based on the file to diff
-            run = lyse.Run(f)
-            # get a dictionary of the sequence_globals for the file to diff
-            sequence_globals_1 = run.get_globals_raw()
-            # get a dictionary of the sequence globals based on the current globals
-            sequence_globals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals()
-            sequence_globals_2 = {}
-            for globals_group in sequence_globals.values():
-                for key, val in globals_group.items():
-                    sequence_globals_2[key] = val[0]
+        if response == gtk.RESPONSE_OK:
+        
+            def flatten_globals(sequence_globals):
+                sequence_globals_2 = {}
+                for globals_group in sequence_globals.values():
+                    for key, val in globals_group.items():
+                        sequence_globals_2[key] = val[0]
+                return sequence_globals_2         
+            
+            # Get files globals
+            groups_1 = runmanager.get_all_groups(f)
+            sequence_globals_1 = runmanager.get_globals(groups_1)
+            
+            # Get runmanager globals
+            self.update_active_groups()
+            sequence_globals = runmanager.get_globals(self.active_groups)
+            
+            # flatten globals dictionaries
+            sequence_globals = flatten_globals(sequence_globals)
+            sequence_globals_1 = flatten_globals(sequence_globals_1)
+                   
             # do a diff of the two dictionaries
-            diff_globals = lyse.dict_diff(sequence_globals_1, sequence_globals_2)
+            diff_globals = runmanager.dict_diff(sequence_globals_1, sequence_globals)
             if len(diff_globals):
                 self.output('\nGlobals diff with:\n%s\n' % f)
                 diff_keys = diff_globals.keys()
