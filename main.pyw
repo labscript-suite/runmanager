@@ -765,6 +765,8 @@ class RunManager(object):
         runmanager_config.set('runmanager_state','labscript_folder',self.chooser_labscript_file.get_current_folder())
         # save todays experiment directory
         runmanager_config.set('runmanager_state','todays_output_dir',self.todays_experiment_dir if hasattr(self,'todays_experiment_dir') else '')
+        # save current_day_dir_suffix
+        runmanager_config.set('runmanager_state','current_day_dir_suffix',self.current_day_dir_suffix)
         # save output dir
         runmanager_config.set('runmanager_state','output_dir',self.chooser_output_directory.get_filename())
         # save control server
@@ -876,11 +878,19 @@ class RunManager(object):
         try:
             # restore everything else:
             # restore labscript file
-            self.chooser_labscript_file.set_filename(runmanager_config.get('runmanager_state','labscript_file'))
+            self.current_labscript_file = runmanager_config.get('runmanager_state','labscript_file')
+            self.chooser_labscript_file.set_filename(self.current_labscript_file)
             # restore labscript folder
             #self.chooser_labscript_file.set_current_folder(runmanager_config.get('runmanager_state','labscript_folder'))
             # restore todays experiment directory
             self.todays_experiment_dir = runmanager_config.get('runmanager_state','todays_output_dir')
+            
+            # for compatibility, we'll only restore this if it exists
+            try:
+                # save current_day_dir_suffix            
+                self.current_day_dir_suffix = runmanager_config.get('runmanager_state','current_day_dir_suffix')
+            except:
+                pass
             # restore output dir
             self.chooser_output_directory.set_filename(runmanager_config.get('runmanager_state','output_dir'))
             # restore control server
