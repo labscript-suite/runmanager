@@ -1375,7 +1375,7 @@ class RunManager(object):
     
         try:
             experiment_prefix = self.exp_config.get('paths','experiment_shot_storage')
-            labscript_basename = os.path.basename(filename).strip('.py')
+            labscript_basename = os.path.splitext(os.path.basename(filename))[0]
             experiment_dir = os.path.join(experiment_prefix, labscript_basename)
             todays_experiment_dir = os.path.join(experiment_dir, self.current_day_dir_suffix)
             os.makedirs(todays_experiment_dir)
