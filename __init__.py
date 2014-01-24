@@ -9,7 +9,7 @@ import threading
 import traceback
 import tokenize,token, StringIO
 
-import h5_lock, h5py
+import labscript_utils.h5_lock, h5py
 import pylab
 
 import subproc_utils

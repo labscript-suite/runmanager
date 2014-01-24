@@ -1,6 +1,6 @@
 import os
 import sys
-import excepthook
+import labscript_utils.excepthook
 
 import time
 import itertools
@@ -15,12 +15,12 @@ import gobject
 import glib
 import pango
 
-import zlock, h5_lock, h5py
+import zlock, labscript_utils.h5_lock, h5py
 from zmq import ZMQError
 
 import pylab
-from LabConfig import LabConfig, config_prefix
-import shared_drive
+from labscript_utils.labconfig import LabConfig, config_prefix
+import labscript_utils.shared_drive as shared_drive
 import runmanager
 import subproc_utils
 from subproc_utils.gtk_components import OutputBox
@@ -1701,7 +1701,7 @@ class RunManager(object):
         self.output(message, red = not success)
         
 logger = setup_logging()
-excepthook.set_logger(logger)
+labscript_utils.excepthook.set_logger(logger)
 if __name__ == "__main__":
     logger.info('\n\n===============starting===============\n')
     gtk.gdk.threads_init()
@@ -1709,8 +1709,8 @@ if __name__ == "__main__":
     app = RunManager()
     
     ##########
-#    import tracelog
-#    tracelog.log('runmanager_trace.log',['__main__','runmanager','h5_lock','zlock'])
+#    import labscript_utils.tracelog
+#    labscript_utils.tracelog.log('runmanager_trace.log',['__main__','runmanager','h5_lock','zlock'])
 #    ##########
     
     with gtk.gdk.lock:

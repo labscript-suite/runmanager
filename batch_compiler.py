@@ -5,9 +5,9 @@ import traceback
 labscript_auto_init = False
 import labscript
     
-import excepthook
+import labscript_utils.excepthook
 from subproc_utils import setup_connection_with_parent
-from filewatcher.modulewatcher import ModuleWatcher
+from labscript_utils.modulewatcher import ModuleWatcher
 
 class BatchProcessor(object):
     def __init__(self, to_parent, from_parent, kill_lock):
