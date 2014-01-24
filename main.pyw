@@ -28,22 +28,22 @@ import gobject
 import glib
 import pango
 
-import zlock, labscript_utils.h5_lock, h5py
+import zprocess.locking, labscript_utils.h5_lock, h5py
 from zmq import ZMQError
 
 import pylab
 from labscript_utils.labconfig import LabConfig, config_prefix
 import labscript_utils.shared_drive as shared_drive
 import runmanager
-import subproc_utils
-from subproc_utils.gtk_components import OutputBox
+import zprocess
+from labscript_utils.gtk_outputbox import OutputBox
 
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
 os.chdir(runmanager_dir)
 
-# Set a meaningful name for zlock's client id:
-zlock.set_client_process_name('runmanager')
+# Set a meaningful name for zprocess.locking's client id:
+zprocess.locking.set_client_process_name('runmanager')
 
 # This provides debug info without having to run from a terminal, and
 # avoids a stupid crash on Windows when there is no command window:
@@ -623,7 +623,7 @@ class RunManager(object):
         gobject.timeout_add(1000, self.update_output_dir)
         self.current_day_dir_suffix = os.path.join(time.strftime('%Y-%b'),time.strftime('%d'))
         # Start the compiler subprocess:
-        self.to_child, self.from_child, self.child = subproc_utils.subprocess_with_queues('batch_compiler.py', self.output_box.port)
+        self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
         
         # Start the loop that allows compilations to be queued up:
         self.compile_queue = Queue.Queue()
@@ -958,7 +958,7 @@ class RunManager(object):
     def on_kill_child_clicked(self, *ignore):
         self.child.terminate()
         self.from_child.put(['done', False])
-        self.to_child, self.from_child, self.child = subproc_utils.subprocess_with_queues('batch_compiler.py', self.output_box.port) 
+        self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port) 
         
     def pop_out_in(self,widget):
         if not self.popped_out and not isinstance(widget,gtk.Window):
@@ -1684,7 +1684,7 @@ class RunManager(object):
         agnostic_path = shared_drive.path_to_agnostic(run_file)
         self.output('Submitting run file %s.\n'%os.path.basename(run_file))
         try:
-            response = subproc_utils.zmq_get(port, host, data=agnostic_path)
+            response = zprocess.zmq_get(port, host, data=agnostic_path)
             if 'added successfully' in response:
                 self.output(response)
             else:
@@ -1708,7 +1708,7 @@ class RunManager(object):
         data = ('from runmanager', self.current_labscript_file, 
                 sequenceglobals, shots, output_folder, shuffle, BLACS_server, BLACS_port, self.shared_drive_prefix)
         try:
-            success, message = subproc_utils.zmq_get(port, host=host, data=data, timeout=2)
+            success, message = zprocess.zmq_get(port, host=host, data=data, timeout=2)
         except ZMQError as e:
             success, message = False, 'Could not send to mise: %s\n'%str(e)
         self.output(message, red = not success)
@@ -1723,7 +1723,7 @@ if __name__ == "__main__":
     
     ##########
 #    import labscript_utils.tracelog
-#    labscript_utils.tracelog.log('runmanager_trace.log',['__main__','runmanager','h5_lock','zlock'])
+#    labscript_utils.tracelog.log('runmanager_trace.log',['__main__','runmanager','h5_lock','zprocess.locking'])
 #    ##########
     
     with gtk.gdk.lock:

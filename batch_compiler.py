@@ -19,7 +19,7 @@ labscript_auto_init = False
 import labscript
     
 import labscript_utils.excepthook
-from subproc_utils import setup_connection_with_parent
+from zprocess import setup_connection_with_parent
 from labscript_utils.modulewatcher import ModuleWatcher
 
 class BatchProcessor(object):

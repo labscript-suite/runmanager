@@ -25,7 +25,7 @@ import tokenize,token, StringIO
 import labscript_utils.h5_lock, h5py
 import pylab
 
-import subproc_utils
+import zprocess
 import mise
 
 class ExpansionError(Exception):
@@ -539,7 +539,7 @@ def compile_labscript_async(labscript_file, run_file, stream_port, done_callback
     when compilation is complete, done_callback will be called with a
     boolean argument indicating success."""
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
-    to_child, from_child, child = subproc_utils.subprocess_with_queues(compiler_path, stream_port)
+    to_child, from_child, child = zprocess.subprocess_with_queues(compiler_path, stream_port)
     to_child.put(['compile',[labscript_file, run_file]])
     while True:
         signal, data = from_child.get()
@@ -560,7 +560,7 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
     with a boolean argument indicating success. Compilation will stop
     after the first failure."""
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
-    to_child, from_child, child = subproc_utils.subprocess_with_queues(compiler_path, stream_port)
+    to_child, from_child, child = zprocess.subprocess_with_queues(compiler_path, stream_port)
     try:
         for run_file in run_files:
             to_child.put(['compile',[labscript_file, run_file]])
@@ -574,7 +574,7 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
                 break
     except Exception:
         error = traceback.format_exc()
-        subproc_utils.zmq_push_multipart(stream_port, data=['stderr', error])
+        zprocess.zmq_push_multipart(stream_port, data=['stderr', error])
         to_child.put(['quit',None])
         retcode = child.communicate()
         raise
@@ -595,7 +595,7 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
         thread.start()
     except Exception:
         error = traceback.format_exc()
-        subproc_utils.zmq_push_multipart(stream_port, data=['stderr', error])
+        zprocess.zmq_push_multipart(stream_port, data=['stderr', error])
         t = threading.Thread(target=done_callback,args=(False,))
         t.daemon=True
         t.start()
