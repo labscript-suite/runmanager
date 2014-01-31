@@ -28,6 +28,8 @@ import pylab
 import zprocess
 import mise
 
+__version__ = '1.0.0'
+
 class ExpansionError(Exception):
     """An exception class so that error handling code can tell when a
     parsing exception was caused by a mismatch with the expansion mode"""
