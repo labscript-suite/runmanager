@@ -49,7 +49,7 @@ class BatchProcessor(object):
                 execfile(labscript_file,sandbox,sandbox)
             return True
         except:
-            traceback_lines = traceback.format_exception(sys.exc_type, sys.exc_value, sys.exc_traceback)
+            traceback_lines = traceback.format_exception(*sys.exc_info())
             del traceback_lines[1:2]
             message = ''.join(traceback_lines)
             sys.stderr.write(message)

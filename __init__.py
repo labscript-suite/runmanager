@@ -28,7 +28,7 @@ import pylab
 import zprocess
 import mise
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 class ExpansionError(Exception):
     """An exception class so that error handling code can tell when a
@@ -499,7 +499,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
                 message = ('Global %s cannot be saved as an hdf5 attribute. '%name +
                                      'Globals can only have relatively simple datatypes, with no nested structures. ' +
                                      'Original error was:\n' +
-                                     '%s: %s'%(sys.exc_type.__name__,sys.exc_value.message))
+                                     '%s: %s'%(sys.exc_info()[0].__name__,sys.sys.exc_info()[1].message))
                 raise ValueError(message)
                 
 def make_run_file_from_globals_files(labscript_file, globals_files, output_path):
