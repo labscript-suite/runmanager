@@ -28,7 +28,7 @@ import pylab
 import zprocess
 import mise
 
-__version__ = '1.0.1'
+__version__ = '2.0.0-dev'
 
 class ExpansionError(Exception):
     """An exception class so that error handling code can tell when a
