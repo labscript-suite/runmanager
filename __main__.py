@@ -35,6 +35,8 @@ import labscript_utils.shared_drive as shared_drive
 import runmanager
 import zprocess
 from qtutils.outputbox import OutputBox
+from qtutils import inmain, inmain_later, UiLoader
+import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
@@ -43,15 +45,15 @@ os.chdir(runmanager_dir)
 # Set a meaningful name for zprocess.locking's client id:
 zprocess.locking.set_client_process_name('runmanager')
   
-if os.name == 'nt':
-    # Have Windows 7 consider this program to be a separate app, and not
-    # group it with other Python programs in the taskbar:
-    import ctypes
-    myappid = 'monashbec.labscript.runmanager.2-0' # arbitrary string
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    except Exception:
-        pass
+# if os.name == 'nt':
+    # # Have Windows 7 consider this program to be a separate app, and not
+    # # group it with other Python programs in the taskbar:
+    # import ctypes
+    # myappid = 'monashbec.labscript.runmanager.2-0' # arbitrary string
+    # try:
+        # ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    # except Exception:
+        # pass
 
 def setup_logging():
     logger = logging.getLogger('RunManager')
@@ -83,26 +85,63 @@ class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
     We will promote the TabBar from the ui file to one of these."""
-    def __init__(self, parent=None, *args, **kwargs):
-        self.tabSize = QtCore.QSize(kwargs.pop('width',100), kwargs.pop('height',25))
-        QtGui.QTabBar.__init__(self, parent, *args, **kwargs)
-                 
+    def __init__(self, parent=None, width=100, height=25, **kwargs):
+        QtGui.QTabBar.__init__(self, parent, **kwargs)
+        self.tabSize = QtCore.QSize(width, height)
+        self.iconPosition=kwargs.pop('iconPosition',QtGui.QTabWidget.West)
+        self.tabSizes = []
+  
     def paintEvent(self, event):
         painter = QtGui.QStylePainter(self)
         option = QtGui.QStyleOptionTab()
- 
+  
+        self.tabSizes = range(self.count())
+        #Check if there are any icons to align correctly
+        hasIcon = False
+        for index in range(self.count()):
+            hasIcon |= not(self.tabIcon(index).isNull())
+  
         for index in range(self.count()):
             self.initStyleOption(option, index)
             tabRect = self.tabRect(index)
-            tabRect.moveLeft(10)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
+            tabRect.moveLeft(5)
+            icon = self.tabIcon(index).pixmap(self.iconSize())
+            if hasIcon:
+                alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+                if self.iconPosition == QtGui.QTabWidget.West:
+                    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+                #if self.iconPosition == QtGui.QTabWidget.East:
+                #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+                #if self.iconPosition == QtGui.QTabWidget.North:
+                #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+                #if self.iconPosition == QtGui.QTabWidget.South:
+                #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+                painter.drawItemPixmap(tabRect,alignment,icon)
+                tabRect.moveLeft(self.iconSize().width() + 10)
+                tabRect.setWidth(tabRect.width() - self.iconSize().width())
             painter.drawText(tabRect, QtCore.Qt.AlignVCenter |\
-                             QtCore.Qt.TextDontClip, \
+                             QtCore.Qt.TextWordWrap, \
                              self.tabText(index));
+            self.tabSizes[index] = tabRect.size()
         painter.end()
+  
+    def tabSizeHint(self,index):
+        try:
+            return self.tabSizes[index]
+        except:
+            size = QtGui.QTabBar.tabSizeHint(self,index)
+            return QtCore.QSize(size.height(),size.width())
         
     def tabSizeHint(self,index):
         return self.tabSize
+        
+        
+class FingerTabWidget(QtGui.QTabWidget):
+    """A QTabWidget equivalent which uses our FingerTabBarWidget"""
+    def __init__(self, parent, *args):
+        QtGui.QTabWidget.__init__(self, parent, *args)
+        self.setTabBar(FingerTabBarWidget(self))
         
         
 class GroupTab(object):
@@ -166,10 +205,9 @@ class ParameterSpaceOverview(object):
 class RunManager(object):
     def __init__(self):
         loader = UiLoader()
-        loader.registerCustomWidget(QueueTreeview)
-        loader.registerCustomPromotion('BLACS',BLACSWindow)
-        self.ui = loader.load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'main.ui'))
-        
+        loader.registerCustomWidget(FingerTabWidget)
+        self.ui = loader.load('main.ui')
+        self.ui.show()
     
     def on_window_destroy(self,widget):
         raise NotImplementedError
@@ -302,7 +340,6 @@ if __name__ == "__main__":
     logger = setup_logging()
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
-    qapplication = QApplication(sys.argv)
+    qapplication = QtGui.QApplication(sys.argv)
     app = RunManager()
-    app = BLACS(qapplication)
     sys.exit(qapplication.exec_())
