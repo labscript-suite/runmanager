@@ -10,8 +10,9 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-
+from __future__ import print_function
 import os
+import errno
 import sys
 import labscript_utils.excepthook
 
@@ -21,7 +22,7 @@ import logging, logging.handlers
 import subprocess
 import threading
 import Queue
-import urllib, urllib2, socket
+import socket
 
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
@@ -35,7 +36,7 @@ import labscript_utils.shared_drive as shared_drive
 import runmanager
 import zprocess
 from qtutils.outputbox import OutputBox
-from qtutils import inmain, inmain_later, UiLoader
+from qtutils import inmain, inmain_later, UiLoader, inthread
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -80,7 +81,14 @@ def error_dialog(message):
 def error_dialog_from_thread(message):
     raise NotImplementedError
     
-    
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else: raise
+        
 class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
@@ -195,21 +203,107 @@ class GroupTab(object):
         raise NotImplementedError
 
 
-class ParameterSpaceOverview(object):
-    def __init__(self, container):
-        raise NotImplementedError
-
-    def set_axes(self, axes):
-        raise NotImplementedError
-            
 class RunManager(object):
     def __init__(self):
+    
+    
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
         self.ui = loader.load('main.ui')
-        self.output_box = OutputBox(self.ui.verticalLayout_output_tab)     
+        self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
+        
+        self.setup_config()
+        self.setup_axes_tab()
+        self.setup_groups_tab()
+        
+        # The last location from which a labscript file was selected, defaults to labscriptlib:
+        self.last_opened_labscript_folder = self.exp_config.get('paths','labscriptlib')
+        # The last location from which a globals file was selected, defaults to experiment_shot_storage:
+        self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
+        self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
+        self.experiment_shot_storage = self.exp_config.get('paths','experiment_shot_storage')
+        
+        # Start the compiler subprocess:
+        self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
+        
+        # Start a thread to monitor the time of day and create new shot output folders for each day:
+        self.output_folder_update_required = threading.Event()
+        inthread(self.rollover_shot_output_folder)
         self.ui.show()
     
+    def setup_config(self):
+        config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
+        required_config_params = {"DEFAULT":["experiment_name"],
+                                  "programs":["text_editor",
+                                              "text_editor_arguments",
+                                             ],
+                                  "paths":["shared_drive",
+                                           "experiment_shot_storage",
+                                           "labscriptlib",
+                                          ],
+                                 }
+        self.exp_config = LabConfig(config_path, required_config_params)
+        
+    def setup_axes_tab(self):
+        self.axes_model = QtGui.QStandardItemModel()
+        self.axes_model.setHorizontalHeaderLabels(['Name','Length','Shuffle'])
+        self.ui.treeView_axes.setModel(self.axes_model)
+    
+    def setup_groups_tab(self):
+        self.groups_model = QtGui.QStandardItemModel()
+        self.groups_model.setHorizontalHeaderLabels(['Open/Close','Delete','Active','File/groups'])
+        self.ui.treeView_groups.setModel(self.groups_model)
+    
+    def get_default_output_folder(self):
+        """Returns what the default output folder would be right now,
+        based on the current date and selected labscript file.
+        Returns None if no labscript file is selected or if the file does not exist.
+        Does not create the default output folder, does not check if it exists."""
+        sep = os.path.sep
+        current_day_folder_suffix = time.strftime('%Y'+sep+'%m'+sep+'%d')
+        current_labscript_file = inmain(self.ui.lineEdit_labscript_file.text)
+        if not os.path.exists(current_labscript_file):
+            return None
+        current_labscript_basename = os.path.splitext(os.path.basename(current_labscript_file))[0]
+        default_output_folder = os.path.join(self.experiment_shot_storage, labscript_basename, self.current_day_dir_suffix)
+        return default_output_folder
+    
+    def delete_folder_if_empty(self, folder):
+        if os.path.isdir(folder) and not os.listdir(folder):
+            os.unlink(folder)
+                    
+    def rollover_shot_output_folder(self):
+        """Runs in a thread, checking once a second if it is a new day or the 
+        labscript file has changed. If it is or has, creates a new folder in 
+        which compiled shots will be put. Deletes the previous folder if it is empty,
+        so that leaving runmanager open all the time doesn't create tons of empty folders.
+        Will immediately without waiting a full second if the threading.Event() 
+        self.output_folder_update_required is set() from anywhere.
+        Also clears the selected folder if it does not exist"""
+        previous_default_output_folder = self.get_default_output_folder()
+        while True:
+            # Wait up to one second, shorter if the Event() gets set() by someone:
+            self.output_folder_update_required.wait(1)
+            self.output_folder_update_required.clear()
+            current_default_output_folder = self.get_default_output_folder()
+            if current_default_output_folder is None:
+                # No labscript file selected, or does not exist:
+                continue
+            currently_selected_output_folder = inmain(self.ui.lineEdit_shot_output_folder.text)
+            # If the currently selected output folder does not exist, go back to default:
+            if not os.path.isdir(currently_selected_output_folder):
+                inmain(self.ui.lineEdit_shot_output_folder.setText, current_default_output_folder)
+                # Ensure the default does exist:
+                mdir_p(current_default_output_folder)
+            if current_default_output_folder != previous_default_output_folder:
+                # It's a new day, or a new labscript file!
+                delete_folder_if_empty(previous_default_output_folder)
+                # Is the user even using default folders?
+                if currently_selected_output_folder == previous_default_output_folder:
+                    # Yes they are! In that case, update to use the new folder:
+                    mdir_p(current_default_output_folder)
+                    inmain(self.ui.lineEdit_shot_output_folder.setText,current_default_output_folder)
+                    
     def on_window_destroy(self,widget):
         raise NotImplementedError
     
@@ -228,20 +322,11 @@ class RunManager(object):
     def update_parent_checkbox_by_file(self,filepath):
         raise NotImplementedError
         
-    def output(self,text,red=False):
-        self.output_box.output(text, red)
-    
     def on_kill_child_clicked(self, *ignore):
         self.child.terminate()
         self.from_child.put(['done', False])
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port) 
         
-    def pop_out_in(self,widget):
-        raise NotImplementedError
-    
-    def on_scroll(self,*args):
-        raise NotImplementedError
-                
     def toggle_compile_or_mise(self, widget):
         raise NotImplementedError
             
