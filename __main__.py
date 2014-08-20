@@ -207,6 +207,7 @@ class RunManager(object):
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
         self.ui = loader.load('main.ui')
+        self.output_box = OutputBox(self.ui.verticalLayout_output_tab)     
         self.ui.show()
     
     def on_window_destroy(self,widget):
