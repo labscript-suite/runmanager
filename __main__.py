@@ -218,6 +218,12 @@ class GroupTab(object):
 
 
 class RunManager(object):
+    
+    # Columns for the model in the axes tab:
+    AXES_COL_NAME = 0
+    AXES_COL_LENGTH = 1
+    AXES_COL_SHUFFLE = 2
+    
     def __init__(self):
     
         loader = UiLoader()
@@ -234,7 +240,7 @@ class RunManager(object):
         self.last_opened_labscript_folder = self.exp_config.get('paths','labscriptlib')
         # The last location from which a globals file was selected, defaults to experiment_shot_storage:
         self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
-        # The last manually selected shot output folder:
+        # The last manually selected shot output folder, defaults to experiment_shot_storage:
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         self.experiment_shot_storage = self.exp_config.get('paths','experiment_shot_storage')
@@ -262,14 +268,46 @@ class RunManager(object):
         
     def setup_axes_tab(self):
         self.axes_model = QtGui.QStandardItemModel()
-        self.axes_model.setHorizontalHeaderLabels(['Name','Length','Shuffle'])
+        
+        # Setup the model columns and link to the treeview
+        name_header_item = QtGui.QStandardItem('Name')
+        name_header_item.setToolTip('The name of the global or zip group being iterated over')
+        self.axes_model.setHorizontalHeaderItem(self.AXES_COL_NAME, name_header_item)
+        
+        length_header_item = QtGui.QStandardItem('Length')
+        length_header_item.setToolTip('The number of elements in the axis of the parameter space')
+        self.axes_model.setHorizontalHeaderItem(self.AXES_COL_LENGTH, length_header_item)
+        
+        shuffle_header_item = QtGui.QStandardItem('Shuffle')
+        shuffle_header_item.setToolTip('Whether or not the order of the axis should be randomised')
+        shuffle_header_item.setIcon(QtGui.QIcon(':qtutils/fugue/arrow-switch'))
+        self.axes_model.setHorizontalHeaderItem(self.AXES_COL_SHUFFLE, shuffle_header_item)
+        
         self.ui.treeView_axes.setModel(self.axes_model)
-    
+        
+        # Setup stuff for a custom context menu:
+        self.ui.treeView_axes.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
+        
+        # Make the actions for the context menu:
+        self.action_axes_check_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'),
+                                                        'Check selected', self.ui)
+        self.action_axes_uncheck_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'),
+                                                          'Uncheck selected', self.ui)
+            
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
         self.groups_model.setHorizontalHeaderLabels(['Open/Close','Delete','Active','File/groups'])
         self.ui.treeView_groups.setModel(self.groups_model)
     
+        # Setup stuff for a custom context menu:
+        self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
+        
+        # Make the actions for the context menu:
+        self.action_groups_check_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'),
+                                                        'Check selected', self.ui)
+        self.action_groups_uncheck_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'),
+                                                          'Uncheck selected', self.ui)
+        
     def connect_signals(self):
         # labscript file and folder selection stuff:
         self.ui.toolButton_select_labscript_file.clicked.connect(self.on_select_labscript_file_clicked)
@@ -288,11 +326,33 @@ class RunManager(object):
         self.ui.pushButton_abort.clicked.connect(self.on_abort_clicked)
         self.ui.pushButton_restart_subprocess.clicked.connect(self.on_restart_subprocess_clicked)
         
+        # Axes tab; right click menu, menu actions, reordering
+        self.ui.treeView_axes.customContextMenuRequested.connect(self.on_treeView_axes_context_menu_requested)
+        self.action_axes_check_selected.triggered.connect(self.on_axes_check_selected_triggered)
+        self.action_axes_uncheck_selected.triggered.connect(self.on_axes_uncheck_selected_triggered)
+        self.ui.toolButton_axis_to_top.clicked.connect(self.on_axis_to_top_clicked)
+        self.ui.toolButton_axis_up.clicked.connect(self.on_axis_up_clicked)
+        self.ui.toolButton_axis_down.clicked.connect(self.on_axis_down_clicked)
+        self.ui.toolButton_axis_to_bottom.clicked.connect(self.on_axis_to_bottom_clicked)
+        
+        # Groups tab; right click menu, menu actions, open globals file, new globals file, diff globals file, 
+        # (TODO add comment for remaining)
+        self.ui.treeView_groups.customContextMenuRequested.connect(self.on_treeView_groups_context_menu_requested)
+        self.action_groups_check_selected.triggered.connect(self.on_groups_check_selected_triggered)
+        self.action_groups_uncheck_selected.triggered.connect(self.on_groups_uncheck_selected_triggered)
+        self.ui.pushButton_open_globals_file.clicked.connect(self.on_open_globals_file_clicked)
+        self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
+        self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
+        # Todo add remining
+        
     def on_select_labscript_file_clicked(self, checked):
         labscript_file = QtGui.QFileDialog.getOpenFileName(self.ui,
                                                      'Select labscript file',
                                                      self.last_opened_labscript_folder,
                                                      "Python files (*.py)")
+        if not labscript_file:
+            # User cancelled selection
+            return 
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         labscript_file = qstring_to_unicode(labscript_file)
         labscript_file = os.path.abspath(labscript_file)
@@ -330,6 +390,9 @@ class RunManager(object):
         shot_output_folder = QtGui.QFileDialog.getExistingDirectory(self.ui,
                                                      'Select shot output folder',
                                                      self.last_selected_shot_output_folder)
+        if not shot_output_folder:
+            # User cancelled selection
+            return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         shot_output_folder = qstring_to_unicode(shot_output_folder)
         shot_output_folder = os.path.abspath(shot_output_folder)
@@ -354,10 +417,15 @@ class RunManager(object):
         self.output_folder_update_required.set()
     
     def on_labscript_file_text_changed(self, text):
+        # Blank out the 'edit labscript file' button if no labscript file is selected
         enabled = bool(text)
         self.ui.toolButton_edit_labscript_file.setEnabled(enabled)
+        # Blank out the 'select shot output folder' button if no labscript file is selected:
+        self.ui.toolButton_select_shot_output_folder.setEnabled(enabled)
             
     def on_shot_output_folder_text_changed(self, text):
+        # Blank out the 'reset default output folder' button
+        # if the user is already using the default output folder
         if qstring_to_unicode(text) == self.get_default_output_folder():
             enabled = False
         else:
@@ -366,13 +434,13 @@ class RunManager(object):
     
     def on_compile_toggled(self, checked):
         if checked:
-            # Show the corresponding page of the stackedWidget
+            # Show the corresponding page of the stackedWidget:
             page = self.ui.stackedWidgetPage_compile
             self.ui.stackedWidget_compile_or_mise.setCurrentWidget(page)
             
     def on_send_to_mise_toggled(self, checked):
         if checked:
-            # Show the corresponding page of the stackedWidget
+            # Show the corresponding page of the stackedWidget:
             page = self.ui.stackedWidgetPage_send_to_mise
             self.ui.stackedWidget_compile_or_mise.setCurrentWidget(page)
     
@@ -383,9 +451,89 @@ class RunManager(object):
         raise NotImplementedError
         
     def on_restart_subprocess_clicked(self):
+        # Kill and restart the compilation subprocess
         self.child.terminate()
         self.from_child.put(['done', False])
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
+    
+    def on_treeView_axes_context_menu_requested(self, point):
+        index = self.ui.treeView_axes.indexAt(point)
+        if index.isValid():
+            print('yes, context menu! index is', index)
+            # if column is 'shuffle':
+                # menu = QtGui.QMenu(self.ui)
+                # menu.addAction(self.action_axes_check_selected)
+                # menu.addAction(self.action_axes_uncheck_selected)
+                # header_height = self.ui.treeView_axes.header().size().height()
+                # height_offset = QtCore.QPoint(0, header_height)
+                # menu.exec_(self.ui.treeView_axes.mapToGlobal(point + height_offset))
+    
+    def on_axes_check_selected_triggered(self, *args):
+        raise NotImplementedError
+    
+    def on_axes_uncheck_selected_triggered(self, *args):
+        raise NotImplementedError
+        
+    def on_axis_to_top_clicked(self, checked):
+        raise NotImplementedError
+        
+    def on_axis_up_clicked(self, checked):
+        raise NotImplementedError
+        
+    def on_axis_down_clicked(self, checked):
+        raise NotImplementedError
+        
+    def on_axis_to_bottom_clicked(self, checked):
+        raise NotImplementedError
+    
+    def on_treeView_groups_context_menu_requested(self):
+        raise NotImplementedError
+        
+    def on_groups_check_selected_triggered(self):
+        raise NotImplementedError
+        
+    def on_groups_uncheck_selected_triggered(self):
+        raise NotImplementedError
+        
+    def on_open_globals_file_clicked(self):
+        globals_file = QtGui.QFileDialog.getOpenFileName(self.ui,
+                                                         'Select globals file',
+                                                         self.last_opened_globals_folder,
+                                                         "HDF5 files (*.h5)")
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        globals_file = qstring_to_unicode(globals_file)
+        globals_file = os.path.abspath(globals_file)
+        # Save the containing folder for use next time we open the dialog box:
+        self.last_opened_globals_folder = os.path.dirname(globals_file)
+        
+        # GTK code to port:
+        # Check that the file isn't already in the list!
+        # iter = self.group_store.get_iter_root()
+        # while iter:
+            # fp = self.group_store.get(iter,0)[0]
+            # if fp == filename:
+                # return
+            # iter = self.group_store.iter_next(iter)
+        
+        # # open the file!            
+        # grouplist = runmanager.get_grouplist(filename) 
+        # # Append to Tree View
+        # parent = self.group_store.prepend(None,(filename,False,"gtk-close",None,0,0,1))            
+        # for name in grouplist:
+            # self.group_store.append(parent,(name,False,"gtk-add","gtk-remove",0,1,1))  
+                        
+        # self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
+        # # Add editable option for adding!
+        # add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
+        # self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
+
+        
+        
+    def on_new_globals_file_clicked(self):
+        raise NotImplementedError
+        
+    def on_diff_globals_file_clicked(self):
+        raise NotImplementedError
         
     @inmain_decorator()    
     def get_default_output_folder(self):
@@ -465,21 +613,12 @@ class RunManager(object):
     def update_parent_checkbox_by_file(self,filepath):
         raise NotImplementedError
         
-    def on_new_file_clicked(self,*args):
-        raise NotImplementedError
-            
-    def on_diff_file(self,*args):
-        raise NotImplementedError
-            
     def on_global_toggle(self, cellrenderer_toggle, path):
         raise NotImplementedError
         
     def update_parent_checkbox(self,iter,child_state):
         raise NotImplementedError
     
-    def on_open_h5_file(self, *args):      
-        raise NotImplementedError
-
     def on_add_group(self,cellrenderer,path,new_text):
         raise NotImplementedError
 
