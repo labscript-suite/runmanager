@@ -93,7 +93,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
     We will promote the TabBar from the ui file to one of these."""
-    def __init__(self, parent=None, width=100, height=25, **kwargs):
+    def __init__(self, parent=None, width=150, height=32, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
         self.iconPosition=kwargs.pop('iconPosition',QtGui.QTabWidget.West)
@@ -125,8 +125,9 @@ class FingerTabBarWidget(QtGui.QTabBar):
                 #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 #if self.iconPosition == QtGui.QTabWidget.South:
                 #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+                tabRect.moveLeft(10)
                 painter.drawItemPixmap(tabRect,alignment,icon)
-                tabRect.moveLeft(self.iconSize().width() + 10)
+                tabRect.moveLeft(self.iconSize().width() + 15)
                 tabRect.setWidth(tabRect.width() - self.iconSize().width())
             painter.drawText(tabRect, QtCore.Qt.AlignVCenter |\
                              QtCore.Qt.TextWordWrap, \
