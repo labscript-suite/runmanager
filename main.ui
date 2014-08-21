@@ -288,7 +288,7 @@ subprocess</string>
             </sizepolicy>
            </property>
            <property name="currentIndex">
-            <number>0</number>
+            <number>1</number>
            </property>
            <widget class="QWidget" name="stackedWidgetPage_compile">
             <layout class="QFormLayout" name="formLayout">
@@ -505,6 +505,9 @@ subprocess</string>
             </item>
             <item>
              <widget class="QToolButton" name="toolButton_select_shot_output_folder">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="toolTip">
                <string>Select folder ...</string>
               </property>
@@ -644,7 +647,7 @@ QToolButton:hover {
        <enum>QTabWidget::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>2</number>
       </property>
       <property name="elideMode">
        <enum>Qt::ElideNone</enum>
