@@ -356,6 +356,9 @@ class RunManager(object):
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         labscript_file = qstring_to_unicode(labscript_file)
         labscript_file = os.path.abspath(labscript_file)
+        if not os.path.isfile(labscript_file):
+            error_dialog(self.ui, "No such file %s."%labscript_file)
+            return
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_labscript_folder = os.path.dirname(labscript_file)
         # Write the file to the lineEdit:
@@ -500,38 +503,40 @@ class RunManager(object):
                                                          'Select globals file',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
+        if not globals_file:
+            # User cancelled selection
+            return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
+        if not os.path.isfile(globals_file):
+            error_dialog(self.ui, "No such file %s."%globals_file)
+            return
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_globals_folder = os.path.dirname(globals_file)
-        
-        # GTK code to port:
-        # Check that the file isn't already in the list!
-        # iter = self.group_store.get_iter_root()
-        # while iter:
-            # fp = self.group_store.get(iter,0)[0]
-            # if fp == filename:
-                # return
-            # iter = self.group_store.iter_next(iter)
-        
-        # # open the file!            
-        # grouplist = runmanager.get_grouplist(filename) 
-        # # Append to Tree View
-        # parent = self.group_store.prepend(None,(filename,False,"gtk-close",None,0,0,1))            
-        # for name in grouplist:
-            # self.group_store.append(parent,(name,False,"gtk-add","gtk-remove",0,1,1))  
-                        
-        # self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
-        # # Add editable option for adding!
-        # add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
-        # self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
-
-        
+        # Open the file:
+        self.open_globals_file(globals_file)
         
     def on_new_globals_file_clicked(self):
-        raise NotImplementedError
-        
+        globals_file = QtGui.QFileDialog.getSaveFileName(self.ui,
+                                                         'Create new globals file',
+                                                         self.last_opened_globals_folder,
+                                                         "HDF5 files (*.h5)")
+        if not globals_file:
+            # User cancelled
+            return
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        globals_file = qstring_to_unicode(globals_file)
+        globals_file = os.path.abspath(globals_file)
+        if not os.path.isfile(globals_file):
+            error_dialog(self.ui, "No such file %s."%globals_file)
+            return
+            
+        # Create the new file and open it:
+        runmanager.new_globals_file(globals_file)
+        self.open_globals_file(globals_file)
+            
+            
     def on_diff_globals_file_clicked(self):
         raise NotImplementedError
         
@@ -594,7 +599,30 @@ class RunManager(object):
                 self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
             return current_default_output_folder
         return previous_default_output_folder
+    
+    def open_globals_file(self, globals_file):
+        raise NotImplementedError
+        # GTK code to port:
+        # Check that the file isn't already in the list!
+        # iter = self.group_store.get_iter_root()
+        # while iter:
+            # fp = self.group_store.get(iter,0)[0]
+            # if fp == filename:
+                # return
+            # iter = self.group_store.iter_next(iter)
         
+        # # open the file!            
+        # grouplist = runmanager.get_grouplist(filename) 
+        # # Append to Tree View
+        # parent = self.group_store.prepend(None,(filename,False,"gtk-close",None,0,0,1))            
+        # for name in grouplist:
+            # self.group_store.append(parent,(name,False,"gtk-add","gtk-remove",0,1,1))  
+                        
+        # self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
+        # # Add editable option for adding!
+        # add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
+        # self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
+            
     def on_window_destroy(self,widget):
         raise NotImplementedError
     
