@@ -224,6 +224,12 @@ class RunManager(object):
     AXES_COL_LENGTH = 1
     AXES_COL_SHUFFLE = 2
     
+    # Columns for the model in the groups tab:
+    GROUPS_COL_NAME = 0
+    GROUPS_COL_ACTIVE = 1
+    GROUPS_COL_DELETE = 2
+    GROUPS_COL_OPENCLOSE = 3
+    
     def __init__(self):
     
         loader = UiLoader()
@@ -296,9 +302,9 @@ class RunManager(object):
             
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
-        self.groups_model.setHorizontalHeaderLabels(['Open/Close','Delete','Active','File/groups'])
+        self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','','',])
         self.ui.treeView_groups.setModel(self.groups_model)
-    
+        self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 300)
         # Setup stuff for a custom context menu:
         self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
         
@@ -528,9 +534,6 @@ class RunManager(object):
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
-        if not os.path.isfile(globals_file):
-            error_dialog(self.ui, "No such file %s."%globals_file)
-            return
             
         # Create the new file and open it:
         runmanager.new_globals_file(globals_file)
@@ -544,14 +547,14 @@ class RunManager(object):
     def get_default_output_folder(self):
         """Returns what the default output folder would be right now,
         based on the current date and selected labscript file.
-        Returns None if no labscript file is selected or if the file does not exist.
-        Does not create the default output folder, does not check if it exists."""
+        Returns empty string if no labscript file is selected. Does not create 
+        the default output folder, does not check if it exists."""
         sep = os.path.sep
         current_day_folder_suffix = time.strftime('%Y'+sep+'%m'+sep+'%d')
         current_labscript_file = self.ui.lineEdit_labscript_file.text()
         current_labscript_file = qstring_to_unicode(current_labscript_file)
-        if not os.path.exists(current_labscript_file):
-            return None
+        if not current_labscript_file:
+            return ''
         current_labscript_basename = os.path.splitext(os.path.basename(current_labscript_file))[0]
         default_output_folder = os.path.join(self.experiment_shot_storage, 
                                     current_labscript_basename, current_day_folder_suffix)
@@ -559,12 +562,11 @@ class RunManager(object):
     
     def rollover_shot_output_folder(self):
         """Runs in a thread, checking once a second if it is a new day or the 
-        labscript file has changed. If it is or has, creates a new folder in 
-        which compiled shots will be put. Deletes the previous folder if it is empty,
-        so that leaving runmanager open all the time doesn't create tons of empty folders.
-        Will immediately without waiting a full second if the threading.Event() 
-        self.output_folder_update_required is set() from anywhere.
-        Also clears the selected folder if it does not exist"""
+        labscript file has changed. If it is or has, sets the default folder in 
+        which compiled shots will be put. Does not create the folder if it does
+        not already exists, this will be done at compile-time.
+        Will run immediately without waiting a full second if the threading.Event 
+        self.output_folder_update_required is set() from anywhere."""
         previous_default_output_folder = self.get_default_output_folder()
         while True:
             # Wait up to one second, shorter if the Event() gets set() by someone:
@@ -580,49 +582,76 @@ class RunManager(object):
         and can't be interfered with by other Qt calls in the program."""
         current_default_output_folder = self.get_default_output_folder()
         if current_default_output_folder is None:
-            # No labscript file selected, or does not exist:
+            # No labscript file selected:
             return previous_default_output_folder
         currently_selected_output_folder = self.ui.lineEdit_shot_output_folder.text()
         currently_selected_output_folder = qstring_to_unicode(currently_selected_output_folder)
-        # If the currently selected output folder does not exist, go back to default:
-        if not os.path.isdir(currently_selected_output_folder):
-            self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
-            # Ensure the default does exist:
-            mkdir_p(current_default_output_folder)
         if current_default_output_folder != previous_default_output_folder:
-            # It's a new day, or a new labscript file!
-            delete_folder_if_empty(previous_default_output_folder)
-            # Is the user even using default folders?
+            # It's a new day, or a new labscript file.
+            # Is the user using default folders?
             if currently_selected_output_folder == previous_default_output_folder:
-                # Yes they are! In that case, update to use the new folder:
-                mkdir_p(current_default_output_folder)
+                # Yes they are. In that case, update to use the new folder:
                 self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
             return current_default_output_folder
         return previous_default_output_folder
     
     def open_globals_file(self, globals_file):
-        raise NotImplementedError
-        # GTK code to port:
-        # Check that the file isn't already in the list!
-        # iter = self.group_store.get_iter_root()
-        # while iter:
-            # fp = self.group_store.get(iter,0)[0]
-            # if fp == filename:
-                # return
-            # iter = self.group_store.iter_next(iter)
+        # Do nothing if this file is already open:
+        if self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME):
+            return
         
-        # # open the file!            
-        # grouplist = runmanager.get_grouplist(filename) 
-        # # Append to Tree View
-        # parent = self.group_store.prepend(None,(filename,False,"gtk-close",None,0,0,1))            
-        # for name in grouplist:
-            # self.group_store.append(parent,(name,False,"gtk-add","gtk-remove",0,1,1))  
-                        
-        # self.group_treeview.expand_row(self.group_store.get_path(parent),True) 
-        # # Add editable option for adding!
-        # add = self.group_store.append(parent,("<Click to add group>",False,None,None,0,1,0)) 
-        # self.group_treeview.set_cursor(self.group_store.get_path(add),self.group_treeview.get_column(2),True)
-            
+        # Get the groups:       
+        groups = runmanager.get_grouplist(globals_file)
+        # Add the parent row:
+        file_name_item = QtGui.QStandardItem(globals_file)
+        file_name_item.setEditable(False)
+        file_name_item.setToolTip(globals_file)
+        file_active_item = QtGui.QStandardItem()
+        file_active_item.setCheckable(True)
+        file_active_item.setEditable(False)
+        file_active_item.setToolTip('Check to set all the file\'s groups as active.')
+        file_delete_item = QtGui.QStandardItem() # Blank, only groups have a delete button
+        file_delete_item.setEditable(False)
+        file_close_item = QtGui.QStandardItem()
+        file_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
+        file_close_item.setEditable(False)
+        file_close_item.setToolTip('Close globals file.')
+        self.groups_model.appendRow([file_name_item, file_active_item, file_delete_item, file_close_item])
+        # Add the groups as children:
+        for group in groups:
+            group_name_item = QtGui.QStandardItem(group)
+            group_active_item = QtGui.QStandardItem()
+            group_active_item.setCheckable(True)
+            group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
+            group_delete_item = QtGui.QStandardItem()
+            group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/delete'))
+            group_delete_item.setToolTip('Delete globals group from file.')
+            group_open_close_item = QtGui.QStandardItem()
+            group_open_close_item.setIcon(Qtgui.QIcon(':qtutils/fugue/plus'))
+            group_open_close_item.setToolTip('Load globals group into runmananger.')
+            file_name_item.appendRow([group_name_item, group_active_item, group_delete_item, group_open_close_item])
+        # Finally, add the <Click to add group> row at the bottom:
+        self.add_groups_model_last_row(file_name_item)
+        # Shrink all the columns to their contents except the name column:
+        for column in range(1, self.groups_model.columnCount()):
+            self.ui.treeView_groups.resizeColumnToContents(column)
+        # Expand the child items to be visible:
+        self.ui.treeView_groups.setExpanded(file_name_item.index(), True)
+    
+    def add_groups_model_last_row(self, parent_item):
+        """Adds the <Click to add group> entry to the list of 
+        groups under a globals fine in the groups tab."""
+        parent_item.sortChildren(self.GROUPS_COL_NAME)
+        name_item = QtGui.QStandardItem('<Click to add group>')
+        name_item.setToolTip('Click to add group')
+        active_item = QtGui.QStandardItem()
+        active_item.setEditable(False)
+        delete_item = QtGui.QStandardItem()
+        delete_item.setEditable(False)
+        open_close_item = QtGui.QStandardItem()
+        open_close_item.setEditable(False)
+        parent_item.appendRow([name_item, active_item, delete_item, open_close_item])
+        
     def on_window_destroy(self,widget):
         raise NotImplementedError
     

@@ -257,7 +257,7 @@ subprocess</string>
            <item>
             <widget class="QRadioButton" name="radioButton_compile">
              <property name="toolTip">
-              <string>Compile shots for the currently described parameter space</string>
+              <string>Compile shots for the currently described parameter space.</string>
              </property>
              <property name="text">
               <string>Compile</string>
@@ -341,7 +341,7 @@ subprocess</string>
                 </sizepolicy>
                </property>
                <property name="toolTip">
-                <string>The host computer running mise</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The host computer running mise.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>localhost</string>
@@ -385,7 +385,7 @@ subprocess</string>
          <item row="2" column="1">
           <widget class="QLineEdit" name="lineEdit">
            <property name="toolTip">
-            <string>The host computer running BLACS</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The host computer running BLACS.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
            <property name="text">
             <string>localhost</string>
@@ -408,7 +408,7 @@ subprocess</string>
             <bool>false</bool>
            </property>
            <property name="toolTip">
-            <string>Reset to default output folder</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reset to default output folder.&lt;/p&gt;&lt;p&gt;If the folder does not exist it will be created at compile-time.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
            <property name="text">
             <string>...</string>
@@ -439,7 +439,7 @@ subprocess</string>
             <bool>false</bool>
            </property>
            <property name="toolTip">
-            <string>Edit this labscript file in a text editor</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Edit this labscript file in a text editor.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
            <property name="text">
             <string>...</string>
@@ -483,7 +483,7 @@ subprocess</string>
                </sizepolicy>
               </property>
               <property name="toolTip">
-               <string>The folder in which newly compiled shot files will be placed</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The folder in which newly compiled shot files will be placed.&lt;/p&gt;&lt;p&gt;If the folder does not exist, it will be created at compile time.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="styleSheet">
                <string notr="true"/>
@@ -570,7 +570,7 @@ QToolButton:hover {
                </sizepolicy>
               </property>
               <property name="toolTip">
-               <string>The labscript file to compile</string>
+               <string>The labscript file to compile.</string>
               </property>
               <property name="styleSheet">
                <string notr="true"/>
@@ -673,7 +673,7 @@ QToolButton:hover {
         <string>Output</string>
        </attribute>
        <attribute name="toolTip">
-        <string>View textual output of compilation</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;View textual output of compilation.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_5">
         <property name="spacing">
@@ -696,7 +696,7 @@ QToolButton:hover {
         <string>Axes</string>
        </attribute>
        <attribute name="toolTip">
-        <string>See and change settings for the axes of the currently described parameter space</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;See and change settings for the axes of the currently described parameter space.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_4">
         <property name="spacing">
@@ -842,7 +842,7 @@ QToolButton:hover {
         <string>Groups</string>
        </attribute>
        <attribute name="toolTip">
-        <string>Select files and groups of globals to view and edit in runviewer</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select files and groups of globals to view and edit in runviewer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_8">
         <property name="spacing">
@@ -865,7 +865,7 @@ QToolButton:hover {
              <enum>Qt::NoFocus</enum>
             </property>
             <property name="toolTip">
-             <string>Load an HDF file containing globals into runviewer</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Load an HDF file containing globals into runviewer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
              <string>Open globals file</string>
@@ -882,7 +882,7 @@ QToolButton:hover {
              <enum>Qt::NoFocus</enum>
             </property>
             <property name="toolTip">
-             <string>Create a new HDF file to store globals in</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Create a new HDF file to store globals in.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
              <string>New globals file</string>
@@ -899,7 +899,7 @@ QToolButton:hover {
              <enum>Qt::NoFocus</enum>
             </property>
             <property name="toolTip">
-             <string>Compare the globals stored in an HDF file with those currently in use by runviewer</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Compare the globals stored in an HDF file with those currently in use by runviewer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
              <string>Diff globals file</string>
