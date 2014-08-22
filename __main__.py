@@ -219,17 +219,20 @@ class GroupTab(object):
 
 class RunManager(object):
     
-    # Columns for the model in the axes tab:
+    # Constants for the model in the axes tab:
     AXES_COL_NAME = 0
     AXES_COL_LENGTH = 1
     AXES_COL_SHUFFLE = 2
     
-    # Columns for the model in the groups tab:
+    # Constants for the model in the groups tab:
     GROUPS_COL_NAME = 0
     GROUPS_COL_ACTIVE = 1
     GROUPS_COL_DELETE = 2
     GROUPS_COL_OPENCLOSE = 3
-    
+    GROUPS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
+    GROUPS_ROLE_PREVIOUS_NAME = QtCore.Qt.UserRole + 2
+    GROUPS_DUMMY_ROW_TEXT = '<Click to add group>'
+
     def __init__(self):
     
         loader = UiLoader()
@@ -304,6 +307,7 @@ class RunManager(object):
         self.groups_model = QtGui.QStandardItemModel()
         self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','','',])
         self.ui.treeView_groups.setModel(self.groups_model)
+        self.ui.treeView_groups.setSortingEnabled(True)
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 300)
         # Setup stuff for a custom context menu:
         self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
@@ -349,6 +353,8 @@ class RunManager(object):
         self.ui.pushButton_open_globals_file.clicked.connect(self.on_open_globals_file_clicked)
         self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
         self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
+        self.ui.treeView_groups.clicked.connect(self.on_treeView_groups_clicked)
+        self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
         # Todo add remining
         
     def on_select_labscript_file_clicked(self, checked):
@@ -542,6 +548,58 @@ class RunManager(object):
             
     def on_diff_globals_file_clicked(self):
         raise NotImplementedError
+    
+    def on_treeView_groups_clicked(self, index):
+        item = self.groups_model.itemFromIndex(index)
+        # The 'name' item in the same row:
+        name_index = index.sibling(index.row(), self.GROUPS_COL_NAME)
+        name_item = self.groups_model.itemFromIndex(name_index)
+        # The parent item, None if there is no parent:
+        parent_item = item.parent()
+        # What kind of row did the user click on?
+        # A globals file, a group, or a 'click to add new group' row?
+        if name_item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+            # They clicked on an 'add new group' row. Enter editing
+            # mode on the name item so they can enter a name for 
+            # the new group:
+            self.ui.treeView_groups.setCurrentIndex(name_index)
+            self.ui.treeView_groups.edit(name_index)
+        elif parent_item is None:
+            # They clicked on a globals file row.
+            globals_file = name_item.text()
+            # What column did they click on?
+            if item.column() == self.GROUPS_COL_OPENCLOSE:
+                # They clicked the close button. Close the file:
+                self.close_globals_file(globals_file)
+        else:
+            # They clicked on a globals group row.
+            globals_file = parent_item.text()
+            group = name_item.text()
+            # What column did they click on?
+            if item.column() == self.GROUPS_COL_DELETE:
+                # They clicked the delete button. Delete the group:
+                self.delete_globals_group(globals_file, group, confirm=True)
+            elif item.column() == self.GROUPS_COL_OPENCLOSE:
+                # They clicked the open/close button. Which is it, open or close?
+                raise NotImplementedError
+                # TODO: base this on whether it is in currently open tabs?
+                # Or store user data in the the item saying whether it's open or not?
+                # Leaning toward user data. More local. Though other stuff will have
+                # to contact the tabs, so that won't be unprecedented. Whatevs.
+                # I haven't decided what data structure to put them in yet.
+    
+    def on_groups_model_item_changed(self, item):
+        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+            # The user has made a new globals group.
+            group = item.text()
+            success = new_globals_group()
+            # This is no longer a dummy row, edit it accordingly:
+            
+        return
+        # if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
+            # print('dummy row changed')
+        # elif item.column() == self.GROUPS_COL_ACTIVE:
+            # # They checked a checkbox:
         
     @inmain_decorator()    
     def get_default_output_folder(self):
@@ -608,6 +666,7 @@ class RunManager(object):
         file_name_item.setToolTip(globals_file)
         file_active_item = QtGui.QStandardItem()
         file_active_item.setCheckable(True)
+        file_active_item.setCheckState(QtCore.Qt.Checked)
         file_active_item.setEditable(False)
         file_active_item.setToolTip('Check to set all the file\'s groups as active.')
         file_delete_item = QtGui.QStandardItem() # Blank, only groups have a delete button
@@ -622,6 +681,7 @@ class RunManager(object):
             group_name_item = QtGui.QStandardItem(group)
             group_active_item = QtGui.QStandardItem()
             group_active_item.setCheckable(True)
+            group_active_item.setCheckState(QtCore.Qt.Checked)
             group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
             group_delete_item = QtGui.QStandardItem()
             group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/delete'))
@@ -631,26 +691,32 @@ class RunManager(object):
             group_open_close_item.setToolTip('Load globals group into runmananger.')
             file_name_item.appendRow([group_name_item, group_active_item, group_delete_item, group_open_close_item])
         # Finally, add the <Click to add group> row at the bottom:
-        self.add_groups_model_last_row(file_name_item)
+        dummy_name_item = QtGui.QStandardItem(self.GROUPS_DUMMY_ROW_TEXT)
+        dummy_name_item.setToolTip('Click to add group')
+        # This lets later code know that this row does
+        # not correspond to an actual globals group:
+        dummy_name_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
+        dummy_active_item = QtGui.QStandardItem()
+        dummy_active_item.setEditable(False)
+        dummy_delete_item = QtGui.QStandardItem()
+        dummy_delete_item.setEditable(False)
+        dummy_open_close_item = QtGui.QStandardItem()
+        dummy_open_close_item.setEditable(False)
+        file_name_item.appendRow([dummy_name_item, dummy_active_item, dummy_delete_item, dummy_open_close_item])
         # Shrink all the columns to their contents except the name column:
         for column in range(1, self.groups_model.columnCount()):
             self.ui.treeView_groups.resizeColumnToContents(column)
         # Expand the child items to be visible:
         self.ui.treeView_groups.setExpanded(file_name_item.index(), True)
     
-    def add_groups_model_last_row(self, parent_item):
-        """Adds the <Click to add group> entry to the list of 
-        groups under a globals fine in the groups tab."""
-        parent_item.sortChildren(self.GROUPS_COL_NAME)
-        name_item = QtGui.QStandardItem('<Click to add group>')
-        name_item.setToolTip('Click to add group')
-        active_item = QtGui.QStandardItem()
-        active_item.setEditable(False)
-        delete_item = QtGui.QStandardItem()
-        delete_item.setEditable(False)
-        open_close_item = QtGui.QStandardItem()
-        open_close_item.setEditable(False)
-        parent_item.appendRow([name_item, active_item, delete_item, open_close_item])
+    def close_globals_file(self, globals_file):
+        raise NotImplementedError
+        
+    def open_globals_group(self, globals_file, group):
+        raise NotImplementedError
+    
+    def delete_globals_group(self, globals_file, group, confirm=True):
+        raise NotImplementedError
         
     def on_window_destroy(self,widget):
         raise NotImplementedError
