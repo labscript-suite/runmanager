@@ -216,7 +216,7 @@ class GroupTab(object):
     def update_parse_indication(self, sequence_globals, evaled_globals):
         raise NotImplementedError
 
-
+        
 class RunManager(object):
     
     # Constants for the model in the axes tab:
@@ -231,6 +231,8 @@ class RunManager(object):
     GROUPS_COL_OPENCLOSE = 3
     GROUPS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
     GROUPS_ROLE_PREVIOUS_NAME = QtCore.Qt.UserRole + 2
+    GROUPS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 3
+    GROUPS_ROLE_GROUP_IS_OPEN = QtCore.Qt.UserRole + 4
     GROUPS_DUMMY_ROW_TEXT = '<Click to add group>'
 
     def __init__(self):
@@ -305,10 +307,17 @@ class RunManager(object):
             
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
-        self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','','',])
+        self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','Delete','Open/Close',])
+        self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
         self.ui.treeView_groups.setModel(self.groups_model)
         self.ui.treeView_groups.setSortingEnabled(True)
-        self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 300)
+        # Set column widths:
+        self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
+        for column in range(self.groups_model.columnCount()):
+            if column != self.GROUPS_COL_NAME:
+                self.ui.treeView_groups.resizeColumnToContents(column)
+
+        self.ui.treeView_groups.setTextElideMode(QtCore.Qt.ElideMiddle)
         # Setup stuff for a custom context menu:
         self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
         
@@ -355,7 +364,7 @@ class RunManager(object):
         self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
         self.ui.treeView_groups.pressed.connect(self.on_treeView_groups_pressed)
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
-        # Todo add remining
+        # Todo add remaining
         
     def on_select_labscript_file_clicked(self, checked):
         labscript_file = QtGui.QFileDialog.getOpenFileName(self.ui,
@@ -389,7 +398,7 @@ class RunManager(object):
         if not current_labscript_file:
             return
         if not editor_path:
-            error_dialog(self.ui, "No editor specified in the labconfig")
+            error_dialog(self.ui, "No editor specified in the labconfig.")
         if '{file}' in editor_args:
             # Split the args on spaces into a list, replacing {file} with the labscript file
             editor_args = [arg if arg != '{file}' else current_labscript_file for arg in editor_args.split()]
@@ -592,17 +601,40 @@ class RunManager(object):
                 # I haven't decided what data structure to put them in yet.
     
     def on_groups_model_item_changed(self, item):
-        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
-            # The user has made a new globals group.
-            group = item.text()
-            success = new_globals_group()
-            # This is no longer a dummy row, edit it accordingly:
-            
-        return
-        # if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
-            # print('dummy row changed')
-        # elif item.column() == self.GROUPS_COL_ACTIVE:
-            # # They checked a checkbox:
+        print('item changed!')
+        # The parent item, None if there is no parent:
+        parent_item = item.parent()
+        if item.column() == self.GROUPS_COL_OPENCLOSE:
+            # Ensure the sort data matches the open/close state:
+            group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
+            item.setData(group_is_open, self.GROUPS_ROLE_SORT_DATA)
+        elif item.column() == self.GROUPS_COL_ACTIVE:
+            print('checked state!')
+            # Ensure sort data matches active state:
+            check_state = item.checkState()
+            item.setData(check_state, self.GROUPS_ROLE_SORT_DATA)
+        elif item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+            item_text = qstring_to_unicode(item.text())
+            if item_text != self.GROUPS_DUMMY_ROW_TEXT:
+                # The user has made a new globals group.
+                group = item_text
+                globals_file = qstring_to_unicode(parent_item.text())
+                try:
+                    runmanager.new_group(globals_file, group)
+                except Exception as e:
+                    message = str(e)
+                    error_dialog(self.ui, "Could not create new group. Error was: %s"%message)
+                else:
+                    raise NotImplementedError('Insert new row for new group')
+                finally:
+                    item.setText(self.GROUPS_DUMMY_ROW_TEXT)
+        elif item.column() == self.GROUPS_COL_NAME:
+            # User has renamed a globals group.
+            new_group_name = qstring_to_unicode(item.text())
+            previous_group_name = qstring_to_unicode(item.data(self.GROUPS_ROLE_PREVIOUS_NAME).toString())
+            if new_group_name != previous_group_name:
+                item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME)
+                raise NotImplementedError('rename group')
         
     @inmain_decorator()    
     def get_default_output_folder(self):
@@ -667,9 +699,11 @@ class RunManager(object):
         file_name_item = QtGui.QStandardItem(globals_file)
         file_name_item.setEditable(False)
         file_name_item.setToolTip(globals_file)
+        file_name_item.setData(globals_file, self.GROUPS_ROLE_SORT_DATA) # Sort column by name
         file_active_item = QtGui.QStandardItem()
         file_active_item.setCheckable(True)
         file_active_item.setCheckState(QtCore.Qt.Checked)
+        file_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA) # Sort column by CheckState
         file_active_item.setEditable(False)
         file_active_item.setToolTip('Check to set all the file\'s groups as active.')
         file_delete_item = QtGui.QStandardItem() # Blank, only groups have a delete button
@@ -682,19 +716,33 @@ class RunManager(object):
         # Add the groups as children:
         for group in groups:
             group_name_item = QtGui.QStandardItem(group)
+            group_name_item.setData(group, self.GROUPS_ROLE_PREVIOUS_NAME)
+            # Sort column by name
+            group_name_item.setData(group, self.GROUPS_ROLE_SORT_DATA)
+            
             group_active_item = QtGui.QStandardItem()
             group_active_item.setCheckable(True)
             group_active_item.setCheckState(QtCore.Qt.Checked)
+            # Sort column by CheckState - must keep this updated whenever the checkstate changes:
+            group_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA)
             group_active_item.setEditable(False)
             group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
+            
             group_delete_item = QtGui.QStandardItem()
-            group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/delete'))
+            group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
+            # Must be set to something so that the dummy row doesn't get sorted first:
+            group_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
             group_delete_item.setEditable(False)
             group_delete_item.setToolTip('Delete globals group from file.')
+            
             group_open_close_item = QtGui.QStandardItem()
             group_open_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
+            group_open_close_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
+            # Sort column by whether group is open - must keep this manually updated when the state changes:
+            group_open_close_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
             group_open_close_item.setEditable(False)
             group_open_close_item.setToolTip('Load globals group into runmananger.')
+            
             file_name_item.appendRow([group_name_item, group_active_item, group_delete_item, group_open_close_item])
         # Finally, add the <Click to add group> row at the bottom:
         dummy_name_item = QtGui.QStandardItem(self.GROUPS_DUMMY_ROW_TEXT)
@@ -709,9 +757,6 @@ class RunManager(object):
         dummy_open_close_item = QtGui.QStandardItem()
         dummy_open_close_item.setEditable(False)
         file_name_item.appendRow([dummy_name_item, dummy_active_item, dummy_delete_item, dummy_open_close_item])
-        # Shrink all the columns to their contents except the name column:
-        for column in range(1, self.groups_model.columnCount()):
-            self.ui.treeView_groups.resizeColumnToContents(column)
         # Expand the child items to be visible:
         self.ui.treeView_groups.setExpanded(file_name_item.index(), True)
     
