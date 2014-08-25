@@ -307,12 +307,16 @@ class RunManager(object):
             
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
-        self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','Delete','Open/Close',])
+        self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','Delete','Open/Close'])
+
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
         self.ui.treeView_groups.setModel(self.groups_model)
         self.ui.treeView_groups.setSortingEnabled(True)
         # Set column widths:
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
+        # Ensure the clickable region of the open/close button doesn't extend forever:
+        self.ui.treeView_groups.header().setStretchLastSection(False)
+        # Shrink columns other than the 'name' column to the size of their headers:
         for column in range(self.groups_model.columnCount()):
             if column != self.GROUPS_COL_NAME:
                 self.ui.treeView_groups.resizeColumnToContents(column)
@@ -559,6 +563,25 @@ class RunManager(object):
         raise NotImplementedError
     
     def on_treeView_groups_pressed(self, index):
+        """Here we respond to user clicks on the treeview. We do the following:
+        - If the user clicks on the <click to create new group> dummy row, we go into edit mode on it
+          so they can enter the name of the new group they want.
+        - If the user clicks on the icon to open or close a globals file or a group, we call the appropriate
+          open and close methods and update the open/close data role on the model.
+        - If the user clicks the 'active' checkbox of a group, we update the check state of the parent
+          globals file row, to show whether all, none, or some of its children are checked.
+        - If the user clicks the 'active' checkbox of a globals file, we check or uncheck all its
+          child groups to match.
+        - If the user clicks delete on a globals group, we delete it (and close it if open) after 
+          a confirmation dialog.
+          
+        The checkbox thing - setting children and parent checkboxes to match - would seem
+        to belong better in self.on_groups_model_item_changed where most of the data
+        consistency stuff lives, but it would be difficult to put it there and not have it recurse
+        indefinitely, whilst still ensuring all the changes we want to trigger get done.
+        So we're doing it here where we won't recurse - though the changes we make here will still
+        trigger self.on_groups_model_item_changed to make the other required changes."""
+        
         # If not a left click, return:
         if not qapplication.mouseButtons() == QtCore.Qt.LeftButton:
             return
@@ -586,55 +609,78 @@ class RunManager(object):
         else:
             # They clicked on a globals group row.
             globals_file = parent_item.text()
-            group = name_item.text()
+            group_name = name_item.text()
             # What column did they click on?
             if item.column() == self.GROUPS_COL_DELETE:
                 # They clicked the delete button. Delete the group:
-                self.delete_globals_group(globals_file, group, confirm=True)
+                self.delete_globals_group(globals_file, group_name, confirm=True)
             elif item.column() == self.GROUPS_COL_OPENCLOSE:
                 # They clicked the open/close button. Which is it, open or close?
-                raise NotImplementedError
-                # TODO: base this on whether it is in currently open tabs?
-                # Or store user data in the the item saying whether it's open or not?
-                # Leaning toward user data. More local. Though other stuff will have
-                # to contact the tabs, so that won't be unprecedented. Whatevs.
-                # I haven't decided what data structure to put them in yet.
-    
+                group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+                # Invert the open/close state. itemChanged will be emitted and 
+                # self.on_groups_model_item_changed will handle updating the 
+                # other data roles, icons etc:
+                item.setData(not group_is_open, self.GROUPS_ROLE_GROUP_IS_OPEN)
+                if group_is_open:
+                    self.close_group(globals_file, group_name)
+                else:
+                    self.open_group(globals_file, group_name)
+                    
     def on_groups_model_item_changed(self, item):
+        """This function is mainly about responding to data changes by making other data changes
+        for model consistency. It also handles new group creation.
+        When we change things elsewhere, we prefer to only change one thing,
+        and the rest of the changes are triggered here. So here we do the following:
+        - When GROUPS_ROLE_GROUP_IS_OPEN changes on the open/close column, we set the appropriate icon,
+          tooltip, and sort data.
+        - When the check state in the 'active' column changes, we update the sort data.
+        - When the text of the name column for a group changes, we call self.rename_group()
+        - When the text of the <click to add new group> dummy row changes, we call self.new_group()
+          
+        Be careful not to recurse unsafely in this method - changing something that itself triggers
+        further changes is fine so long as they peter out and don't get stuck in a loop. That's what the 
+        'if new_group_name != previous_group_name' checks are for, and why we set GROUPS_ROLE_PREVIOUS_NAME
+        before changing other data, so that the change we detect won't trigger twice.
+        """
         print('item changed!')
         # The parent item, None if there is no parent:
         parent_item = item.parent()
         if item.column() == self.GROUPS_COL_OPENCLOSE:
+            # The open/close state of a globals group changed. It is definitely a group,
+            # not a file, as the open/close state of a file shouldn't be changing.
+            assert parent_item is not None # Just to be sure.
+            print('open close state changed')
             # Ensure the sort data matches the open/close state:
             group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
             item.setData(group_is_open, self.GROUPS_ROLE_SORT_DATA)
+            # Set the appropriate icon and tooltip:
+            if group_is_open:
+                print('group is open')
+                item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
+                item.setToolTip('Close globals group.')
+            else:
+                print('group is closed')
+                item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
+                item.setToolTip('Load globals group into runmanager.')
         elif item.column() == self.GROUPS_COL_ACTIVE:
-            print('checked state!')
-            # Ensure sort data matches active state:
+            print('item checked state changed')
             check_state = item.checkState()
+            # Ensure sort data matches active state:
             item.setData(check_state, self.GROUPS_ROLE_SORT_DATA)
         elif item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
             item_text = qstring_to_unicode(item.text())
             if item_text != self.GROUPS_DUMMY_ROW_TEXT:
                 # The user has made a new globals group.
-                group = item_text
                 globals_file = qstring_to_unicode(parent_item.text())
-                try:
-                    runmanager.new_group(globals_file, group)
-                except Exception as e:
-                    message = str(e)
-                    error_dialog(self.ui, "Could not create new group. Error was: %s"%message)
-                else:
-                    raise NotImplementedError('Insert new row for new group')
-                finally:
-                    item.setText(self.GROUPS_DUMMY_ROW_TEXT)
+                self.new_group(item, parent_item, globals_file, group_name = item_text)   
         elif item.column() == self.GROUPS_COL_NAME:
             # User has renamed a globals group.
             new_group_name = qstring_to_unicode(item.text())
             previous_group_name = qstring_to_unicode(item.data(self.GROUPS_ROLE_PREVIOUS_NAME).toString())
+            globals_file = qstring_to_unicode(parent_item.text())
             if new_group_name != previous_group_name:
-                item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME)
-                raise NotImplementedError('rename group')
+                self.rename_group(item, globals_file, previous_group_name, new_group_name)
+                
         
     @inmain_decorator()    
     def get_default_output_folder(self):
@@ -699,51 +745,32 @@ class RunManager(object):
         file_name_item = QtGui.QStandardItem(globals_file)
         file_name_item.setEditable(False)
         file_name_item.setToolTip(globals_file)
-        file_name_item.setData(globals_file, self.GROUPS_ROLE_SORT_DATA) # Sort column by name
+        # Sort column by name:
+        file_name_item.setData(globals_file, self.GROUPS_ROLE_SORT_DATA)
+        
         file_active_item = QtGui.QStandardItem()
         file_active_item.setCheckable(True)
         file_active_item.setCheckState(QtCore.Qt.Checked)
-        file_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA) # Sort column by CheckState
+        # Sort column by CheckState - must keep this updated when checkstate changes:
+        file_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA)
         file_active_item.setEditable(False)
         file_active_item.setToolTip('Check to set all the file\'s groups as active.')
+        
         file_delete_item = QtGui.QStandardItem() # Blank, only groups have a delete button
         file_delete_item.setEditable(False)
+        
         file_close_item = QtGui.QStandardItem()
         file_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
         file_close_item.setEditable(False)
         file_close_item.setToolTip('Close globals file.')
+        
         self.groups_model.appendRow([file_name_item, file_active_item, file_delete_item, file_close_item])
+        
         # Add the groups as children:
-        for group in groups:
-            group_name_item = QtGui.QStandardItem(group)
-            group_name_item.setData(group, self.GROUPS_ROLE_PREVIOUS_NAME)
-            # Sort column by name
-            group_name_item.setData(group, self.GROUPS_ROLE_SORT_DATA)
+        for group_name in groups:
+            row = self.make_group_row(group_name)
+            file_name_item.appendRow(row)
             
-            group_active_item = QtGui.QStandardItem()
-            group_active_item.setCheckable(True)
-            group_active_item.setCheckState(QtCore.Qt.Checked)
-            # Sort column by CheckState - must keep this updated whenever the checkstate changes:
-            group_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA)
-            group_active_item.setEditable(False)
-            group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
-            
-            group_delete_item = QtGui.QStandardItem()
-            group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
-            # Must be set to something so that the dummy row doesn't get sorted first:
-            group_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
-            group_delete_item.setEditable(False)
-            group_delete_item.setToolTip('Delete globals group from file.')
-            
-            group_open_close_item = QtGui.QStandardItem()
-            group_open_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
-            group_open_close_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
-            # Sort column by whether group is open - must keep this manually updated when the state changes:
-            group_open_close_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
-            group_open_close_item.setEditable(False)
-            group_open_close_item.setToolTip('Load globals group into runmananger.')
-            
-            file_name_item.appendRow([group_name_item, group_active_item, group_delete_item, group_open_close_item])
         # Finally, add the <Click to add group> row at the bottom:
         dummy_name_item = QtGui.QStandardItem(self.GROUPS_DUMMY_ROW_TEXT)
         dummy_name_item.setToolTip('Click to add group')
@@ -756,57 +783,111 @@ class RunManager(object):
         dummy_delete_item.setEditable(False)
         dummy_open_close_item = QtGui.QStandardItem()
         dummy_open_close_item.setEditable(False)
+        
+        # Not setting anything as the above items' sort role has the effect of ensuring
+        # this row is always sorted to the end of the list, without us having to implement
+        # any custom sorting methods or subclassing anything, yay.
+        
         file_name_item.appendRow([dummy_name_item, dummy_active_item, dummy_delete_item, dummy_open_close_item])
         # Expand the child items to be visible:
         self.ui.treeView_groups.setExpanded(file_name_item.index(), True)
     
+    def make_group_row(self, group_name):
+        """Returns a new row representing one group in the groups tab, ready to be
+        inserted into the model."""
+        group_name_item = QtGui.QStandardItem(group_name)
+        # We keep the previous name around so that we can detect what changed:
+        group_name_item.setData(group_name, self.GROUPS_ROLE_PREVIOUS_NAME)
+        # Sort column by name:
+        group_name_item.setData(group_name, self.GROUPS_ROLE_SORT_DATA)
+        
+        group_active_item = QtGui.QStandardItem()
+        group_active_item.setCheckable(True)
+        group_active_item.setCheckState(QtCore.Qt.Checked)
+        # Sort column by CheckState - must keep this updated whenever the checkstate changes:
+        group_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA)
+        group_active_item.setEditable(False)
+        group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
+        
+        group_delete_item = QtGui.QStandardItem()
+        group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
+        # Must be set to something so that the dummy row doesn't get sorted first:
+        group_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
+        group_delete_item.setEditable(False)
+        group_delete_item.setToolTip('Delete globals group from file.')
+        
+        group_open_close_item = QtGui.QStandardItem()
+        group_open_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
+        group_open_close_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
+        # Sort column by whether group is open - must keep this manually updated when the state changes:
+        group_open_close_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
+        group_open_close_item.setEditable(False)
+        group_open_close_item.setToolTip('Load globals group into runmananger.')
+        
+        row = [group_name_item, group_active_item, group_delete_item, group_open_close_item]
+        return row
+    
     def close_globals_file(self, globals_file):
-        raise NotImplementedError
+        raise NotImplementedError('close globals file')
+    
+    def new_group(self, item, parent_item, globals_file, group_name):
+        """In response to the user changing the text in the <click to add new group> item
+        in the groups tab, attempt to create a new group and add it to the model."""
+        try:
+            runmanager.new_group(globals_file, group_name)
+        except Exception as e:
+            error_dialog(self.ui, str(e))
+        else:
+            # Insert the newly created globals group into the model,
+            # as a child row of the globals file it belong to.
+            group_row = self.make_group_row(group_name)
+            last_index = parent_item.rowCount()
+            # Insert it as the row before the last (dummy) row: 
+            parent_item.insertRow(last_index-1, group_row)
+        finally:
+            # Set the dummy row's text back ready for another group to be created:
+            item.setText(self.GROUPS_DUMMY_ROW_TEXT)
+            
+    def open_group(self, globals_file, group_name):
+        raise NotImplementedError('open group')
+    
+    def close_group(self, globals_file, group_name):
+        raise NotImplementedError('close group')
+    
+    def rename_group(self, item, globals_file, previous_group_name, new_group_name):
+        """In response to the user changing the text in the 'name' item of a group
+        in the groups tab, attempt a rename of that group and set the item's text
+        and GROUPS_ROLE_PREVIOUS_NAME data role accordingly, conditional on success."""
+        try:
+            runmanager.rename_group(globals_file, previous_group_name, new_group_name)
+        except Exception as e:
+            error_dialog(self.ui, str(e))
+            # Set the item text back to the old name, since the rename failed:
+            item.setText(previous_group_name)
+        else:
+            item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME) 
+            
+    def delete_group(self, globals_file, group_name, confirm=True):
+        raise NotImplementedError('delete group')
         
-    def open_globals_group(self, globals_file, group):
+    def on_window_destroy(self, widget):
+        # What do we need to do here again? Check the gtk code. Also move this up
+        # To where the other 'on_such_and_such' methods are, if we end up needing to
+        # implement it.
+        raise NotImplementedError('on window destroy')
+    
+    def on_save_configuration(self, widget):
         raise NotImplementedError
     
-    def delete_globals_group(self, globals_file, group, confirm=True):
+    def save_configuration(self, filename=None):
         raise NotImplementedError
         
-    def on_window_destroy(self,widget):
-        raise NotImplementedError
-    
-    def on_save_configuration(self,widget):
-        raise NotImplementedError
-    
-    def save_configuration(self,filename=None):
-        raise NotImplementedError
-        
-    def on_load_configuration(self,filename):
+    def on_load_configuration(self, filename):
         raise NotImplementedError        
 
-    def load_configuration(self,filename=None):
+    def load_configuration(self, filename=None):
         raise NotImplementedError
          
-    def update_parent_checkbox_by_file(self,filepath):
-        raise NotImplementedError
-        
-    def on_global_toggle(self, cellrenderer_toggle, path):
-        raise NotImplementedError
-        
-    def update_parent_checkbox(self,iter,child_state):
-        raise NotImplementedError
-    
-    def on_add_group(self,cellrenderer,path,new_text):
-        raise NotImplementedError
-
-    def on_delete_group(self,cellrenderer,path):
-        raise NotImplementedError
-        
-    def on_toggle_group(self,cellrenderer,path):
-        raise NotImplementedError
-        
-    # This function is poorly named. It actually only updates the +/x icon in the group list!   
-    # This function is called by the GroupTab class to clean up the state of the group treeview
-    def close_tab(self,filepath,group_name):
-        raise NotImplementedError
-        
     def on_keypress(self, widget, event):
         raise NotImplementedError
     
@@ -816,7 +897,7 @@ class RunManager(object):
     def update_active_groups(self):
         raise NotImplementedError
                     
-    def parse_globals(self, raise_exceptions=True,expand_globals=True):
+    def parse_globals(self, raise_exceptions=True, expand_globals=True):
         raise NotImplementedError
     
     def guess_expansion_modes(self, evaled_globals, global_hierarchy, expansions):
