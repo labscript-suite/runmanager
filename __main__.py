@@ -353,7 +353,7 @@ class RunManager(object):
         self.ui.pushButton_open_globals_file.clicked.connect(self.on_open_globals_file_clicked)
         self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
         self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
-        self.ui.treeView_groups.clicked.connect(self.on_treeView_groups_clicked)
+        self.ui.treeView_groups.pressed.connect(self.on_treeView_groups_pressed)
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
         # Todo add remining
         
@@ -549,7 +549,10 @@ class RunManager(object):
     def on_diff_globals_file_clicked(self):
         raise NotImplementedError
     
-    def on_treeView_groups_clicked(self, index):
+    def on_treeView_groups_pressed(self, index):
+        # If not a left click, return:
+        if not qapplication.mouseButtons() == QtCore.Qt.LeftButton:
+            return
         item = self.groups_model.itemFromIndex(index)
         # The 'name' item in the same row:
         name_index = index.sibling(index.row(), self.GROUPS_COL_NAME)
@@ -682,12 +685,15 @@ class RunManager(object):
             group_active_item = QtGui.QStandardItem()
             group_active_item.setCheckable(True)
             group_active_item.setCheckState(QtCore.Qt.Checked)
+            group_active_item.setEditable(False)
             group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
             group_delete_item = QtGui.QStandardItem()
             group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/delete'))
+            group_delete_item.setEditable(False)
             group_delete_item.setToolTip('Delete globals group from file.')
             group_open_close_item = QtGui.QStandardItem()
-            group_open_close_item.setIcon(Qtgui.QIcon(':qtutils/fugue/plus'))
+            group_open_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
+            group_open_close_item.setEditable(False)
             group_open_close_item.setToolTip('Load globals group into runmananger.')
             file_name_item.appendRow([group_name_item, group_active_item, group_delete_item, group_open_close_item])
         # Finally, add the <Click to add group> row at the bottom:
