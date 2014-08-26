@@ -36,7 +36,7 @@ import labscript_utils.shared_drive as shared_drive
 import runmanager
 import zprocess
 from qtutils.outputbox import OutputBox
-from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread
+from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -311,6 +311,7 @@ class RunManager(object):
 
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
         self.ui.treeView_groups.setModel(self.groups_model)
+        self.ui.treeView_groups.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
         # Set column widths:
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
@@ -326,10 +327,11 @@ class RunManager(object):
         self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
         
         # Make the actions for the context menu:
-        self.action_groups_check_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'),
-                                                        'Check selected', self.ui)
-        self.action_groups_uncheck_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'),
-                                                          'Uncheck selected', self.ui)
+        self.action_groups_set_selection_active = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected group(s) active', self.ui)
+        self.action_groups_set_selection_inactive = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected group(s) inactive', self.ui)
+        self.action_groups_delete_selection = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected group(s)', self.ui)
+        self.action_groups_open_selection = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/plus'), 'Open selected group(s)', self.ui)
+        self.action_groups_close_selection = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
         
     def connect_signals(self):
         # labscript file and folder selection stuff:
@@ -368,6 +370,8 @@ class RunManager(object):
         self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
         self.ui.treeView_groups.pressed.connect(self.on_treeView_groups_pressed)
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
+        # A context manager with which we can temporarily disconnect the above connection.
+        self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
         # Todo add remaining
         
     def on_select_labscript_file_clicked(self, checked):
@@ -492,9 +496,7 @@ class RunManager(object):
                 # menu = QtGui.QMenu(self.ui)
                 # menu.addAction(self.action_axes_check_selected)
                 # menu.addAction(self.action_axes_uncheck_selected)
-                # header_height = self.ui.treeView_axes.header().size().height()
-                # height_offset = QtCore.QPoint(0, header_height)
-                # menu.exec_(self.ui.treeView_axes.mapToGlobal(point + height_offset))
+                # menu.exec_(QtGui.QCursor.pos())
     
     def on_axes_check_selected_triggered(self, *args):
         raise NotImplementedError
@@ -514,8 +516,14 @@ class RunManager(object):
     def on_axis_to_bottom_clicked(self, checked):
         raise NotImplementedError
     
-    def on_treeView_groups_context_menu_requested(self):
-        raise NotImplementedError
+    def on_treeView_groups_context_menu_requested(self, point):
+        index = self.ui.treeView_axes.indexAt(point)
+        if 1: # index.isValid():
+            print('yes, context menu! index is', index)
+            menu = QtGui.QMenu(self.ui)
+            menu.addAction(self.action_groups_check_selected)
+            menu.addAction(self.action_groups_uncheck_selected)
+            menu.exec_(QtGui.QCursor.pos())
         
     def on_groups_check_selected_triggered(self):
         raise NotImplementedError
@@ -640,30 +648,32 @@ class RunManager(object):
         Be careful not to recurse unsafely in this method - changing something that itself triggers
         further changes is fine so long as they peter out and don't get stuck in a loop. That's what the 
         'if new_group_name != previous_group_name' checks are for, and why we set GROUPS_ROLE_PREVIOUS_NAME
-        before changing other data, so that the change we detect won't trigger twice.
+        before changing other data, so that the change we detect won't trigger twice. If recursion needs
+        to be stopped, one can disconnect the signal temporarily with the context manager
+        self.groups_model_item_changed_disconnected. But use this sparingly, as otherwise there's the risk
+        that some data updates that need to happen in response to changes here won't.
         """
-        print('item changed!')
         # The parent item, None if there is no parent:
         parent_item = item.parent()
         if item.column() == self.GROUPS_COL_OPENCLOSE:
             # The open/close state of a globals group changed. It is definitely a group,
             # not a file, as the open/close state of a file shouldn't be changing.
             assert parent_item is not None # Just to be sure.
-            print('open close state changed')
             # Ensure the sort data matches the open/close state:
-            group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
+            group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
             item.setData(group_is_open, self.GROUPS_ROLE_SORT_DATA)
-            # Set the appropriate icon and tooltip:
-            if group_is_open:
-                print('group is open')
-                item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
-                item.setToolTip('Close globals group.')
-            else:
-                print('group is closed')
-                item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
-                item.setToolTip('Load globals group into runmanager.')
+            # Set the appropriate icon and tooltip. Changing the icon causes itemChanged
+            # to be emitted, even if it the same icon, and even if we were to use the same 
+            # QIcon instance. So to avoid infinite recursion we temporarily disconnect 
+            # the signal whilst we set the icons.
+            with self.groups_model_item_changed_disconnected:
+                if group_is_open:
+                    item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
+                    item.setToolTip('Close globals group.')
+                else:
+                    item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
+                    item.setToolTip('Load globals group into runmanager.')
         elif item.column() == self.GROUPS_COL_ACTIVE:
-            print('item checked state changed')
             check_state = item.checkState()
             # Ensure sort data matches active state:
             item.setData(check_state, self.GROUPS_ROLE_SORT_DATA)
@@ -777,12 +787,19 @@ class RunManager(object):
         # This lets later code know that this row does
         # not correspond to an actual globals group:
         dummy_name_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
+        dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
+        
         dummy_active_item = QtGui.QStandardItem()
         dummy_active_item.setEditable(False)
+        dummy_active_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        
         dummy_delete_item = QtGui.QStandardItem()
         dummy_delete_item.setEditable(False)
+        dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        
         dummy_open_close_item = QtGui.QStandardItem()
         dummy_open_close_item.setEditable(False)
+        dummy_open_close_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
         
         # Not setting anything as the above items' sort role has the effect of ensuring
         # this row is always sorted to the end of the list, without us having to implement
