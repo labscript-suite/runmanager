@@ -165,6 +165,18 @@ class FingerTabWidget(QtGui.QTabWidget):
         QtGui.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
         
+class MouseReleaseTreeView(QtGui.QTreeView):
+    mouseLeftRelease = QtCore.pyqtSignal(QtCore.QPoint)
+    """A QTreeview that emits a signal after a mouseReleaseEvent"""
+    def mouseReleaseEvent(self, event):
+        """Processes the even as normal, then emits mouseRelease(Qpoint)
+        if the button being released was the left mouse button."""
+        result =  QtGui.QTreeView.mouseReleaseEvent(self, event)
+        if event.button() == QtCore.Qt.LeftButton:
+            index_clicked = self.indexAt(event.pos())
+            print(index_clicked.row(), index_clicked.column())
+            self.mouseLeftRelease.emit(event.pos())
+        return result
         
 class GroupTab(object):
 
@@ -239,6 +251,7 @@ class RunManager(object):
     
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
+        loader.registerCustomWidget(MouseReleaseTreeView)
         self.ui = loader.load('main.ui')
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
         
@@ -329,10 +342,11 @@ class RunManager(object):
         # Make the actions for the context menu:
         self.action_groups_set_selection_active = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected group(s) active', self.ui)
         self.action_groups_set_selection_inactive = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected group(s) inactive', self.ui)
-        self.action_groups_delete_selection = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected group(s)', self.ui)
-        self.action_groups_open_selection = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/plus'), 'Open selected group(s)', self.ui)
-        self.action_groups_close_selection = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
-        
+        self.action_groups_delete_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected group(s)', self.ui)
+        self.action_groups_open_selected = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/plus'), 'Open selected group(s)', self.ui)
+        self.action_groups_close_selected_groups = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
+        self.action_groups_close_selected_files = QtGui.QAction(QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected file(s)', self.ui)
+
     def connect_signals(self):
         # labscript file and folder selection stuff:
         self.ui.toolButton_select_labscript_file.clicked.connect(self.on_select_labscript_file_clicked)
@@ -363,12 +377,17 @@ class RunManager(object):
         # Groups tab; right click menu, menu actions, open globals file, new globals file, diff globals file, 
         # (TODO add comment for remaining)
         self.ui.treeView_groups.customContextMenuRequested.connect(self.on_treeView_groups_context_menu_requested)
-        self.action_groups_check_selected.triggered.connect(self.on_groups_check_selected_triggered)
-        self.action_groups_uncheck_selected.triggered.connect(self.on_groups_uncheck_selected_triggered)
+        self.action_groups_set_selection_active.triggered.connect(self.on_groups_set_selection_active_triggered)
+        self.action_groups_set_selection_inactive.triggered.connect(self.on_groups_set_selection_inactive_triggered)
+        self.action_groups_delete_selected.triggered.connect(self.on_groups_delete_selected_triggered)
+        self.action_groups_open_selected.triggered.connect(self.on_groups_open_selected_triggered)
+        self.action_groups_close_selected_groups.triggered.connect(self.on_groups_close_selected_groups_triggered)
+        self.action_groups_close_selected_files.triggered.connect(self.on_groups_close_selected_files_triggered)
+
         self.ui.pushButton_open_globals_file.clicked.connect(self.on_open_globals_file_clicked)
         self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
         self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
-        self.ui.treeView_groups.pressed.connect(self.on_treeView_groups_pressed)
+        self.ui.treeView_groups.mouseLeftRelease.connect(self.on_treeView_groups_mouseLeftRelease)
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
@@ -489,14 +508,11 @@ class RunManager(object):
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
     
     def on_treeView_axes_context_menu_requested(self, point):
-        index = self.ui.treeView_axes.indexAt(point)
-        if index.isValid():
-            print('yes, context menu! index is', index)
-            # if column is 'shuffle':
-                # menu = QtGui.QMenu(self.ui)
-                # menu.addAction(self.action_axes_check_selected)
-                # menu.addAction(self.action_axes_uncheck_selected)
-                # menu.exec_(QtGui.QCursor.pos())
+        raise NotImplementedError
+        # menu = QtGui.QMenu(self.ui)
+        # menu.addAction(self.action_axes_check_selected)
+        # menu.addAction(self.action_axes_uncheck_selected)
+        # menu.exec_(QtGui.QCursor.pos())
     
     def on_axes_check_selected_triggered(self, *args):
         raise NotImplementedError
@@ -517,18 +533,31 @@ class RunManager(object):
         raise NotImplementedError
     
     def on_treeView_groups_context_menu_requested(self, point):
-        index = self.ui.treeView_axes.indexAt(point)
-        if 1: # index.isValid():
-            print('yes, context menu! index is', index)
-            menu = QtGui.QMenu(self.ui)
-            menu.addAction(self.action_groups_check_selected)
-            menu.addAction(self.action_groups_uncheck_selected)
-            menu.exec_(QtGui.QCursor.pos())
+        menu = QtGui.QMenu(self.ui)
+        menu.addAction(self.action_groups_set_selection_active)
+        menu.addAction(self.action_groups_set_selection_inactive)
+        menu.addAction(self.action_groups_delete_selected)
+        menu.addAction(self.action_groups_open_selected)
+        menu.addAction(self.action_groups_close_selected_groups)
+        menu.addAction(self.action_groups_close_selected_files)
+        menu.exec_(QtGui.QCursor.pos())
         
-    def on_groups_check_selected_triggered(self):
+    def on_groups_set_selection_active_triggered(self):
         raise NotImplementedError
         
-    def on_groups_uncheck_selected_triggered(self):
+    def on_groups_set_selection_inactive_triggered(self):
+        raise NotImplementedError
+        
+    def on_groups_delete_selected_triggered(self):
+        raise NotImplementedError
+        
+    def on_groups_open_selected_triggered(self):
+        raise NotImplementedError
+        
+    def on_groups_close_selected_groups_triggered(self):
+        raise NotImplementedError
+        
+    def on_groups_close_selected_files_triggered(self):
         raise NotImplementedError
         
     def on_open_globals_file_clicked(self):
@@ -566,11 +595,10 @@ class RunManager(object):
         runmanager.new_globals_file(globals_file)
         self.open_globals_file(globals_file)
             
-            
     def on_diff_globals_file_clicked(self):
         raise NotImplementedError
     
-    def on_treeView_groups_pressed(self, index):
+    def on_treeView_groups_mouseLeftRelease(self, point):
         """Here we respond to user clicks on the treeview. We do the following:
         - If the user clicks on the <click to create new group> dummy row, we go into edit mode on it
           so they can enter the name of the new group they want.
@@ -589,9 +617,8 @@ class RunManager(object):
         indefinitely, whilst still ensuring all the changes we want to trigger get done.
         So we're doing it here where we won't recurse - though the changes we make here will still
         trigger self.on_groups_model_item_changed to make the other required changes."""
-        
-        # If not a left click, return:
-        if not qapplication.mouseButtons() == QtCore.Qt.LeftButton:
+        index = self.ui.treeView_groups.indexAt(point)
+        if not index.isValid():
             return
         item = self.groups_model.itemFromIndex(index)
         # The 'name' item in the same row:
@@ -633,6 +660,11 @@ class RunManager(object):
                     self.close_group(globals_file, group_name)
                 else:
                     self.open_group(globals_file, group_name)
+            elif item.column() == self.GROUPS_COL_ACTIVE:
+                # They clicked the 'group active' checkbox.
+                # Update the parent file checkbox to reflect the state of its children
+                childstates = [parent_item.child(i, self.GROUPS_COL_ACTIVE).checkState() for i in range(parent_item.rowCount())]
+                print(childstates)
                     
     def on_groups_model_item_changed(self, item):
         """This function is mainly about responding to data changes by making other data changes
@@ -884,7 +916,7 @@ class RunManager(object):
         else:
             item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME) 
             
-    def delete_group(self, globals_file, group_name, confirm=True):
+    def delete_globals_group(self, globals_file, group_name, confirm=True):
         raise NotImplementedError('delete group')
         
     def on_window_destroy(self, widget):

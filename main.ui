@@ -950,7 +950,7 @@ QToolButton:hover {
              <number>0</number>
             </property>
             <item>
-             <widget class="QTreeView" name="treeView_groups"/>
+             <widget class="MouseReleaseTreeView" name="treeView_groups"/>
             </item>
            </layout>
           </widget>
@@ -1003,6 +1003,11 @@ QToolButton:hover {
    <extends>QTabWidget</extends>
    <header>qtutils/widgets.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>MouseReleaseTreeView</class>
+   <extends>QTreeView</extends>
+   <header>qtutils/widgets.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>
