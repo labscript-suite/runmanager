@@ -76,9 +76,14 @@ def setup_logging():
     return logger
 
 @inmain_decorator()
-def error_dialog(parent, message):
-    QtGui.QMessageBox.warning(parent, 'runmanager', message)
+def error_dialog(message):
+    QtGui.QMessageBox.warning(app.ui, 'runmanager', message)
 
+def question_dialog(message):
+    reply = QtGui.QMessageBox.question(app.ui, 'runmanager', message,
+                                       QtGui.QMessageBox.Yes|QtGui.QMessageBox.No)
+    return (reply == QtGui.QMessageBox.Yes)
+ 
 def mkdir_p(path):
     try:
         os.makedirs(path)
@@ -164,22 +169,36 @@ class FingerTabWidget(QtGui.QTabWidget):
     def __init__(self, parent, *args):
         QtGui.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
-        
+     
+     
 class LeftClickTreeView(QtGui.QTreeView):
     leftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
     """A QTreeview that emits a custom signal leftClicked(index)
-    after a mouseReleaseEvent with the left button. Only emits if
-    index is valid."""
-    def mouseReleaseEvent(self, event):
-        """Processes the even as normal, then emits leftClicked(index)
-        if the button being released was the left mouse button and 
-        the index is valid."""
-        result =  QtGui.QTreeView.mouseReleaseEvent(self, event)
-        if event.button() == QtCore.Qt.LeftButton:
-            index = self.indexAt(event.pos())
-            if index.isValid():
-                self.leftClicked.emit(index)
+    after a left click on a valid index."""
+    def __init__(self, *args):
+        QtGui.QTreeView.__init__(self, *args)
+        self._pressed_index = None
+        
+    def mousePressEvent(self, event):
+        result =  QtGui.QTreeView.mousePressEvent(self, event)
+        index = self.indexAt(event.pos())
+        if event.button() == QtCore.Qt.LeftButton and index.isValid():
+            self._pressed_index = self.indexAt(event.pos())
         return result
+    
+    def leaveEvent(self, event):
+        result = QtGui.QTreeView.leaveEvent(self, event)
+        self._pressed_index = None
+        return result
+        
+    def mouseReleaseEvent(self, event):
+        result = QtGui.QTreeView.mouseReleaseEvent(self, event)
+        index = self.indexAt(event.pos())
+        if event.button() == QtCore.Qt.LeftButton and index.isValid() and index == self._pressed_index:
+            self.leftClicked.emit(index)
+        self._pressed_index = None
+        return result
+        
         
 class GroupTab(object):
 
@@ -327,10 +346,15 @@ class RunManager(object):
 
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
         self.ui.treeView_groups.setModel(self.groups_model)
+        self.ui.treeView_groups.setAnimated(True) # Pretty
         self.ui.treeView_groups.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
         # Set column widths:
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
+        # Make it so the user can just start typing on an item to edit:
+        self.ui.treeView_groups.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
+                                                QtGui.QTreeView.EditKeyPressed |
+                                                QtGui.QTreeView.SelectedClicked)
         # Ensure the clickable region of the open/close button doesn't extend forever:
         self.ui.treeView_groups.header().setStretchLastSection(False)
         # Shrink columns other than the 'name' column to the size of their headers:
@@ -385,8 +409,8 @@ class RunManager(object):
         # Groups tab; right click menu, menu actions, open globals file, new globals file, diff globals file, 
         # (TODO add comment for remaining)
         self.ui.treeView_groups.customContextMenuRequested.connect(self.on_treeView_groups_context_menu_requested)
-        self.action_groups_set_selection_active.triggered.connect(self.on_groups_set_selection_active_triggered)
-        self.action_groups_set_selection_inactive.triggered.connect(self.on_groups_set_selection_inactive_triggered)
+        self.action_groups_set_selection_active.triggered.connect(lambda: self.on_groups_set_selection_active_triggered(QtCore.Qt.Checked))
+        self.action_groups_set_selection_inactive.triggered.connect(lambda: self.on_groups_set_selection_active_triggered(QtCore.Qt.Unchecked))
         self.action_groups_delete_selected.triggered.connect(self.on_groups_delete_selected_triggered)
         self.action_groups_open_selected.triggered.connect(self.on_groups_open_selected_triggered)
         self.action_groups_close_selected_groups.triggered.connect(self.on_groups_close_selected_groups_triggered)
@@ -413,7 +437,7 @@ class RunManager(object):
         labscript_file = qstring_to_unicode(labscript_file)
         labscript_file = os.path.abspath(labscript_file)
         if not os.path.isfile(labscript_file):
-            error_dialog(self.ui, "No such file %s."%labscript_file)
+            error_dialog("No such file %s."%labscript_file)
             return
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_labscript_folder = os.path.dirname(labscript_file)
@@ -433,7 +457,7 @@ class RunManager(object):
         if not current_labscript_file:
             return
         if not editor_path:
-            error_dialog(self.ui, "No editor specified in the labconfig.")
+            error_dialog("No editor specified in the labconfig.")
         if '{file}' in editor_args:
             # Split the args on spaces into a list, replacing {file} with the labscript file
             editor_args = [arg if arg != '{file}' else current_labscript_file for arg in editor_args.split()]
@@ -443,7 +467,7 @@ class RunManager(object):
         try:
             subprocess.Popen([editor_path] + editor_args)
         except Exception as e:
-            error_dialog(self.ui, "Unable to launch text editor specified in %s. Error was: %s"%(self.exp_config.config_path, str(e)))
+            error_dialog("Unable to launch text editor specified in %s. Error was: %s"%(self.exp_config.config_path, str(e)))
         
     def on_select_shot_output_folder_clicked(self, checked):
         shot_output_folder = QtGui.QFileDialog.getExistingDirectory(self.ui,
@@ -550,24 +574,42 @@ class RunManager(object):
         menu.addAction(self.action_groups_close_selected_files)
         menu.exec_(QtGui.QCursor.pos())
         
-    def on_groups_set_selection_active_triggered(self):
-        raise NotImplementedError
-        
-    def on_groups_set_selection_inactive_triggered(self):
-        raise NotImplementedError
-        
+    def on_groups_set_selection_active_triggered(self, checked_state):
+        selected_indexes = self.ui.treeView_groups.selectedIndexes()
+        # Filter to only include the 'active' column:
+        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        active_items = (item for item in selected_items
+                            if item.column() == self.GROUPS_COL_ACTIVE
+                            and item.parent() is not None)
+        for item in active_items:
+            item.setCheckState(checked_state)
+
     def on_groups_delete_selected_triggered(self):
-        raise NotImplementedError
-        
+        selected_indexes = self.ui.treeView_groups.selectedIndexes()
+        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        name_items = [item for item in selected_items
+                            if item.column() == self.GROUPS_COL_NAME
+                            and item.parent() is not None]
+        # If multiple selected, show 'delete n groups?' message.
+        # Otherwise, pass confirm=True to self.delete_group so it can show the regular message.
+        confirm_multiple = (len(name_items) > 1)
+        if confirm_multiple:
+            if not question_dialog("delete %d groups?"%len(name_items)):
+                return
+        for item in name_items:
+            globals_file = qstring_to_unicode(item.parent().text())
+            group_name = qstring_to_unicode(item.text())
+            self.delete_group(globals_file, group_name, confirm=not confirm_multiple)
+                            
     def on_groups_open_selected_triggered(self):
         raise NotImplementedError
-        
+
     def on_groups_close_selected_groups_triggered(self):
         raise NotImplementedError
-        
+
     def on_groups_close_selected_files_triggered(self):
         raise NotImplementedError
-        
+
     def on_open_globals_file_clicked(self):
         globals_file = QtGui.QFileDialog.getOpenFileName(self.ui,
                                                          'Select globals file',
@@ -580,7 +622,7 @@ class RunManager(object):
         globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
         if not os.path.isfile(globals_file):
-            error_dialog(self.ui, "No such file %s."%globals_file)
+            error_dialog("No such file %s."%globals_file)
             return
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_globals_folder = os.path.dirname(globals_file)
@@ -608,7 +650,7 @@ class RunManager(object):
     
     def on_treeView_groups_leftClicked(self, index):
         """Here we respond to user clicks on the treeview. We do the following:
-        - If the user clicks on the <click to create new group> dummy row, we go into edit mode on it
+        - If the user clicks on the <click to add group> dummy row, we go into edit mode on it
           so they can enter the name of the new group they want.
         - If the user clicks on the icon to open or close a globals file or a group, we call the appropriate
           open and close methods and update the open/close data role on the model.
@@ -622,7 +664,7 @@ class RunManager(object):
         # The parent item, None if there is no parent:
         parent_item = item.parent()
         # What kind of row did the user click on?
-        # A globals file, a group, or a 'click to add new group' row?
+        # A globals file, a group, or a 'click to add group' row?
         if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
             # They clicked on an 'add new group' row. Enter editing
             # mode on the name item so they can enter a name for 
@@ -638,12 +680,12 @@ class RunManager(object):
                 self.close_globals_file(globals_file)
         else:
             # They clicked on a globals group row.
-            globals_file = parent_item.text()
-            group_name = name_item.text()
+            globals_file = qstring_to_unicode(parent_item.text())
+            group_name = qstring_to_unicode(name_item.text())
             # What column did they click on?
             if item.column() == self.GROUPS_COL_DELETE:
                 # They clicked the delete button. Delete the group:
-                self.delete_globals_group(globals_file, group_name, confirm=True)
+                self.delete_group(globals_file, group_name, confirm=True)
             elif item.column() == self.GROUPS_COL_OPENCLOSE:
                 # They clicked the open/close button. Which is it, open or close?
                 group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
@@ -651,6 +693,7 @@ class RunManager(object):
                 # self.on_groups_model_item_changed will handle updating the 
                 # other data roles, icons etc:
                 item.setData(not group_is_open, self.GROUPS_ROLE_GROUP_IS_OPEN)
+                # TODO: remove the above line, move it to the open/close methods
                 if group_is_open:
                     self.close_group(globals_file, group_name)
                 else:
@@ -679,19 +722,20 @@ class RunManager(object):
         
     def on_groups_model_name_changed(self, item):
         """Handles group renaming and creation of new groups due to the user
-        editing the <click to create new group> item"""
+        editing the <click to add group> item"""
         parent_item = item.parent()
         # File rows are supposed to be uneditable, but just to be sure we have a group row:
         assert parent_item is not None
         if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
             item_text = qstring_to_unicode(item.text())
             if item_text != self.GROUPS_DUMMY_ROW_TEXT:
-                # The user has made a new globals group by editing the <click to create new group> item.
+                # The user has made a new globals group by editing the <click to add group> item.
                 globals_file = qstring_to_unicode(parent_item.text())
+                group_name = item_text
                 try:
                     runmanager.new_group(globals_file, group_name)
                 except Exception as e:
-                    error_dialog(self.ui, str(e))
+                    error_dialog(str(e))
                 else:
                     # Insert the newly created globals group into the model,
                     # as a child row of the globals file it belong to.
@@ -712,12 +756,12 @@ class RunManager(object):
                 try:
                     runmanager.rename_group(globals_file, previous_group_name, new_group_name)
                 except Exception as e:
-                    error_dialog(self.ui, str(e))
+                    error_dialog(str(e))
                     # Set the item text back to the old name, since the rename failed:
                     item.setText(previous_group_name)
                 else:
                     item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME) 
-                    group_name_item.setData(new_group_name, self.GROUPS_ROLE_SORT_DATA)
+                    item.setData(new_group_name, self.GROUPS_ROLE_SORT_DATA)
         
     def on_groups_model_active_changed(self, item):
         """Sets the sort data for the item in response to its check state changing.
@@ -955,8 +999,17 @@ class RunManager(object):
     def close_group(self, globals_file, group_name):
         raise NotImplementedError('close group')
     
-    def delete_globals_group(self, globals_file, group_name, confirm=True):
-        raise NotImplementedError('delete group')
+    def delete_group(self, globals_file, group_name, confirm=True):
+        if confirm:
+            if not question_dialog("Delete the group '%s'?"%group_name):
+                return
+        runmanager.delete_group(globals_file, group_name)
+        # Find the entry for this group in self.groups_model and remove it:
+        parent_item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
+        possible_items = self.groups_model.findItems(group_name, QtCore.Qt.MatchRecursive, column=self.GROUPS_COL_NAME)
+        # Don't accidentally match on other groups or files with the same name as this group:
+        item = [item for item in possible_items if item.parent() == parent_item][0]
+        parent_item.removeRow(item.row())
         
     def on_window_destroy(self, widget):
         # What do we need to do here again? Check the gtk code. Also move this up
