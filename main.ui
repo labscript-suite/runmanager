@@ -813,8 +813,8 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>842</width>
-             <height>475</height>
+             <width>83</width>
+             <height>71</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_7">
@@ -950,7 +950,7 @@ QToolButton:hover {
              <number>0</number>
             </property>
             <item>
-             <widget class="MouseReleaseTreeView" name="treeView_groups"/>
+             <widget class="LeftClickTreeView" name="treeView_groups"/>
             </item>
            </layout>
           </widget>
@@ -1005,7 +1005,7 @@ QToolButton:hover {
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>MouseReleaseTreeView</class>
+   <class>LeftClickTreeView</class>
    <extends>QTreeView</extends>
    <header>qtutils/widgets.h</header>
   </customwidget>
