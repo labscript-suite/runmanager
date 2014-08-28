@@ -541,6 +541,7 @@ class RunManager(object):
                                   "programs":["text_editor",
                                               "text_editor_arguments",
                                              ],
+                                  "ports":['BLACS', 'runviewer'],
                                   "paths":["shared_drive",
                                            "experiment_shot_storage",
                                            "labscriptlib",
@@ -1474,8 +1475,6 @@ class RunManager(object):
                             self.aborted = False
                         else:
                             self.output('Ready\n')
-                            if self.view:
-                                subprocess.Popen([sys.executable,'-m','runviewer.qtrunviewer',last_run])
                     self.button_abort.set_sensitive(False)
                 continue
             if not self.aborted:
@@ -1669,6 +1668,8 @@ class RunManager(object):
                 success = data
                 if self.aborted or not success:
                     break
+                if self.view:
+                    self.submit_view(run_file)
                 if self.run:
                     self.submit_job(run_file)
                 if self.aborted:
@@ -1678,6 +1679,25 @@ class RunManager(object):
             self.output(str(e)+'\n',red=True)
             self.aborted = True
     
+    def submit_view(self, run_file):
+        runviewer_port = int(self.exp_config.get('ports','runviewer'))
+        agnostic_path = shared_drive.path_to_agnostic(run_file)
+        
+        try:
+            response = zprocess.zmq_get(runviewer_port, 'localhost', data='hello', timeout=1)
+            if 'hello' not in response:
+                raise Exception(response)
+        except Exception as e:                
+            subprocess.Popen([sys.executable,'-m','runviewer.main'])
+            time.sleep(3)
+        
+        try:
+            response = zprocess.zmq_get(runviewer_port, 'localhost', data=agnostic_path, timeout=0.5)
+            if 'ok' not in response:
+                raise Exception(response)
+        except Exception as e:
+            self.output('Couldn\'t submit shot to runviewer: %s\n'%str(e),red=True)
+        
     def submit_job(self, run_file):
         host = self.builder.get_object('entry_server').get_text()
         port = int(self.exp_config.get('ports','BLACS'))
