@@ -92,14 +92,6 @@ def mkdir_p(path):
             pass
         else: raise
         
-def delete_folder_if_empty(folder):
-    if folder is None:
-        return
-    try:
-        os.rmdir(folder)
-    except OSError:
-        pass
-            
 @inmain_decorator()
 def qstring_to_unicode(qstring):
     if sys.version > '3':
@@ -201,18 +193,75 @@ class LeftClickTreeView(QtGui.QTreeView):
         
         
 class GroupTab(object):
+    COL_NAME = 0
+    COL_VALUE = 1
+    COL_UNITS = 2
+    COL_EXPANSION = 3
+    ROLE_SORT_DATA = QtCore.Qt.UserRole + 1
+    
+    def __init__(self, tabWidget, globals_file, group_name):
+    
+        self.tabWidget = tabWidget
+        
+        loader = UiLoader()
+        loader.registerCustomWidget(LeftClickTreeView)
+        self.ui = loader.load('group.ui')
+        
+        # Add the ui to the parent tabWidget:
+        self.tabWidget.addTab(self.ui, group_name)
+        
+        self.set_file_and_group_name(globals_file, group_name)
+        
+        self.connect_signals()
+        
+        self.model = QtGui.QStandardItemModel()
+        self.model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion'])
+        self.model.setSortRole(self.ROLE_SORT_DATA)
+        self.ui.treeView_globals.setModel(self.model)
+        self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
+        self.ui.treeView_globals.setSortingEnabled(True)
+        # Set column widths:
+        # self.ui.treeView_globals.setColumnWidth(self.COL_NAME, 400)
+        # Make it so the user can just start typing on an item to edit:
+        self.ui.treeView_globals.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
+                                                QtGui.QTreeView.EditKeyPressed |
+                                                QtGui.QTreeView.DoubleClicked)
+        # Shrink columns other than the 'name' column to the size of their headers:
+        # for column in range(self.groups_model.columnCount()):
+            # if column != self.GROUPS_COL_NAME:
+                # self.ui.treeView_globals.resizeColumnToContents(column)
 
-    def __init__(self, app, filepath, name):
-        raise NotImplementedError
+        # Setup stuff for a custom context menu:
+        self.ui.treeView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
+        
+        # Make the actions for the context menu:
+        self.action_groups_delete_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete',  self.ui)
+        
+    def set_file_and_group_name(self, globals_file, group_name):
+        """Provided as a separate method so the main app can
+        call it if the group gets renamed"""
+        self.globals_file = globals_file
+        self.group_name = group_name
+        self.ui.label_globals_file.setText(globals_file)
+        self.ui.label_group_name.setText(group_name)
+        index = self.tabWidget.indexOf(self.ui)
+        self.tabWidget.setTabText(index, group_name)
+        self.tabWidget.setTabToolTip(index, '%s\n(%s)'%(group_name, globals_file))
+        
+    def connect_signals(self):
+        pass
         
     def on_closetab_button_clicked(self,*args):
-        raise NotImplementedError
-        
-    def update_name(self,new_name):
+        # Move this method to main runmanager class
         raise NotImplementedError
     
-    def close_tab(self):
-        raise NotImplementedError
+    def close(self):
+        # It is up to the main runmanager class to drop references
+        # to this instance before or after calling this method, so
+        # that after the tabWidget no longer owns our widgets, both
+        # the widgets and the instance will be garbage collected.
+        index = self.tabWidget.indexOf(self.ui)
+        self.tabWidget.removeTab(index)
     
     def focus_cell(self, column, name):
         raise NotImplementedError
@@ -290,6 +339,9 @@ class RunManager(object):
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         self.experiment_shot_storage = self.exp_config.get('paths','experiment_shot_storage')
+        
+        # Store the currently open groups as {(globals_filename, group_name): GroupTab}
+        self.currently_open_groups = {}
         
         # Start the compiler subprocess:
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
@@ -451,8 +503,7 @@ class RunManager(object):
         editor_path = self.exp_config.get('programs','text_editor')
         editor_args = self.exp_config.get('programs','text_editor_arguments')
         # Get the current labscript file:
-        current_labscript_file = self.ui.lineEdit_labscript_file.text()
-        current_labscript_file = qstring_to_unicode(current_labscript_file)
+        current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
         # Ignore if no file selected
         if not current_labscript_file:
             return
@@ -673,7 +724,7 @@ class RunManager(object):
             self.ui.treeView_groups.edit(name_index)
         elif parent_item is None:
             # They clicked on a globals file row.
-            globals_file = name_item.text()
+            globals_file = qstring_to_unicode(name_item.text())
             # What column did they click on?
             if item.column() == self.GROUPS_COL_OPENCLOSE:
                 # They clicked the close button. Close the file:
@@ -689,11 +740,6 @@ class RunManager(object):
             elif item.column() == self.GROUPS_COL_OPENCLOSE:
                 # They clicked the open/close button. Which is it, open or close?
                 group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
-                # Invert the open/close state. itemChanged will be emitted and 
-                # self.on_groups_model_item_changed will handle updating the 
-                # other data roles, icons etc:
-                item.setData(not group_is_open, self.GROUPS_ROLE_GROUP_IS_OPEN)
-                # TODO: remove the above line, move it to the open/close methods
                 if group_is_open:
                     self.close_group(globals_file, group_name)
                 else:
@@ -732,20 +778,7 @@ class RunManager(object):
                 # The user has made a new globals group by editing the <click to add group> item.
                 globals_file = qstring_to_unicode(parent_item.text())
                 group_name = item_text
-                try:
-                    runmanager.new_group(globals_file, group_name)
-                except Exception as e:
-                    error_dialog(str(e))
-                else:
-                    # Insert the newly created globals group into the model,
-                    # as a child row of the globals file it belong to.
-                    group_row = self.make_group_row(group_name)
-                    last_index = parent_item.rowCount()
-                    # Insert it as the row before the last (dummy) row: 
-                    parent_item.insertRow(last_index-1, group_row)
-                finally:
-                    # Set the dummy row's text back ready for another group to be created:
-                    item.setText(self.GROUPS_DUMMY_ROW_TEXT)
+                self.new_group(globals_file, group_name)
         else:
             # User has renamed a globals group.
             new_group_name = qstring_to_unicode(item.text())
@@ -753,15 +786,7 @@ class RunManager(object):
             # Ensure it truly is a name change, and not something else about the item changing:
             if new_group_name != previous_group_name:
                 globals_file = qstring_to_unicode(parent_item.text())
-                try:
-                    runmanager.rename_group(globals_file, previous_group_name, new_group_name)
-                except Exception as e:
-                    error_dialog(str(e))
-                    # Set the item text back to the old name, since the rename failed:
-                    item.setText(previous_group_name)
-                else:
-                    item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME) 
-                    item.setData(new_group_name, self.GROUPS_ROLE_SORT_DATA)
+                self.rename_group(globals_file, previous_group_name, new_group_name)
         
     def on_groups_model_active_changed(self, item):
         """Sets the sort data for the item in response to its check state changing.
@@ -843,8 +868,7 @@ class RunManager(object):
         the default output folder, does not check if it exists."""
         sep = os.path.sep
         current_day_folder_suffix = time.strftime('%Y'+sep+'%m'+sep+'%d')
-        current_labscript_file = self.ui.lineEdit_labscript_file.text()
-        current_labscript_file = qstring_to_unicode(current_labscript_file)
+        current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
         if not current_labscript_file:
             return ''
         current_labscript_basename = os.path.splitext(os.path.basename(current_labscript_file))[0]
@@ -876,8 +900,7 @@ class RunManager(object):
         if current_default_output_folder is None:
             # No labscript file selected:
             return previous_default_output_folder
-        currently_selected_output_folder = self.ui.lineEdit_shot_output_folder.text()
-        currently_selected_output_folder = qstring_to_unicode(currently_selected_output_folder)
+        currently_selected_output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
         if current_default_output_folder != previous_default_output_folder:
             # It's a new day, or a new labscript file.
             # Is the user using default folders?
@@ -887,6 +910,30 @@ class RunManager(object):
             return current_default_output_folder
         return previous_default_output_folder
     
+    def get_group_item_by_name(self, globals_file, group_name, column, previous_name=None):
+        """Returns an item from the row representing a globals group in the groups model.
+        Which item is returned is set by the column argument."""
+        parent_item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
+        possible_name_items = self.groups_model.findItems(group_name, QtCore.Qt.MatchRecursive, column=self.GROUPS_COL_NAME)
+        # Don't accidentally match on other groups or files with the same name as this group:
+        possible_name_items = [item for item in possible_name_items if item.parent() == parent_item]
+        if previous_name is not None:
+            # Also filter by previous name, useful for telling rows apart when a rename is in progress
+            # and two rows may temporarily contain the same name (though the rename code with throw
+            # and error and revert it).
+            possible_name_items = [item for item in possible_name_items
+                                       if item.data(self.GROUPS_ROLE_PREVIOUS_NAME).toString() == previous_name]
+        if len(possible_name_items) > 1:
+            raise ValueError('Multiple items found')
+        elif not possible_name_items:
+            raise ValueError('No item found')
+        name_item = possible_name_items[0]
+        name_index = name_item.index()
+        # Found the name item, get the sibling item for the column requested:
+        item_index = name_index.sibling(name_index.row(), column)
+        item = self.groups_model.itemFromIndex(item_index)
+        return item
+        
     def open_globals_file(self, globals_file):
         # Do nothing if this file is already open:
         if self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME):
@@ -930,6 +977,7 @@ class RunManager(object):
         # This lets later code know that this row does
         # not correspond to an actual globals group:
         dummy_name_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
+        dummy_name_item.setData(self.GROUPS_DUMMY_ROW_TEXT, self.GROUPS_ROLE_PREVIOUS_NAME)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
         
         dummy_active_item = QtGui.QStandardItem()
@@ -991,25 +1039,93 @@ class RunManager(object):
         return row
     
     def close_globals_file(self, globals_file):
-        raise NotImplementedError('close globals file')
-    
+        item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
+        # Close any open groups in this globals file:
+        
+        child_name_items = [item.child(i, self.GROUPS_COL_NAME) for i in range(item.rowCount())]
+        child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE) for i in range(item.rowCount())]
+        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+                             for child_item in child_openclose_items]
+        if any(child_is_open):
+            if not question_dialog('Close %s? This will close %d currently open group(s).' %
+                                   (globals_file, child_is_open.count(True))):
+                return
+        to_close = [name_item for name_item, is_open in zip(child_name_items, child_is_open) if is_open]
+        for name_item in to_close:
+            group_name = qstring_to_unicode(name_item.text())
+            self.close_group(globals_file, group_name)
+            
+        # Remove the globals file from the model:
+        self.groups_model.removeRow(item.row())
+        
+    def new_group(self, globals_file, group_name):
+        item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME,
+                                           previous_name=self.GROUPS_DUMMY_ROW_TEXT)
+        try:
+            runmanager.new_group(globals_file, group_name)
+        except Exception as e:
+            error_dialog(str(e))
+        else:
+            # Insert the newly created globals group into the model,
+            # as a child row of the globals file it belong to.
+            group_row = self.make_group_row(group_name)
+            last_index = item.parent().rowCount()
+            # Insert it as the row before the last (dummy) row: 
+            item.parent().insertRow(last_index-1, group_row)
+        finally:
+            # Set the dummy row's text back ready for another group to be created:
+            item.setText(self.GROUPS_DUMMY_ROW_TEXT)
+            
     def open_group(self, globals_file, group_name):
-        raise NotImplementedError('open group')
+        assert (globals_file, group_name) not in self.currently_open_groups # sanity check
+        group_tab = GroupTab(self.ui.tabWidget, globals_file, group_name)
+        self.currently_open_groups[globals_file, group_name] = group_tab
+        
+        # Set the open/close state in the groups_model. itemChanged will be emitted and 
+        # self.on_groups_model_item_changed will handle updating the 
+        # other data roles, icons etc:
+        openclose_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_OPENCLOSE)
+        openclose_item.setData(True, self.GROUPS_ROLE_GROUP_IS_OPEN)
     
+    def rename_group(self, globals_file, previous_group_name, new_group_name):
+        item = self.get_group_item_by_name(globals_file, new_group_name, self.GROUPS_COL_NAME,
+                                           previous_name=previous_group_name)
+        try:
+            runmanager.rename_group(globals_file, previous_group_name, new_group_name)
+        except Exception as e:
+            error_dialog(str(e))
+            # Set the item text back to the old name, since the rename failed:
+            item.setText(previous_group_name)
+        else:
+            item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME) 
+            item.setData(new_group_name, self.GROUPS_ROLE_SORT_DATA)
+            group_tab = self.currently_open_groups.pop((globals_file, previous_group_name), None)
+            if group_tab is not None:
+                # Change labels and tooltips appropriately if the group is open:
+                group_tab.set_file_and_group_name(globals_file, new_group_name)
+                # Re-add it to the dictionary under the new name:
+                self.currently_open_groups[globals_file, new_group_name] = group_tab
+                
     def close_group(self, globals_file, group_name):
-        raise NotImplementedError('close group')
+        group_tab = self.currently_open_groups.pop((globals_file, group_name), None)
+        assert group_tab is not None # Just in case
+        group_tab.close()
+        openclose_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_OPENCLOSE)
+        openclose_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN) 
     
     def delete_group(self, globals_file, group_name, confirm=True):
         if confirm:
             if not question_dialog("Delete the group '%s'?"%group_name):
                 return
+        # If the group is open, close it:
+        group_tab = self.currently_open_groups.get((globals_file, previous_group_name))
+        if group_tab is not None:
+            self.close_group(globals_file, group_name)
         runmanager.delete_group(globals_file, group_name)
         # Find the entry for this group in self.groups_model and remove it:
-        parent_item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
-        possible_items = self.groups_model.findItems(group_name, QtCore.Qt.MatchRecursive, column=self.GROUPS_COL_NAME)
-        # Don't accidentally match on other groups or files with the same name as this group:
-        item = [item for item in possible_items if item.parent() == parent_item][0]
-        parent_item.removeRow(item.row())
+        name_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
+        name_item.parent().removeRow(name_item.row())
+        
         
     def on_window_destroy(self, widget):
         # What do we need to do here again? Check the gtk code. Also move this up
