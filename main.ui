@@ -166,8 +166,7 @@ QToolButton:hover:checked {
 QPushButton:hover {
      background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                                        stop: 0 #ff7878, stop: 1 #dd4848);
-     border: 1px solid #8f8f91;
-     border-radius: 3px;
+     border: None
  }
 
  QPushButton:pressed {
@@ -647,7 +646,7 @@ QToolButton:hover {
        <enum>QTabWidget::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <property name="elideMode">
        <enum>Qt::ElideNone</enum>
@@ -813,8 +812,8 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>83</width>
-             <height>71</height>
+             <width>842</width>
+             <height>475</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_7">

@@ -103,7 +103,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
     We will promote the TabBar from the ui file to one of these."""
-    def __init__(self, parent=None, width=150, height=32, **kwargs):
+    def __init__(self, parent=None, width=150, height=24, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
         self.iconPosition=kwargs.pop('iconPosition',QtGui.QTabWidget.West)
@@ -198,6 +198,11 @@ class GroupTab(object):
     COL_UNITS = 2
     COL_EXPANSION = 3
     ROLE_SORT_DATA = QtCore.Qt.UserRole + 1
+    
+    COLOR_ERROR = '#FF9999' # light red
+    COLOR_OK = '#AAFFCC' # light green
+    COLOR_BOOL_ON = '#66FF33' # bright green
+    COLOR_BOOL_OFF = '#608060' # dark green
     
     def __init__(self, tabWidget, globals_file, group_name):
     
@@ -653,13 +658,50 @@ class RunManager(object):
             self.delete_group(globals_file, group_name, confirm=not confirm_multiple)
                             
     def on_groups_open_selected_triggered(self):
-        raise NotImplementedError
+        selected_indexes = self.ui.treeView_groups.selectedIndexes()
+        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        name_items = [item for item in selected_items
+                            if item.column() == self.GROUPS_COL_NAME
+                            and item.parent() is not None]
+        for item in name_items:
+            globals_file = qstring_to_unicode(item.parent().text())
+            group_name = qstring_to_unicode(item.text())
+            if (globals_file, group_name) not in self.currently_open_groups:
+                self.open_group(globals_file, group_name)
 
     def on_groups_close_selected_groups_triggered(self):
-        raise NotImplementedError
+        selected_indexes = self.ui.treeView_groups.selectedIndexes()
+        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        name_items = [item for item in selected_items
+                            if item.column() == self.GROUPS_COL_NAME
+                            and item.parent() is not None]
+        for item in name_items:
+            globals_file = qstring_to_unicode(item.parent().text())
+            group_name = qstring_to_unicode(item.text())
+            if (globals_file, group_name) in self.currently_open_groups:
+                self.close_group(globals_file, group_name)
 
     def on_groups_close_selected_files_triggered(self):
-        raise NotImplementedError
+        selected_indexes = self.ui.treeView_groups.selectedIndexes()
+        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        name_items = [item for item in selected_items
+                            if item.column() == self.GROUPS_COL_NAME
+                            and item.parent() is None]
+        child_name_items = [item.child(i, self.GROUPS_COL_NAME)
+                                for item in name_items
+                                    for i in range(item.rowCount())]
+        child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE)
+                                    for item in name_items
+                                        for i in range(item.rowCount())]
+        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+                             for child_item in child_openclose_items]
+        if any(child_is_open):
+            if not question_dialog('Close %d file(s)? This will close %d currently open group(s).' %
+                                   (len(name_items), child_is_open.count(True))):
+                return
+        for item in name_items:
+            globals_file = qstring_to_unicode(item.text())
+            self.close_globals_file(globals_file, confirm=False)
 
     def on_open_globals_file_clicked(self):
         globals_file = QtGui.QFileDialog.getOpenFileName(self.ui,
@@ -697,8 +739,56 @@ class RunManager(object):
         self.open_globals_file(globals_file)
             
     def on_diff_globals_file_clicked(self):
-        raise NotImplementedError
-    
+        globals_file = QtGui.QFileDialog.getOpenFileName(self.ui,
+                                                         'Select globals file to compare',
+                                                         self.last_opened_globals_folder,
+                                                         "HDF5 files (*.h5)")
+        if not globals_file:
+            # User cancelled
+            return
+            
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        globals_file = qstring_to_unicode(globals_file)
+        globals_file = os.path.abspath(globals_file)
+        
+        def flatten_globals(sequence_globals):
+            sequence_globals_2 = {}
+            for globals_group in sequence_globals.values():
+                for key, val in globals_group.items():
+                    sequence_globals_2[key] = val[0]
+            return sequence_globals_2
+        
+        # Get file's globals
+        other_groups = runmanager.get_all_groups(globals_file)
+        other_sequence_globals = runmanager.get_globals(other_groups)
+
+        # Get runmanager's globals
+        active_groups = self.get_active_groups()
+        if active_groups is None:
+            # Invalid group selection
+            return
+        our_sequence_globals = runmanager.get_globals(active_groups)
+        
+        # flatten globals dictionaries
+        our_sequence_globals = flatten_globals(our_sequence_globals)
+        other_sequence_globals = flatten_globals(other_sequence_globals)
+               
+        # do a diff of the two dictionaries
+        diff_globals = runmanager.dict_diff(other_sequence_globals, our_sequence_globals)
+        
+        # Display the output tab so the user can see the output:
+        self.ui.tabWidget.setCurrentWidget(self.ui.tab_output)
+        
+        if len(diff_globals):
+            self.output_box.output('\nGlobals diff with:\n%s\n' % globals_file)
+            diff_keys = diff_globals.keys()
+            diff_keys.sort()
+            for key in diff_keys:
+                self.output_box.output('%s : %s\n' % (key, diff_globals[key]))
+        else:
+            self.output_box.output('Current runmanager globals are identical to those of:\n%s\n' % globals_file)
+        self.output_box.output('Ready\n')
+            
     def on_treeView_groups_leftClicked(self, index):
         """Here we respond to user clicks on the treeview. We do the following:
         - If the user clicks on the <click to add group> dummy row, we go into edit mode on it
@@ -914,7 +1004,8 @@ class RunManager(object):
         """Returns an item from the row representing a globals group in the groups model.
         Which item is returned is set by the column argument."""
         parent_item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
-        possible_name_items = self.groups_model.findItems(group_name, QtCore.Qt.MatchRecursive, column=self.GROUPS_COL_NAME)
+        possible_name_items = self.groups_model.findItems(group_name, QtCore.Qt.MatchRecursive, 
+                                                          column=self.GROUPS_COL_NAME)
         # Don't accidentally match on other groups or files with the same name as this group:
         possible_name_items = [item for item in possible_name_items if item.parent() == parent_item]
         if previous_name is not None:
@@ -933,7 +1024,30 @@ class RunManager(object):
         item_index = name_index.sibling(name_index.row(), column)
         item = self.groups_model.itemFromIndex(item_index)
         return item
-        
+    
+    @inmain_decorator() # Can be called from a non-main thread
+    def get_active_groups(self):
+        """Returns active groups in the format {group_name: globals_file}.
+        Displays an error dialog and returns None if multiple groups of
+        the same name are selected, this is invalid - selected groups must
+        be uniquely named."""
+        active_groups = {}
+        print(self.groups_model.rowCount())
+        for i in range(self.groups_model.rowCount()):
+            file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
+            for j in range(file_name_item.rowCount()):
+                group_name_item = file_name_item.child(j, self.GROUPS_COL_NAME)
+                group_active_item = file_name_item.child(j, self.GROUPS_COL_ACTIVE)
+                if group_active_item.checkState() == QtCore.Qt.Checked:
+                    group_name = qstring_to_unicode(group_name_item.text())
+                    globals_file = qstring_to_unicode(file_name_item.text())
+                    print(group_name)
+                    if group_name in active_groups:
+                        error_dialog('There are two active groups named %s. Active groups must have unique names to be used together.'%group_name)
+                        return
+                    active_groups[group_name] = globals_file
+        return active_groups
+                        
     def open_globals_file(self, globals_file):
         # Do nothing if this file is already open:
         if self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME):
@@ -1038,7 +1152,7 @@ class RunManager(object):
         row = [group_name_item, group_active_item, group_delete_item, group_open_close_item]
         return row
     
-    def close_globals_file(self, globals_file):
+    def close_globals_file(self, globals_file, confirm=True):
         item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
         # Close any open groups in this globals file:
         
@@ -1046,7 +1160,7 @@ class RunManager(object):
         child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE) for i in range(item.rowCount())]
         child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
                              for child_item in child_openclose_items]
-        if any(child_is_open):
+        if confirm and any(child_is_open):
             if not question_dialog('Close %s? This will close %d currently open group(s).' %
                                    (globals_file, child_is_open.count(True))):
                 return
@@ -1118,14 +1232,13 @@ class RunManager(object):
             if not question_dialog("Delete the group '%s'?"%group_name):
                 return
         # If the group is open, close it:
-        group_tab = self.currently_open_groups.get((globals_file, previous_group_name))
+        group_tab = self.currently_open_groups.get((globals_file, group_name))
         if group_tab is not None:
             self.close_group(globals_file, group_name)
         runmanager.delete_group(globals_file, group_name)
         # Find the entry for this group in self.groups_model and remove it:
         name_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
         name_item.parent().removeRow(name_item.row())
-        
         
     def on_window_destroy(self, widget):
         # What do we need to do here again? Check the gtk code. Also move this up
