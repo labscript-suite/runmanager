@@ -127,7 +127,7 @@
         <number>0</number>
        </property>
        <item>
-        <widget class="QTreeView" name="treeView_globals"/>
+        <widget class="LeftClickTreeView" name="treeView_globals"/>
        </item>
       </layout>
      </widget>
@@ -135,6 +135,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>LeftClickTreeView</class>
+   <extends>QTreeView</extends>
+   <header>qtutils/widgets.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

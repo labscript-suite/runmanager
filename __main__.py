@@ -175,11 +175,14 @@ class LeftClickTreeView(QtGui.QTreeView):
         
         
 class GroupTab(object):
-    COL_NAME = 0
-    COL_VALUE = 1
-    COL_UNITS = 2
-    COL_EXPANSION = 3
-    ROLE_SORT_DATA = QtCore.Qt.UserRole + 1
+    GLOBALS_COL_NAME = 0
+    GLOBALS_COL_VALUE = 1
+    GLOBALS_COL_UNITS = 2
+    GLOBALS_COL_EXPANSION = 3
+    GLOBALS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
+    GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
+    GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
+    GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
     
     COLOR_ERROR = '#FF9999' # light red
     COLOR_OK = '#AAFFCC' # light green
@@ -201,28 +204,30 @@ class GroupTab(object):
         
         self.connect_signals()
         
-        self.model = QtGui.QStandardItemModel()
-        self.model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion'])
-        self.model.setSortRole(self.ROLE_SORT_DATA)
-        self.ui.treeView_globals.setModel(self.model)
+        self.globals_model = QtGui.QStandardItemModel()
+        self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion'])
+        self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
+        self.ui.treeView_globals.setModel(self.globals_model)
         self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_globals.setSortingEnabled(True)
-        # Set column widths:
-        # self.ui.treeView_globals.setColumnWidth(self.COL_NAME, 400)
         # Make it so the user can just start typing on an item to edit:
         self.ui.treeView_globals.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
                                                 QtGui.QTreeView.EditKeyPressed |
                                                 QtGui.QTreeView.DoubleClicked)
-        # Shrink columns other than the 'name' column to the size of their headers:
-        # for column in range(self.groups_model.columnCount()):
-            # if column != self.GROUPS_COL_NAME:
-                # self.ui.treeView_globals.resizeColumnToContents(column)
-
         # Setup stuff for a custom context menu:
         self.ui.treeView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
-        
         # Make the actions for the context menu:
         self.action_groups_delete_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete',  self.ui)
+        # Populate the model with globals from the h5 file:
+        self.populate_model()
+        # Set sensible column widths according to whatever we just loaded in:
+        for column in range(self.globals_model.columnCount()):
+            self.ui.treeView_globals.resizeColumnToContents(column)
+    
+    def connect_signals(self):
+        print('connect signals')
+        self.ui.treeView_globals.leftClicked.connect(self.on_treeView_globals_leftClicked)
+        self.globals_model.itemChanged.connect(self.on_model_item_changed)
         
     def set_file_and_group_name(self, globals_file, group_name):
         """Provided as a separate method so the main app can
@@ -235,7 +240,71 @@ class GroupTab(object):
         self.tabWidget.setTabText(index, group_name)
         self.tabWidget.setTabToolTip(index, '%s\n(%s)'%(group_name, globals_file))
         
-    def connect_signals(self):
+    def populate_model(self):
+        globals = runmanager.get_globals({self.group_name: self.globals_file})[self.group_name]
+        for name, (value, units, expansion) in globals.items():
+            # We just set some data here, other stuff is set in self.update_parse_indication
+            # after runmanager has a chance to parse everything and get back to us about what
+            # that data should be.
+            
+            name_item = QtGui.QStandardItem(name)
+            name_item.setToolTip(name)
+            name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
+            name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            
+            value_item = QtGui.QStandardItem(value)
+            value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
+            value_item.setData(value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            
+            units_item = QtGui.QStandardItem(units)
+            units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
+            units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            
+            expansion_item = QtGui.QStandardItem(expansion)
+            expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
+            expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            
+            self.globals_model.appendRow([name_item, value_item, units_item, expansion_item])
+            
+        # Add the dummy item at the end:
+        dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
+        dummy_name_item.setToolTip('Click to add global')
+        # This lets later code know that this row does
+        # not correspond to an actual global:
+        dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
+        dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
+    
+        dummy_value_item = QtGui.QStandardItem()
+        dummy_value_item.setEditable(False)
+        dummy_value_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
+        dummy_value_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        
+        dummy_units_item = QtGui.QStandardItem()
+        dummy_units_item.setEditable(False)
+        dummy_units_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
+        dummy_units_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        
+        dummy_expansion_item = QtGui.QStandardItem()
+        dummy_expansion_item.setEditable(False)
+        dummy_expansion_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
+        dummy_expansion_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        
+        self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
+    
+    def on_treeView_globals_leftClicked(self, index):
+        item = self.groups_model.itemFromIndex(index)
+        # The 'name' item in the same row:
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+            # They clicked on an 'add new global' row. Enter editing
+            # mode on the name item so they can enter a name for 
+            # the new global:
+            self.ui.treeView_globals.setCurrentIndex(name_index)
+            self.ui.treeView_globals.edit(name_index)
+    
+    def on_model_item_changed(self, item):
         pass
         
     def on_closetab_button_clicked(self,*args):
