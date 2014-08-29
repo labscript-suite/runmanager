@@ -32,9 +32,10 @@ from zmq import ZMQError
 
 import pylab
 from labscript_utils.labconfig import LabConfig, config_prefix
+from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
 import runmanager
-import zprocess
+
 from qtutils.outputbox import OutputBox
 from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 import qtutils.icons
@@ -55,25 +56,6 @@ zprocess.locking.set_client_process_name('runmanager')
         # ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     # except Exception:
         # pass
-
-def setup_logging():
-    logger = logging.getLogger('RunManager')
-    handler = logging.handlers.RotatingFileHandler(r'runmanager.log', maxBytes=1024*1024*50)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
-    handler.setFormatter(formatter)
-    handler.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-    if sys.stdout.isatty():
-        terminalhandler = logging.StreamHandler(sys.stdout)
-        terminalhandler.setFormatter(formatter)
-        terminalhandler.setLevel(logging.DEBUG) # only display info or higher in the terminal
-        logger.addHandler(terminalhandler)
-    else:
-        # Prevent bug on windows where writing to stdout without a command
-        # window causes a crash:
-        sys.stdout = sys.stderr = open(os.devnull,'w')
-    logger.setLevel(logging.DEBUG)
-    return logger
 
 @inmain_decorator()
 def error_dialog(message):
@@ -1290,7 +1272,7 @@ class RunManager(object):
         
 
 if __name__ == "__main__":
-    logger = setup_logging()
+    logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
     qapplication = QtGui.QApplication(sys.argv)
