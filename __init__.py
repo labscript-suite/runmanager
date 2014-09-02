@@ -104,6 +104,8 @@ def get_grouplist(filename):
         
 def new_group(filename, groupname):
     with h5py.File(filename,'a') as f:
+        if groupname in f['globals']:
+            raise Exception('Can\'t create group: target name already exists.')
         group = f['globals'].create_group(groupname)
         group.create_group('units')
         group.create_group('expansion')
@@ -113,6 +115,8 @@ def rename_group(filename, oldgroupname, newgroupname):
         # No rename!
         return
     with h5py.File(filename,'a') as f:
+        if newgroupname in f['globals']:
+            raise Exception('Can\'t rename group: target name already exists.')
         f.copy(f['globals'][oldgroupname], '/globals/%s'%newgroupname)
         del f['globals'][oldgroupname]
     
@@ -146,10 +150,10 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
     with h5py.File(filename,'a') as f:
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
-            raise Exception('Can\'t rename: target name already exists.')
-        group.attrs[newglobalname] = value
-        group['units'].attrs[newglobalname] = units
-        group['expansion'].attrs[newglobalname] = expansion
+            raise Exception('Can\'t rename global: target name already exists.')
+        group.attrs[newglobalname] = value.encode('utf8')
+        group['units'].attrs[newglobalname] = units.encode('utf8')
+        group['expansion'].attrs[newglobalname] = expansion.encode('utf8')
         del group.attrs[oldglobalname]
         del group['units'].attrs[oldglobalname]
         del group['expansion'].attrs[oldglobalname]
@@ -157,27 +161,33 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
 def get_value(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname].attrs[globalname]
-        return value
+        return value.decode('utf8')
                 
 def set_value(filename, groupname, globalname, value):
+    if not isinstance(value, bytes):
+        value = value.encode('utf8')
     with h5py.File(filename,'a') as f:
         f['globals'][groupname].attrs[globalname] = value
     
 def get_units(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname]['units'].attrs[globalname]
-        return value
+        return value.decode('utf8')
 
 def set_units(filename, groupname, globalname, units):
+    if not isinstance(units, bytes):
+        units = units.encode('utf8')
     with h5py.File(filename,'a') as f:
         f['globals'][groupname]['units'].attrs[globalname] = units
 
 def get_expansion(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname]['expansion'].attrs[globalname]
-        return value  
+        return value.decode('utf8')
         
 def set_expansion(filename, groupname, globalname, expansion):
+    if not isinstance(expansion, bytes):
+        expansion = expansion.encode('utf8')
     with h5py.File(filename,'a') as f:
         f['globals'][groupname]['expansion'].attrs[globalname] = expansion
                   
@@ -188,9 +198,9 @@ def delete_global(filename, groupname, globalname):
 
 def guess_expansion_type(value):
     if isinstance(value, pylab.ndarray) or  isinstance(value, list):
-        return 'outer'
+        return u'outer'
     else:
-        return ''
+        return u''
 
 def iterator_to_tuple(iterator, max_length=1000000):
     # We want to prevent infinite length tuples, but we cannot know

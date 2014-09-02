@@ -202,8 +202,6 @@ class GroupTab(object):
         
         self.set_file_and_group_name(globals_file, group_name)
         
-        self.connect_signals()
-        
         self.globals_model = QtGui.QStandardItemModel()
         self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
@@ -223,11 +221,12 @@ class GroupTab(object):
         # Set sensible column widths according to whatever we just loaded in:
         for column in range(self.globals_model.columnCount()):
             self.ui.treeView_globals.resizeColumnToContents(column)
-    
+        
+        self.connect_signals()
+        
     def connect_signals(self):
-        print('connect signals')
         self.ui.treeView_globals.leftClicked.connect(self.on_treeView_globals_leftClicked)
-        self.globals_model.itemChanged.connect(self.on_model_item_changed)
+        self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
         
     def set_file_and_group_name(self, globals_file, group_name):
         """Provided as a separate method so the main app can
@@ -243,28 +242,8 @@ class GroupTab(object):
     def populate_model(self):
         globals = runmanager.get_globals({self.group_name: self.globals_file})[self.group_name]
         for name, (value, units, expansion) in globals.items():
-            # We just set some data here, other stuff is set in self.update_parse_indication
-            # after runmanager has a chance to parse everything and get back to us about what
-            # that data should be.
-            
-            name_item = QtGui.QStandardItem(name)
-            name_item.setToolTip(name)
-            name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
-            name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            
-            value_item = QtGui.QStandardItem(value)
-            value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
-            value_item.setData(value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            
-            units_item = QtGui.QStandardItem(units)
-            units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
-            units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            
-            expansion_item = QtGui.QStandardItem(expansion)
-            expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
-            expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            
-            self.globals_model.appendRow([name_item, value_item, units_item, expansion_item])
+            row = self.make_global_row(name, value, units, expansion)
+            self.globals_model.appendRow(row)
             
         # Add the dummy item at the end:
         dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
@@ -292,8 +271,33 @@ class GroupTab(object):
         
         self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
     
+    def make_global_row(self, name, value='', units='', expansion=''):
+        # We just set some data here, other stuff is set in self.update_parse_indication
+        # after runmanager has a chance to parse everything and get back to us about what
+        # that data should be.
+        
+        name_item = QtGui.QStandardItem(name)
+        name_item.setToolTip(name)
+        name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
+        name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        
+        value_item = QtGui.QStandardItem(value)
+        value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
+        value_item.setData(value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        
+        units_item = QtGui.QStandardItem(units)
+        units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
+        units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        
+        expansion_item = QtGui.QStandardItem(expansion)
+        expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
+        expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            
+        row = [name_item, value_item, units_item, expansion_item]
+        return row
+        
     def on_treeView_globals_leftClicked(self, index):
-        item = self.groups_model.itemFromIndex(index)
+        item = self.globals_model.itemFromIndex(index)
         # The 'name' item in the same row:
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
@@ -304,10 +308,54 @@ class GroupTab(object):
             self.ui.treeView_globals.setCurrentIndex(name_index)
             self.ui.treeView_globals.edit(name_index)
     
-    def on_model_item_changed(self, item):
-        pass
+    def on_globals_model_item_changed(self, item):
+        if item.column() == self.GLOBALS_COL_NAME:
+            self.on_globals_model_name_changed(item)
+        elif item.column() == self.GLOBALS_COL_VALUE:
+            self.on_globals_model_value_changed(item)
+        elif item.column() == self.GLOBALS_COL_UNITS:
+            self.on_globals_model_units_changed(item)
+        elif item.column() == self.GLOBALS_COL_EXPANSION:
+            self.on_globals_model_expansion_changed(item)
+            
+    def on_globals_model_name_changed(self, item): 
+        """Handles global renaming and creation of new globals due to the user
+        editing the <click to add global> item"""
+        item_text = qstring_to_unicode(item.text())
+        if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+            if item_text != self.GLOBALS_DUMMY_ROW_TEXT:
+                # The user has made a new global by editing the <click to add global> item
+                global_name = item_text
+                self.new_global(global_name)
+        else:
+            # User has renamed a global.
+            new_global_name = item_text
+            previous_global_name = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+            # Ensure the name actually changed, rather than something else about the item:
+            if new_global_name != previous_global_name:
+                self.rename_global(previous_global_name, new_global_name)
+    
+    def on_globals_model_value_changed(self, item):
+        index = item.index()
+        value = qstring_to_unicode(item.text())
+        previous_value = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        global_name = qstring_to_unicode(name_item.text())
+        # Ensure the value actually changed, rather than something else about the item:
+        if value != previous_value:
+            runmanager.set_value(self.globals_file, self.group_name, global_name, value)
+            # TODO: preparse required set
+            units_index = index.sibling(index.row(), self.GLOBALS_COL_UNITS)
+            units_item = self.globals_model.itemFromIndex(units_index)
+            units = qstring_to_unicode(units_item.text())
+            if not (previous_value or units):
+                # Go into editing the units item automatically:
+                units_item_index = units_item.index()
+                self.ui.treeView_globals.setCurrentIndex(units_item_index)
+                self.ui.treeView_globals.edit(units_item_index)
         
-    def on_closetab_button_clicked(self,*args):
+    def on_closetab_button_clicked(self, *args):
         # Move this method to main runmanager class
         raise NotImplementedError
     
@@ -318,12 +366,67 @@ class GroupTab(object):
         # the widgets and the instance will be garbage collected.
         index = self.tabWidget.indexOf(self.ui)
         self.tabWidget.removeTab(index)
-    
+        
+    def get_global_item_by_name(self, global_name, column, previous_name=None):
+        """Returns an item from the row representing a global in the globals model.
+        Which item is returned is set by the column argument."""
+        possible_name_items = self.globals_model.findItems(global_name, column=self.GLOBALS_COL_NAME)
+        if previous_name is not None:
+            # Filter by previous name, useful for telling rows apart when a rename is in progress
+            # and two rows may temporarily contain the same name (though the rename code with throw
+            # an error and revert it).
+            possible_name_items = [item for item in possible_name_items
+                                       if item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString() == previous_name]
+        if len(possible_name_items) > 1:
+            raise ValueError('Multiple items found')
+        elif not possible_name_items:
+            raise ValueError('No item found')
+        name_item = possible_name_items[0]
+        name_index = name_item.index()
+        # Found the name item, get the sibling item for the column requested:
+        item_index = name_index.sibling(name_index.row(), column)
+        item = self.globals_model.itemFromIndex(item_index)
+        return item
+        
     def focus_cell(self, column, name):
         raise NotImplementedError
             
-    def on_edit_name(self, cellrenderer, path, new_text):
-        raise NotImplementedError
+    def new_global(self, global_name):
+        item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME,
+                                           previous_name=self.GLOBALS_DUMMY_ROW_TEXT)
+        try:
+            runmanager.new_global(self.globals_file, self.group_name, global_name)
+        except Exception as e:
+            error_dialog(str(e))
+        else:
+            # Insert the newly created global into the model:
+            global_row = self.make_global_row(global_name)
+            last_index = self.globals_model.rowCount()
+            # Insert it as the row before the last (dummy) row: 
+            self.globals_model.insertRow(last_index-1, global_row)
+            # Go into edit mode on the 'value' item:
+            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE,
+                                                      previous_name=global_name)
+            value_item_index = value_item.index()
+            self.ui.treeView_globals.setCurrentIndex(value_item_index)
+            self.ui.treeView_globals.edit(value_item_index)
+        finally:
+            # Set the dummy row's text back ready for another group to be created:
+            item.setText(self.GLOBALS_DUMMY_ROW_TEXT)
+    
+    def rename_global(self, previous_global_name, new_global_name):
+        item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_NAME,
+                                            previous_name=previous_global_name)
+        try:
+            runmanager.rename_global(self.globals_file, self.group_name, previous_global_name, new_global_name)
+        except Exception as e:
+            error_dialog(str(e))
+            # Set the item text back to the old name, since the rename failed:
+            item.setText(previous_global_name)
+        else:
+            item.setData(new_global_name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            item.setData(new_global_name, self.GLOBALS_ROLE_SORT_DATA)
+        
         
     def on_edit_value(self, cellrenderer, path, new_text):
         raise NotImplementedError
@@ -1062,7 +1165,7 @@ class RunManager(object):
         if previous_name is not None:
             # Also filter by previous name, useful for telling rows apart when a rename is in progress
             # and two rows may temporarily contain the same name (though the rename code with throw
-            # and error and revert it).
+            # an error and revert it).
             possible_name_items = [item for item in possible_name_items
                                        if item.data(self.GROUPS_ROLE_PREVIOUS_NAME).toString() == previous_name]
         if len(possible_name_items) > 1:
@@ -1083,7 +1186,6 @@ class RunManager(object):
         the same name are selected, this is invalid - selected groups must
         be uniquely named."""
         active_groups = {}
-        print(self.groups_model.rowCount())
         for i in range(self.groups_model.rowCount()):
             file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
             for j in range(file_name_item.rowCount()):
@@ -1092,7 +1194,6 @@ class RunManager(object):
                 if group_active_item.checkState() == QtCore.Qt.Checked:
                     group_name = qstring_to_unicode(group_name_item.text())
                     globals_file = qstring_to_unicode(file_name_item.text())
-                    print(group_name)
                     if group_name in active_groups:
                         error_dialog('There are two active groups named %s. Active groups must have unique names to be used together.'%group_name)
                         return
