@@ -164,6 +164,15 @@ class LeftClickTreeView(QtGui.QTreeView):
         result = QtGui.QTreeView.leaveEvent(self, event)
         self._pressed_index = None
         return result
+    
+    def mouseDoubleClickEvent(self, event):
+        # Ensure our left click event occurs regardless of whether
+        # it is the second click in a double click or not
+        result = QtGui.QTreeView.mouseDoubleClickEvent(self, event)
+        index = self.indexAt(event.pos())
+        if event.button() == QtCore.Qt.LeftButton and index.isValid():
+            self._pressed_index = self.indexAt(event.pos())
+        return result
         
     def mouseReleaseEvent(self, event):
         result = QtGui.QTreeView.mouseReleaseEvent(self, event)
@@ -179,9 +188,11 @@ class GroupTab(object):
     GLOBALS_COL_VALUE = 1
     GLOBALS_COL_UNITS = 2
     GLOBALS_COL_EXPANSION = 3
+    GLOBALS_COL_DELETE = 4
     GLOBALS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
+    GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
     
     COLOR_ERROR = '#FF9999' # light red
@@ -203,7 +214,7 @@ class GroupTab(object):
         self.set_file_and_group_name(globals_file, group_name)
         
         self.globals_model = QtGui.QStandardItemModel()
-        self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion'])
+        self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion','Delete'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
         self.ui.treeView_globals.setModel(self.globals_model)
         self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
@@ -212,10 +223,15 @@ class GroupTab(object):
         self.ui.treeView_globals.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
                                                 QtGui.QTreeView.EditKeyPressed |
                                                 QtGui.QTreeView.DoubleClicked)
+        # Ensure the clickable region of the delete button doesn't extend forever:
+        self.ui.treeView_globals.header().setStretchLastSection(False)
         # Setup stuff for a custom context menu:
         self.ui.treeView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
         # Make the actions for the context menu:
-        self.action_groups_delete_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete',  self.ui)
+        self.action_globals_delete_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected global(s)',  self.ui)
+        self.action_globals_set_selected_true = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected Booleans True',  self.ui)
+        self.action_globals_set_selected_false = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected Booleans False',  self.ui)
+
         # Populate the model with globals from the h5 file:
         self.populate_model()
         # Set sensible column widths according to whatever we just loaded in:
@@ -227,7 +243,11 @@ class GroupTab(object):
     def connect_signals(self):
         self.ui.treeView_globals.leftClicked.connect(self.on_treeView_globals_leftClicked)
         self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
-        
+        self.ui.treeView_globals.customContextMenuRequested.connect(self.on_treeView_globals_context_menu_requested)
+        self.action_globals_set_selected_true.triggered.connect(lambda: self.on_globals_set_selected_bools_triggered('True'))
+        self.action_globals_set_selected_false.triggered.connect(lambda: self.on_globals_set_selected_bools_triggered('False'))
+        self.action_globals_delete_selected.triggered.connect(self.on_globals_delete_selected_triggered)
+
     def set_file_and_group_name(self, globals_file, group_name):
         """Provided as a separate method so the main app can
         call it if the group gets renamed"""
@@ -244,6 +264,8 @@ class GroupTab(object):
         for name, (value, units, expansion) in globals.items():
             row = self.make_global_row(name, value, units, expansion)
             self.globals_model.appendRow(row)
+            value_item = row[self.GLOBALS_COL_VALUE]
+            self.check_for_boolean_values(value_item)
             
         # Add the dummy item at the end:
         dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
@@ -269,7 +291,12 @@ class GroupTab(object):
         dummy_expansion_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_expansion_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
         
-        self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
+        dummy_delete_item = QtGui.QStandardItem()
+        dummy_delete_item.setEditable(False)
+        dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
+        dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        
+        self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item, dummy_delete_item])
     
     def make_global_row(self, name, value='', units='', expansion=''):
         # We just set some data here, other stuff is set in self.update_parse_indication
@@ -288,12 +315,20 @@ class GroupTab(object):
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
         
         expansion_item = QtGui.QStandardItem(expansion)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        
+        delete_item = QtGui.QStandardItem()
+        delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
+        # Must be set to something so that the dummy row doesn't get sorted first:
+        delete_item.setData(False, self.GLOBALS_ROLE_SORT_DATA)
+        delete_item.setEditable(False)
+        delete_item.setToolTip('Delete global from group.')
             
-        row = [name_item, value_item, units_item, expansion_item]
+        row = [name_item, value_item, units_item, expansion_item, delete_item]
         return row
         
     def on_treeView_globals_leftClicked(self, index):
@@ -301,12 +336,31 @@ class GroupTab(object):
         # The 'name' item in the same row:
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
+        global_name = qstring_to_unicode(name_item.text())
         if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
             # They clicked on an 'add new global' row. Enter editing
             # mode on the name item so they can enter a name for 
             # the new global:
             self.ui.treeView_globals.setCurrentIndex(name_index)
             self.ui.treeView_globals.edit(name_index)
+        elif item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+            # It's a bool indicator. Toggle it
+            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+            if value_item.text() == 'True':
+                value_item.setText('False')
+            elif value_item.text() == 'False':
+                value_item.setText('True')
+            else:
+                raise AssertionError('expected boolean value')
+            # Clear selection, it's hard to see the colours through the selection:
+            self.ui.treeView_globals.clearSelection()
+        elif item.column() == self.GLOBALS_COL_DELETE:
+            # They clicked a delete button.
+            self.delete_global(global_name)
+        elif not item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+            # Edit whatever it is:
+            self.ui.treeView_globals.setCurrentIndex(index)
+            self.ui.treeView_globals.edit(index)
     
     def on_globals_model_item_changed(self, item):
         if item.column() == self.GLOBALS_COL_NAME:
@@ -337,28 +391,80 @@ class GroupTab(object):
     
     def on_globals_model_value_changed(self, item):
         index = item.index()
-        value = qstring_to_unicode(item.text())
+        new_value = qstring_to_unicode(item.text())
         previous_value = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = qstring_to_unicode(name_item.text())
         # Ensure the value actually changed, rather than something else about the item:
-        if value != previous_value:
-            runmanager.set_value(self.globals_file, self.group_name, global_name, value)
-            # TODO: preparse required set
-            units_index = index.sibling(index.row(), self.GLOBALS_COL_UNITS)
-            units_item = self.globals_model.itemFromIndex(units_index)
-            units = qstring_to_unicode(units_item.text())
-            if not (previous_value or units):
-                # Go into editing the units item automatically:
-                units_item_index = units_item.index()
-                self.ui.treeView_globals.setCurrentIndex(units_item_index)
-                self.ui.treeView_globals.edit(units_item_index)
-        
+        if new_value != previous_value:
+            self.change_global_value(global_name, previous_value, new_value)
+    
+    def on_globals_model_units_changed(self, item):
+        index = item.index()
+        new_units = qstring_to_unicode(item.text())
+        previous_units = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        global_name = qstring_to_unicode(name_item.text())
+        # If it's a boolean value, ensure the check state matches the bool state:
+        if item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+            if value_item.text() == 'True':
+                item.setCheckState(QtCore.Qt.Checked)
+            elif value_item.text() == 'False':
+                item.setCheckState(QtCore.Qt.Unchecked)
+            else:
+                raise AssertionError('expected boolean value')
+        # Ensure the value actually changed, rather than something else about the item:
+        if new_units != previous_units:
+            self.change_global_units(global_name, previous_units, new_units)
+    
+    def on_globals_model_expansion_changed(self, item):
+        index = item.index()
+        new_expansion = qstring_to_unicode(item.text())
+        previous_expansion = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        global_name = qstring_to_unicode(name_item.text())
+        # Ensure the value actually changed, rather than something else about the item:
+        if new_expansion != previous_expansion:
+            self.change_global_expansion(global_name, previous_expansion, new_expansion)
+            
     def on_closetab_button_clicked(self, *args):
         # Move this method to main runmanager class
         raise NotImplementedError
     
+    def on_treeView_globals_context_menu_requested(self, point):
+        menu = QtGui.QMenu(self.ui)
+        menu.addAction(self.action_globals_set_selected_true)
+        menu.addAction(self.action_globals_set_selected_false)
+        menu.addAction(self.action_globals_delete_selected)
+        menu.exec_(QtGui.QCursor.pos())
+   
+    def on_globals_delete_selected_triggered(self):
+        selected_indexes = self.ui.treeView_globals.selectedIndexes()
+        selected_items = (self.globals_model.itemFromIndex(index) for index in selected_indexes)
+        name_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_NAME]
+        # If multiple selected, show 'delete n groups?' message.
+        # Otherwise, pass confirm=True to self.delete_global so it can show the regular message.
+        confirm_multiple = (len(name_items) > 1)
+        if confirm_multiple:
+            if not question_dialog("Delete %d globals?"%len(name_items)):
+                return
+        for item in name_items:
+            global_name = qstring_to_unicode(item.text())
+            self.delete_global(global_name, confirm=not confirm_multiple)
+    
+    def on_globals_set_selected_bools_triggered(self, state):
+        selected_indexes = self.ui.treeView_globals.selectedIndexes()
+        selected_items = [self.globals_model.itemFromIndex(index) for index in selected_indexes]
+        value_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_VALUE]
+        units_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_UNITS]
+        for value_item, units_item in zip(value_items, units_items):
+            if units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+                value_item.setText(state)
+        
     def close(self):
         # It is up to the main runmanager class to drop references
         # to this instance before or after calling this method, so
@@ -388,9 +494,6 @@ class GroupTab(object):
         item = self.globals_model.itemFromIndex(item_index)
         return item
         
-    def focus_cell(self, column, name):
-        raise NotImplementedError
-            
     def new_global(self, global_name):
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME,
                                            previous_name=self.GLOBALS_DUMMY_ROW_TEXT)
@@ -410,6 +513,7 @@ class GroupTab(object):
             value_item_index = value_item.index()
             self.ui.treeView_globals.setCurrentIndex(value_item_index)
             self.ui.treeView_globals.edit(value_item_index)
+            #TODO: preparse required set
         finally:
             # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GLOBALS_DUMMY_ROW_TEXT)
@@ -426,34 +530,108 @@ class GroupTab(object):
         else:
             item.setData(new_global_name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_global_name, self.GLOBALS_ROLE_SORT_DATA)
-        
-        
-    def on_edit_value(self, cellrenderer, path, new_text):
-        raise NotImplementedError
-        
-    def apply_bool_settings(self, row):
-        raise NotImplementedError
+            # TODO preparse required set
             
-    def on_toggle_bool_toggled(self, cellrenderer, path):
-        raise NotImplementedError
-        
-    def on_edit_units(self, cellrenderer, path, new_text):
-        raise NotImplementedError
-        
-    def on_edit_expansion(self, cellrenderer, path, new_text):
-        raise NotImplementedError
+    def change_global_value(self, global_name, previous_value, new_value):
+        item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+        try:
+            runmanager.set_value(self.globals_file, self.group_name, global_name, new_value)
+        except Exception as e:
+            error_dialog(str(e))
+            # Set the item text back to the old name, since the change failed:
+            item.setText(previous_value)
+        else:
+            item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
+            self.check_for_boolean_values(item)
+            # TODO: preparse required set
+            units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
+            units = qstring_to_unicode(units_item.text())
+            if not (previous_value or units):
+                # Go into editing the units item automatically:
+                units_item_index = units_item.index()
+                self.ui.treeView_globals.setCurrentIndex(units_item_index)
+                self.ui.treeView_globals.edit(units_item_index)
     
-    def on_editing_cancelled_units(self, cellrenderer):
-        raise NotImplementedError
+    def change_global_units(self, global_name, previous_units, new_units):
+        item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
+        try:
+            runmanager.set_units(self.globals_file, self.group_name, global_name, new_units)
+        except Exception as e:
+            error_dialog(str(e))
+            # Set the item text back to the old units, since the change failed:
+            item.setText(previous_units)
+        else:
+            item.setData(new_units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            item.setData(new_units, self.GLOBALS_ROLE_SORT_DATA)
+    
+    def change_global_expansion(self, global_name, previous_expansion, new_expansion):
+        item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
+        try:
+            runmanager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
+        except Exception as e:
+            error_dialog(str(e))
+            # Set the item text back to the old units, since the change failed:
+            item.setText(previous_expansion)
+        else:
+            item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+            item.setData(new_expansion, self.GLOBALS_ROLE_SORT_DATA)
+            # TODO: preparse required set
             
-    def on_editing_cancelled_value(self, cellrenderer):
-        raise NotImplementedError
+    def check_for_boolean_values(self, item):
+        """Checks if the value is 'True' or 'False'. If either, makes the units
+        cell checkable, uneditable, and coloured to indicate the state. The units cell
+        can then be clicked to toggle the value."""
+        index = item.index()
+        value = qstring_to_unicode(item.text())
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        units_index = index.sibling(index.row(), self.GLOBALS_COL_UNITS)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        units_item = self.globals_model.itemFromIndex(units_index)
+        global_name = qstring_to_unicode(name_item.text())
+        if value == 'True':
+            units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
+            units_item.setText('Bool')
+            units_item.setEditable(False)
+            units_item.setCheckable(True)
+            units_item.setCheckState(QtCore.Qt.Checked)
+            color = QtGui.QColor(self.COLOR_BOOL_ON)
+            brush = QtGui.QBrush(color);
+            units_item.setBackground(brush)
+        elif value == 'False':
+            units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
+            units_item.setText('Bool')
+            units_item.setEditable(False)
+            units_item.setCheckable(True)
+            units_item.setCheckState(QtCore.Qt.Unchecked)
+            color = QtGui.QColor(self.COLOR_BOOL_OFF)
+            brush = QtGui.QBrush(color);
+            units_item.setBackground(brush)
+        else:
+            was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool()
+            units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
+            units_item.setEditable(True)
+            units_item.setCheckable(False)
+            # Checkbox still visible unless we do the following:
+            units_item.setData(None, QtCore.Qt.CheckStateRole)
+            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0));
+            units_item.setBackground(brush)
+            if was_bool:
+                # If the item was a bool and now isn't, clear the units
+                # and go into editing so the user can enter a new units string:
+                units_item.setText('')
+                self.ui.treeView_globals.setCurrentIndex(units_item.index())
+                self.ui.treeView_globals.edit(units_item.index())
             
-    def on_editing_started(self, cellrenderer, editable, path):
-        raise NotImplementedError
-            
-    def on_delete_global(self,cellrenderer,path):
-        raise NotImplementedError
+    def delete_global(self, global_name, confirm=True):
+        if confirm:
+            if not question_dialog("Delete the global '%s'?"%global_name):
+                return
+        runmanager.delete_global(self.globals_file, self.group_name, global_name)
+        # Find the entry for this global in self.globals_model and remove it:
+        name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
+        self.globals_model.removeRow(name_item.row())
+        # TODO preparse required set
         
     def update_parse_indication(self, sequence_globals, evaled_globals):
         raise NotImplementedError
@@ -804,7 +982,7 @@ class RunManager(object):
         # Otherwise, pass confirm=True to self.delete_group so it can show the regular message.
         confirm_multiple = (len(name_items) > 1)
         if confirm_multiple:
-            if not question_dialog("delete %d groups?"%len(name_items)):
+            if not question_dialog("Delete %d groups?"%len(name_items)):
                 return
         for item in name_items:
             globals_file = qstring_to_unicode(item.parent().text())

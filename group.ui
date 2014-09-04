@@ -127,7 +127,14 @@
         <number>0</number>
        </property>
        <item>
-        <widget class="LeftClickTreeView" name="treeView_globals"/>
+        <widget class="LeftClickTreeView" name="treeView_globals">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>

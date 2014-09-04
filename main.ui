@@ -949,7 +949,11 @@ QToolButton:hover {
              <number>0</number>
             </property>
             <item>
-             <widget class="LeftClickTreeView" name="treeView_groups"/>
+             <widget class="LeftClickTreeView" name="treeView_groups">
+              <property name="alternatingRowColors">
+               <bool>true</bool>
+              </property>
+             </widget>
             </item>
            </layout>
           </widget>
