@@ -1016,7 +1016,6 @@ class RunManager(object):
         current_default_output_folder = self.get_default_output_folder()
         if current_default_output_folder is None:
             return
-        mkdir_p(current_default_output_folder)
         self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
         # Tell the output folder rollover thread to run an iteration,
         # so that it notices this change (even though it won't do anything now - this is so
