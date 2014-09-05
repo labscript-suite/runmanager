@@ -123,7 +123,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
                 tabRect.setWidth(tabRect.width() - self.iconSize().width())
             painter.drawText(tabRect, QtCore.Qt.AlignVCenter |\
                              QtCore.Qt.TextWordWrap, \
-                             self.tabText(index));
+                             self.tabText(index))
             self.tabSizes[index] = tabRect.size()
         painter.end()
   
@@ -196,9 +196,13 @@ class GroupTab(object):
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
     
     COLOR_ERROR = '#FF9999' # light red
+    COLOR_ERROR_ALTERNATE = '#E68A8A'
     COLOR_OK = '#AAFFCC' # light green
+    COLOR_OK_ALTERNATE = '#99E6B8'
     COLOR_BOOL_ON = '#66FF33' # bright green
+    COLOR_BOOL_ON_ALTERNATE = '#5CE62E'
     COLOR_BOOL_OFF = '#608060' # dark green
+    COLOR_BOOL_OFF_ALTERNATE = '#4D664D'
     
     def __init__(self, tabWidget, globals_file, group_name):
     
@@ -226,28 +230,37 @@ class GroupTab(object):
         # Ensure the clickable region of the delete button doesn't extend forever:
         self.ui.treeView_globals.header().setStretchLastSection(False)
         # Setup stuff for a custom context menu:
-        self.ui.treeView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
+        self.ui.treeView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         # Make the actions for the context menu:
         self.action_globals_delete_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected global(s)',  self.ui)
         self.action_globals_set_selected_true = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected Booleans True',  self.ui)
         self.action_globals_set_selected_false = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected Booleans False',  self.ui)
-
-        # Populate the model with globals from the h5 file:
-        self.populate_model()
-        # Set sensible column widths according to whatever we just loaded in:
-        for column in range(self.globals_model.columnCount()):
-            self.ui.treeView_globals.resizeColumnToContents(column)
         
         self.connect_signals()
+                
+        # Populate the model with globals from the h5 file:
+        self.populate_model()
+        # Set sensible column widths:
+        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_NAME, 200)
+        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_VALUE, 200)
+        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_UNITS, 100)
+        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_EXPANSION, 100)
+        self.ui.treeView_globals.resizeColumnToContents(self.GLOBALS_COL_DELETE)
+        
+        font = QtGui.QFont('Monospaced')
+        font.setPixelSize(12)
+        self.ui.treeView_globals.setFont(font)
         
     def connect_signals(self):
         self.ui.treeView_globals.leftClicked.connect(self.on_treeView_globals_leftClicked)
-        self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
         self.ui.treeView_globals.customContextMenuRequested.connect(self.on_treeView_globals_context_menu_requested)
         self.action_globals_set_selected_true.triggered.connect(lambda: self.on_globals_set_selected_bools_triggered('True'))
         self.action_globals_set_selected_false.triggered.connect(lambda: self.on_globals_set_selected_bools_triggered('False'))
         self.action_globals_delete_selected.triggered.connect(self.on_globals_delete_selected_triggered)
-
+        self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
+        # A context manager with which we can temporarily disconnect the above connection.
+        self.globals_model_item_changed_disconnected = DisconnectContextManager(self.globals_model.itemChanged, self.on_globals_model_item_changed)
+    
     def set_file_and_group_name(self, globals_file, group_name):
         """Provided as a separate method so the main app can
         call it if the group gets renamed"""
@@ -258,6 +271,15 @@ class GroupTab(object):
         index = self.tabWidget.indexOf(self.ui)
         self.tabWidget.setTabText(index, group_name)
         self.tabWidget.setTabToolTip(index, '%s\n(%s)'%(group_name, globals_file))
+    
+    @inmain_decorator() # Can be called from the preparser thread in the main app class
+    def set_tab_icon(self, icon_string):
+        index = self.tabWidget.indexOf(self.ui)
+        if icon_string is not None:
+            icon = QtGui.QIcon(icon_string)
+        else:
+            icon = QtGui.QIcon()
+        self.tabWidget.setTabIcon(index, icon)
         
     def populate_model(self):
         globals = runmanager.get_globals({self.group_name: self.globals_file})[self.group_name]
@@ -266,6 +288,8 @@ class GroupTab(object):
             self.globals_model.appendRow(row)
             value_item = row[self.GLOBALS_COL_VALUE]
             self.check_for_boolean_values(value_item)
+            expansion_item = row[self.GLOBALS_COL_EXPANSION]
+            self.on_globals_model_expansion_changed(expansion_item)
             
         # Add the dummy item at the end:
         dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
@@ -280,21 +304,25 @@ class GroupTab(object):
         dummy_value_item.setEditable(False)
         dummy_value_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_value_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_value_item.setToolTip('Click to add global')
         
         dummy_units_item = QtGui.QStandardItem()
         dummy_units_item.setEditable(False)
         dummy_units_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_units_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_units_item.setToolTip('Click to add global')
         
         dummy_expansion_item = QtGui.QStandardItem()
         dummy_expansion_item.setEditable(False)
         dummy_expansion_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_expansion_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_expansion_item.setToolTip('Click to add global')
         
         dummy_delete_item = QtGui.QStandardItem()
         dummy_delete_item.setEditable(False)
         dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_delete_item.setToolTip('Click to add global')
         
         self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item, dummy_delete_item])
     
@@ -307,8 +335,12 @@ class GroupTab(object):
         name_item.setToolTip(name)
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        #name_item.setData(QtCore.Qt.AlignRight, QtCore.Qt.TextAlignmentRole)
+        size = QtCore.QSize(-1, 22)
+        name_item.setData(size, QtCore.Qt.SizeHintRole)
         
         value_item = QtGui.QStandardItem(value)
+        value_item.setToolTip('Evaluating...')
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
         value_item.setData(value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         
@@ -316,10 +348,12 @@ class GroupTab(object):
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
+        units_item.setToolTip('')
         
         expansion_item = QtGui.QStandardItem(expansion)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        expansion_item.setToolTip('')
         
         delete_item = QtGui.QStandardItem()
         delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
@@ -427,6 +461,20 @@ class GroupTab(object):
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = qstring_to_unicode(name_item.text())
+        # Don't want icon changing to recurse - which happens even if it is the same icon.
+        # So disconnect the signal temporarily:
+        with self.globals_model_item_changed_disconnected:
+            if new_expansion == 'outer':
+                item.setIcon(QtGui.QIcon(':qtutils/custom/outer'))
+                item.setToolTip('This global will be interpreted as a list of values, and will ' +
+                                'be outer producted with other lists to form a larger parameter space.')
+            elif new_expansion:
+                item.setIcon(QtGui.QIcon(':qtutils/custom/zip'))
+                item.setToolTip('This global will be interpreted as a list of values, and will ' +
+                                'be iterated over in lock-step with other globals in the \'%s\' zip group.'%new_expansion)
+            else:
+                item.setData(None, QtCore.Qt.DecorationRole)
+                item.setToolTip('This global will be interpreted as a single value and passed to compilation as-is.')
         # Ensure the value actually changed, rather than something else about the item:
         if new_expansion != previous_expansion:
             self.change_global_expansion(global_name, previous_expansion, new_expansion)
@@ -513,7 +561,7 @@ class GroupTab(object):
             value_item_index = value_item.index()
             self.ui.treeView_globals.setCurrentIndex(value_item_index)
             self.ui.treeView_globals.edit(value_item_index)
-            #TODO: preparse required set
+            self.globals_changed()
         finally:
             # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GLOBALS_DUMMY_ROW_TEXT)
@@ -530,7 +578,8 @@ class GroupTab(object):
         else:
             item.setData(new_global_name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_global_name, self.GLOBALS_ROLE_SORT_DATA)
-            # TODO preparse required set
+            item.setToolTip(new_global_name)
+            self.globals_changed()
             
     def change_global_value(self, global_name, previous_value, new_value):
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
@@ -544,7 +593,7 @@ class GroupTab(object):
             item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
             self.check_for_boolean_values(item)
-            # TODO: preparse required set
+            self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
             units = qstring_to_unicode(units_item.text())
             if not (previous_value or units):
@@ -576,7 +625,7 @@ class GroupTab(object):
         else:
             item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_expansion, self.GLOBALS_ROLE_SORT_DATA)
-            # TODO: preparse required set
+            self.globals_changed()
             
     def check_for_boolean_values(self, item):
         """Checks if the value is 'True' or 'False'. If either, makes the units
@@ -595,8 +644,8 @@ class GroupTab(object):
             units_item.setEditable(False)
             units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Checked)
-            color = QtGui.QColor(self.COLOR_BOOL_ON)
-            brush = QtGui.QBrush(color);
+            color = QtGui.QColor(self.COLOR_BOOL_ON_ALTERNATE if value_item.row()%2 else self.COLOR_BOOL_ON)
+            brush = QtGui.QBrush(color)
             units_item.setBackground(brush)
         elif value == 'False':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
@@ -604,8 +653,8 @@ class GroupTab(object):
             units_item.setEditable(False)
             units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Unchecked)
-            color = QtGui.QColor(self.COLOR_BOOL_OFF)
-            brush = QtGui.QBrush(color);
+            color = QtGui.QColor(self.COLOR_BOOL_OFF_ALTERNATE if value_item.row()%2 else self.COLOR_BOOL_OFF)
+            brush = QtGui.QBrush(color)
             units_item.setBackground(brush)
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool()
@@ -614,7 +663,7 @@ class GroupTab(object):
             units_item.setCheckable(False)
             # Checkbox still visible unless we do the following:
             units_item.setData(None, QtCore.Qt.CheckStateRole)
-            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0));
+            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
             units_item.setBackground(brush)
             if was_bool:
                 # If the item was a bool and now isn't, clear the units
@@ -622,7 +671,29 @@ class GroupTab(object):
                 units_item.setText('')
                 self.ui.treeView_globals.setCurrentIndex(units_item.index())
                 self.ui.treeView_globals.edit(units_item.index())
-            
+    
+    def globals_changed(self):
+        """Called whenever something about a global has changed.
+        call app.globals_changed to inform the main application
+        that it needs to parse globals again.
+        self.update_parse_indication will be called by the main app
+        when parsing is done, and will set the colours and tooltips
+        appropriately"""
+        # Tell the main app about it:
+        app.globals_changed()
+    
+    @inmain_decorator() # Can be called from preparsing thread in main app class
+    def set_parsing_in_progress_indication(self):
+        self.set_tab_icon(':qtutils/fugue/hourglass')
+        brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
+        for row in range(self.globals_model.rowCount()):
+            item = self.globals_model.item(row, self.GLOBALS_COL_VALUE)
+            if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+                continue
+            item.setData(None, QtCore.Qt.DecorationRole)
+            item.setToolTip('Evaluating...')
+            item.setBackground(brush)
+                        
     def delete_global(self, global_name, confirm=True):
         if confirm:
             if not question_dialog("Delete the global '%s'?"%global_name):
@@ -631,12 +702,60 @@ class GroupTab(object):
         # Find the entry for this global in self.globals_model and remove it:
         name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
         self.globals_model.removeRow(name_item.row())
-        # TODO preparse required set
-        
+        self.globals_changed()
+    
+    @inmain_decorator() # So it can be called from a thread in the main app
     def update_parse_indication(self, sequence_globals, evaled_globals):
-        raise NotImplementedError
+        if self.group_name in evaled_globals:
+            tab_contains_errors = False
+            for global_name, value in evaled_globals[self.group_name].items():
+                name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
+                value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+                units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
+                expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
+                delete_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_DELETE)
+                ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
+                # Temporarily disconnect the item_changed signal on the model so that we can
+                # set the expansion type without triggering another preparse - the parsing has
+                # already been done with the new expansion type.
+                with self.globals_model_item_changed_disconnected:
+                    expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+                    expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
+                # The next line will now trigger item_changed, but it will not be detected as an
+                # actual change to the expansion type, because previous_text will match text.
+                # So it will not look like a change and will not trigger preparsing. However
+                # It is still important that other triggers be processed, such as setting the
+                # icon in the expansion item, so that will still occur in the callback.
+                expansion_item.setText(expansion)
+                if isinstance(value, Exception):
+                    color = QtGui.QColor(self.COLOR_ERROR_ALTERNATE if value_item.row()%2 else self.COLOR_ERROR)
+                    value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
+                    tooltip = '%s: %s'%(value.__class__.__name__, value.message)
+                    tab_contains_errors = True
+                else:
+                    color = QtGui.QColor(self.COLOR_OK_ALTERNATE if value_item.row()%2 else self.COLOR_OK)
+                    value_item.setData(None, QtCore.Qt.DecorationRole)
+                    tooltip = repr(value)
+                brush = QtGui.QBrush(color)
+                value_item.setBackground(brush)
+                value_item.setToolTip(tooltip)
+            if tab_contains_errors:
+                self.set_tab_icon(':qtutils/fugue/exclamation')
+            else:
+                self.set_tab_icon(None)
+        else:
+            # Clear everything:
+            self.set_tab_icon(None)
+            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
+            for row in range(self.globals_model.rowCount()):
+                item = self.globals_model.item(row, self.GLOBALS_COL_VALUE)
+                if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+                    continue
+                item.setData(None, QtCore.Qt.DecorationRole)
+                item.setToolTip('Group inactive')
+                item.setBackground(brush)
 
-        
+                        
 class RunManager(object):
     
     # Constants for the model in the axes tab:
@@ -680,6 +799,22 @@ class RunManager(object):
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
         
+        # A thread that will evaluate globals when they change, allowing us to show
+        # their values and any errors in the tabs they came from.
+        self.preparse_globals_thread = threading.Thread(target=self.preparse_globals)
+        self.preparse_globals_thread.daemon = True
+        # A threading.Event to inform the preparser thread when globals have changed,
+        # and thus need parsing again:
+        self.preparse_globals_required = threading.Event()
+        self.preparse_globals_thread.start()
+        
+        # A few attributes for self.guess_expansion_modes() to keep track of its state,
+        # and thus detect changes:
+        self.previous_evaled_globals = {}
+        self.previous_global_hierarchy = {}
+        self.previous_expansion_types = {}
+        self.previous_expansions = {}
+            
         # Start the compiler subprocess:
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
         
@@ -721,7 +856,7 @@ class RunManager(object):
         self.ui.treeView_axes.setModel(self.axes_model)
         
         # Setup stuff for a custom context menu:
-        self.ui.treeView_axes.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
+        self.ui.treeView_axes.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         
         # Make the actions for the context menu:
         self.action_axes_check_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'),
@@ -753,7 +888,7 @@ class RunManager(object):
 
         self.ui.treeView_groups.setTextElideMode(QtCore.Qt.ElideMiddle)
         # Setup stuff for a custom context menu:
-        self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu);
+        self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         
         # Make the actions for the context menu:
         self.action_groups_set_selection_active = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected group(s) active', self.ui)
@@ -812,7 +947,8 @@ class RunManager(object):
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
-        # Todo add remaining
+        # Todo add 
+        pass
         
     def on_select_labscript_file_clicked(self, checked):
         labscript_file = QtGui.QFileDialog.getOpenFileName(self.ui,
@@ -933,7 +1069,8 @@ class RunManager(object):
         # menu.addAction(self.action_axes_check_selected)
         # menu.addAction(self.action_axes_uncheck_selected)
         # menu.exec_(QtGui.QCursor.pos())
-    
+        pass
+        
     def on_axes_check_selected_triggered(self, *args):
         raise NotImplementedError
     
@@ -1259,7 +1396,10 @@ class RunManager(object):
                         child.setCheckState(checkstate)
         finally:
             self.on_groups_model_active_changed_recursion_depth -= 1
-            
+            if self.on_groups_model_active_changed_recursion_depth == 0:
+                # Trigger a preparse to occur:
+                self.globals_changed()
+                
     def on_groups_model_openclose_changed(self, item):
         """Sets item sort data and icon in response to the open/close state of a group
         changing."""
@@ -1332,6 +1472,43 @@ class RunManager(object):
             return current_default_output_folder
         return previous_default_output_folder
     
+    def globals_changed(self):
+        """Called from either self or a GroupTab to inform runmanager that something
+        about globals has changed, and that they need parsing again"""
+        self.preparse_globals_required.set()
+        
+    def preparse_globals(self):
+        """Runs in a thread, waiting on a threading.Event that tells us when some globals
+        have changed, and calls parse_globals to evaluate them all before feeding
+        the results back to the relevant tabs to be displayed."""
+        # Silence spurious HDF5 errors:
+        h5py._errors.silence_errors()
+        while True:
+            try:
+                # Wait until we're needed:
+                self.preparse_globals_required.wait()
+                self.preparse_globals_required.clear()
+                # Do some work:
+                active_groups = self.get_active_groups()
+                for tab in self.currently_open_groups.values():
+                    tab.set_parsing_in_progress_indication()
+                # Expansion mode is automatically updated when the global's type changes. If this occurs,
+                # we will have to parse again to include the change:
+                while True:
+                    results = self.parse_globals(active_groups, raise_exceptions = False, expand_globals = False)
+                    sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
+                    expansions_changed = self.guess_expansion_modes(active_groups, evaled_globals, global_hierarchy, expansions)
+                    if not expansions_changed:
+                        break
+                for group_tab in self.currently_open_groups.values():
+                    group_tab.update_parse_indication(sequence_globals, evaled_globals)
+            except Exception:
+                # Raise the error, but keep going so we don't take
+                # down the whole thread if there is a bug.
+                exc_info = sys.exc_info()
+                zprocess.raise_exception_in_thread(exc_info)
+                continue
+                    
     def get_group_item_by_name(self, globals_file, group_name, column, previous_name=None):
         """Returns an item from the row representing a globals group in the groups model.
         Which item is returned is set by the column argument."""
@@ -1530,7 +1707,9 @@ class RunManager(object):
         # other data roles, icons etc:
         openclose_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_OPENCLOSE)
         openclose_item.setData(True, self.GROUPS_ROLE_GROUP_IS_OPEN)
-    
+        # Trigger a preparse to occur in light of this:
+        self.globals_changed()
+        
     def rename_group(self, globals_file, previous_group_name, new_group_name):
         item = self.get_group_item_by_name(globals_file, new_group_name, self.GROUPS_COL_NAME,
                                            previous_name=previous_group_name)
@@ -1594,18 +1773,138 @@ class RunManager(object):
     def compile_loop(self):
         raise NotImplementedError
         
-    def update_active_groups(self):
-        raise NotImplementedError
+    def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True):
+        sequence_globals = runmanager.get_globals(active_groups)
+        evaled_globals, global_hierarchy, expansions = runmanager.evaluate_globals(sequence_globals, raise_exceptions)
+        if expand_globals:
+            shots = runmanager.expand_globals(sequence_globals, evaled_globals)
+        else:
+            shots = []
+        return sequence_globals, shots, evaled_globals, global_hierarchy, expansions
+    
+    def guess_expansion_modes(self, active_groups, evaled_globals, global_hierarchy, expansions):
+        """This function is designed to be called iteratively. It changes the expansion type of globals
+        that reference other globals - such that globals referencing an iterable global will be zipped
+        with it, rather than outer producted. Each time this method is called, self.parse_globals should also be
+        called, so that the globals are evaluated with their new expansion modes, if they changed.
+        This should be performed repeatedly until there are no more changes. Note that this method does
+        not return what expansion types it thinks globals should have - it *actually writes them to the 
+        globals HDF5 file*. So it is up to later code to ensure it re-reads the expansion mode from the
+        HDF5 file before proceeding. At present this method is only called from self.preparse_globals(),
+        so see there to see how it fits in with everything else. This method uses four instance attributes
+        to store state: self.previous_evaled_globals, self.previous_global_hierarchy,
+        self.previous_expansion_types and self.previous_expansions. This is neccesary so that it can
+        detect changes."""
+            
+        # Do nothing if there were exceptions:
+        for group_name in evaled_globals:
+            for global_name in evaled_globals[group_name]:
+                value = evaled_globals[group_name][global_name]
+                if isinstance(value, Exception):
+                    # Let ExpansionErrors through through, as they occur
+                    # when the user has changed the value without changing
+                    # the expansion type:
+                    if isinstance(value, runmanager.ExpansionError):
+                        continue
+                    return False
+        # Did the guessed expansion type for any of the globals change?
+        expansion_types_changed = False
+        expansion_types = {}
+        for group_name in evaled_globals:
+            for global_name in evaled_globals[group_name]:
+                new_value = evaled_globals[group_name][global_name]
+                try:
+                    previous_value = self.previous_evaled_globals[group_name][global_name]
+                except KeyError:
+                    # This variable is only used to guess the expansion type so we can set it to
+                    # '0' which will result in an expansion type guess of '' (emptys string)
+                    # This will either result in nothing being done to the expansion type or the expansion
+                    # type being found to be 'outer', which will then make it go through the machinery below
+                    previous_value = 0  
                     
-    def parse_globals(self, raise_exceptions=True, expand_globals=True):
-        raise NotImplementedError
-    
-    def guess_expansion_modes(self, evaled_globals, global_hierarchy, expansions):
-        raise NotImplementedError
+                new_guess = runmanager.guess_expansion_type(new_value)
+                previous_guess = runmanager.guess_expansion_type(previous_value)
+                
+                if new_guess == 'outer':
+                    expansion_types[global_name] = {'previous_guess':previous_guess,
+                                                    'new_guess':new_guess,
+                                                    'group_name':group_name,
+                                                    'value':new_value
+                                                    }
+                elif new_guess != previous_guess:
+                    filename = active_groups[group_name]
+                    runmanager.set_expansion(filename, group_name, global_name, new_guess)
+                    expansions[global_name] = new_guess
+                    expansion_types_changed = True
+                    
+        # recursively find dependencies and add them to a zip group!
+        def find_dependencies(global_name, global_hierarchy):
+            results = set()
+            for name, dependencies in global_hierarchy.items():
+                if global_name in dependencies:
+                    results.add(name)
+                    results = results.union(find_dependencies(name,global_hierarchy))
+            return results           
+
+        def global_depends_on_global_with_outer_product(global_name,global_hierarchy,expansions):
+            if global_name not in global_hierarchy:
+                return False
+            else:
+                for dependency in global_hierarchy[global_name]:
+                    if expansions[dependency]:
+                        return True
+            
+        for global_name in sorted(expansion_types):
+            # we have a global that does not depend on anything that has an expansion type of 'outer'            
+            if (not global_depends_on_global_with_outer_product(global_name,global_hierarchy,expansions)
+                    and not isinstance(expansion_types[global_name]['value'], runmanager.ExpansionError)):
+                current_dependencies = find_dependencies(global_name,global_hierarchy)
+                # if this global has other globals that use it, then add them all to a zip group with the name of this global
+                if current_dependencies:
+                    for dependency in current_dependencies:
+                        expansion_types[dependency]['new_guess'] = str(global_name)
+                        expansions[dependency] = str(global_name)
+                    expansion_types[global_name]['new_guess'] = str(global_name)
+                    expansions[global_name] = str(global_name)
+                    
+        for global_name in sorted(self.previous_expansion_types):            
+            if (not global_depends_on_global_with_outer_product(global_name, self.previous_global_hierarchy, self.previous_expansions) 
+                    and not isinstance(self.previous_expansion_types[global_name]['value'], runmanager.ExpansionError)):
+                old_dependencies = find_dependencies(global_name, self.previous_global_hierarchy)
+                # if this global has other globals that use it, then add them all to a zip group with the name of this global
+                if old_dependencies:
+                    for dependency in old_dependencies:
+                        if dependency in expansion_types:
+                            expansion_types[dependency]['previous_guess'] = str(global_name)
+                    if global_name in expansion_types:
+                        expansion_types[global_name]['previous_guess'] = str(global_name)
+                    
+        for global_name, guesses in expansion_types.items():
+            if guesses['new_guess'] != guesses['previous_guess']:
+                filename = active_groups[guesses['group_name']]
+                runmanager.set_expansion(filename, str(guesses['group_name']), str(global_name), str(guesses['new_guess']))
+                expansions[global_name] = guesses['new_guess']
+                expansion_types_changed = True
+            
+        # Now check everything that has an expansion type not equal to outer. If it has one, but is 
+        # not iteratble, remove it from teh zip group
+        for group_name in evaled_globals:
+            for global_name in evaled_globals[group_name]:
+                if expansions[global_name] and expansions[global_name] != 'outer':                    
+                    try:
+                        test = iter(evaled_globals[group_name][global_name])
+                    except Exception as e:
+                        filename = active_groups[group_name]
+                        runmanager.set_expansion(filename, group_name, global_name, '')
+                        expansion_types_changed = True
         
-    def preparse_globals(self):
-        raise NotImplementedError
-    
+        self.previous_evaled_globals = evaled_globals
+        self.previous_global_hierarchy = global_hierarchy
+        self.previous_expansion_types = expansion_types
+        self.previous_expansions = expansions
+        
+        return expansion_types_changed
+        
     def make_h5_files(self, sequence_globals, shots):
         raise NotImplementedError
 
