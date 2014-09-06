@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>900</width>
-    <height>600</height>
+    <width>1000</width>
+    <height>650</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>runmanager - the labscript suite</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+   <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
     <normaloff>:/qtutils/custom/runmanager.png</normaloff>:/qtutils/custom/runmanager.png</iconset>
   </property>
   <property name="styleSheet">
@@ -94,7 +94,16 @@ QToolButton:hover:checked {
     <property name="spacing">
      <number>0</number>
     </property>
-    <property name="margin">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
      <number>0</number>
     </property>
     <item>
@@ -136,7 +145,7 @@ QToolButton:hover:checked {
             <string>Abort</string>
            </property>
            <property name="icon">
-            <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+            <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/cross-octagon.png</normaloff>:/qtutils/fugue/cross-octagon.png</iconset>
            </property>
           </widget>
@@ -181,7 +190,7 @@ QPushButton:hover {
             <string>Engage</string>
            </property>
            <property name="icon">
-            <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+            <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/control.png</normaloff>:/qtutils/fugue/control.png</iconset>
            </property>
            <property name="autoDefault">
@@ -204,7 +213,7 @@ QPushButton:hover {
             <string>Shuffle</string>
            </property>
            <property name="icon">
-            <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+            <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-switch.png</normaloff>:/qtutils/fugue/arrow-switch.png</iconset>
            </property>
            <property name="checkable">
@@ -225,7 +234,7 @@ QPushButton:hover {
 subprocess</string>
            </property>
            <property name="icon">
-            <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+            <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-circle-135-left.png</normaloff>:/qtutils/fugue/arrow-circle-135-left.png</iconset>
            </property>
           </widget>
@@ -294,7 +303,16 @@ subprocess</string>
              <property name="fieldGrowthPolicy">
               <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
              </property>
-             <property name="margin">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
               <number>0</number>
              </property>
              <item row="0" column="0">
@@ -321,7 +339,16 @@ subprocess</string>
            </widget>
            <widget class="QWidget" name="stackedWidgetPage_send_to_mise">
             <layout class="QFormLayout" name="formLayout_2">
-             <property name="margin">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
               <number>0</number>
              </property>
              <item row="0" column="0">
@@ -413,7 +440,7 @@ subprocess</string>
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+            <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-turn-180-left.png</normaloff>:/qtutils/fugue/arrow-turn-180-left.png</iconset>
            </property>
           </widget>
@@ -444,7 +471,7 @@ subprocess</string>
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+            <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/document--pencil.png</normaloff>:/qtutils/fugue/document--pencil.png</iconset>
            </property>
           </widget>
@@ -470,7 +497,16 @@ subprocess</string>
             <property name="spacing">
              <number>0</number>
             </property>
-            <property name="margin">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
              <number>0</number>
             </property>
             <item>
@@ -531,7 +567,7 @@ QToolButton:hover {
                <string>...</string>
               </property>
               <property name="icon">
-               <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+               <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
                 <normaloff>:/qtutils/fugue/folder-horizontal-open.png</normaloff>:/qtutils/fugue/folder-horizontal-open.png</iconset>
               </property>
              </widget>
@@ -557,7 +593,16 @@ QToolButton:hover {
             <property name="spacing">
              <number>0</number>
             </property>
-            <property name="margin">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
              <number>0</number>
             </property>
             <item>
@@ -615,7 +660,7 @@ QToolButton:hover {
                <string>...</string>
               </property>
               <property name="icon">
-               <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+               <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
                 <normaloff>:/qtutils/custom/python-document.png</normaloff>:/qtutils/custom/python-document.png</iconset>
               </property>
              </widget>
@@ -639,6 +684,9 @@ QToolButton:hover {
       <property name="autoFillBackground">
        <bool>false</bool>
       </property>
+      <property name="styleSheet">
+       <string notr="true">QTabBar{ font-size: 12px }</string>
+      </property>
       <property name="tabPosition">
        <enum>QTabWidget::West</enum>
       </property>
@@ -649,10 +697,10 @@ QToolButton:hover {
        <number>2</number>
       </property>
       <property name="elideMode">
-       <enum>Qt::ElideNone</enum>
+       <enum>Qt::ElideRight</enum>
       </property>
       <property name="usesScrollButtons">
-       <bool>false</bool>
+       <bool>true</bool>
       </property>
       <property name="documentMode">
        <bool>false</bool>
@@ -665,7 +713,7 @@ QToolButton:hover {
       </property>
       <widget class="QWidget" name="tab_output">
        <attribute name="icon">
-        <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+        <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/fugue/terminal.png</normaloff>:/qtutils/fugue/terminal.png</iconset>
        </attribute>
        <attribute name="title">
@@ -678,7 +726,16 @@ QToolButton:hover {
         <property name="spacing">
          <number>0</number>
         </property>
-        <property name="margin">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
          <number>0</number>
         </property>
         <item>
@@ -688,7 +745,7 @@ QToolButton:hover {
       </widget>
       <widget class="QWidget" name="tab_axes">
        <attribute name="icon">
-        <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+        <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/custom/outer.png</normaloff>:/qtutils/custom/outer.png</iconset>
        </attribute>
        <attribute name="title">
@@ -701,7 +758,16 @@ QToolButton:hover {
         <property name="spacing">
          <number>0</number>
         </property>
-        <property name="margin">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
          <number>0</number>
         </property>
         <item>
@@ -737,7 +803,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-stop-090.png</normaloff>:/qtutils/fugue/arrow-stop-090.png</iconset>
             </property>
            </widget>
@@ -751,7 +817,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-090.png</normaloff>:/qtutils/fugue/arrow-090.png</iconset>
             </property>
            </widget>
@@ -765,7 +831,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-270.png</normaloff>:/qtutils/fugue/arrow-270.png</iconset>
             </property>
            </widget>
@@ -779,7 +845,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-stop-270.png</normaloff>:/qtutils/fugue/arrow-stop-270.png</iconset>
             </property>
            </widget>
@@ -812,15 +878,24 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>83</width>
-             <height>71</height>
+             <width>933</width>
+             <height>511</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_7">
             <property name="spacing">
              <number>0</number>
             </property>
-            <property name="margin">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
              <number>0</number>
             </property>
             <item>
@@ -834,7 +909,7 @@ QToolButton:hover {
       </widget>
       <widget class="QWidget" name="tab_groups">
        <attribute name="icon">
-        <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+        <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/fugue/tables-stacks.png</normaloff>:/qtutils/fugue/tables-stacks.png</iconset>
        </attribute>
        <attribute name="title">
@@ -847,7 +922,16 @@ QToolButton:hover {
         <property name="spacing">
          <number>0</number>
         </property>
-        <property name="margin">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
          <number>0</number>
         </property>
         <item>
@@ -855,7 +939,16 @@ QToolButton:hover {
           <property name="spacing">
            <number>9</number>
           </property>
-          <property name="margin">
+          <property name="leftMargin">
+           <number>3</number>
+          </property>
+          <property name="topMargin">
+           <number>3</number>
+          </property>
+          <property name="rightMargin">
+           <number>3</number>
+          </property>
+          <property name="bottomMargin">
            <number>3</number>
           </property>
           <item>
@@ -870,7 +963,7 @@ QToolButton:hover {
              <string>Open globals file</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/folder-open-table.png</normaloff>:/qtutils/fugue/folder-open-table.png</iconset>
             </property>
            </widget>
@@ -887,7 +980,7 @@ QToolButton:hover {
              <string>New globals file</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/table--plus.png</normaloff>:/qtutils/fugue/table--plus.png</iconset>
             </property>
            </widget>
@@ -904,7 +997,7 @@ QToolButton:hover {
              <string>Diff globals file</string>
             </property>
             <property name="icon">
-             <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+             <iconset resource="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/tables.png</normaloff>:/qtutils/fugue/tables.png</iconset>
             </property>
            </widget>
@@ -937,15 +1030,24 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>871</width>
-             <height>445</height>
+             <width>962</width>
+             <height>480</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
             <property name="spacing">
              <number>0</number>
             </property>
-            <property name="margin">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
              <number>0</number>
             </property>
             <item>
@@ -970,8 +1072,8 @@ QToolButton:hover {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>900</width>
-     <height>21</height>
+     <width>1000</width>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -1044,7 +1146,7 @@ QToolButton:hover {
   <tabstop>scrollArea_2</tabstop>
  </tabstops>
  <resources>
-  <include location="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc"/>
+  <include location="../../../../usr/local/lib/python2.7/dist-packages/qtutils/icons/icons.qrc"/>
  </resources>
  <connections/>
 </ui>

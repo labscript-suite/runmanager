@@ -18,6 +18,7 @@ import labscript_utils.excepthook
 
 import time
 import itertools
+import contextlib
 import logging, logging.handlers
 import subprocess
 import threading
@@ -80,12 +81,21 @@ def qstring_to_unicode(qstring):
         return str(qstring.toUtf8(), encoding="UTF-8")
     else:
         return unicode(qstring.toUtf8(), encoding="UTF-8")
-        
+
+@contextlib.contextmanager
+def nested(*contextmanagers):
+    if contextmanagers:
+        with contextmanagers[0]:
+            with nested(*contextmanagers[1:]):
+                yield
+    else:
+        yield
+                
 class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
     We will promote the TabBar from the ui file to one of these."""
-    def __init__(self, parent=None, width=150, height=24, **kwargs):
+    def __init__(self, parent=None, width=200, height=30, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
         self.iconPosition=kwargs.pop('iconPosition',QtGui.QTabWidget.West)
@@ -96,18 +106,14 @@ class FingerTabBarWidget(QtGui.QTabBar):
         option = QtGui.QStyleOptionTab()
   
         self.tabSizes = range(self.count())
-        #Check if there are any icons to align correctly
-        hasIcon = False
-        for index in range(self.count()):
-            hasIcon |= not(self.tabIcon(index).isNull())
   
         for index in range(self.count()):
             self.initStyleOption(option, index)
             tabRect = self.tabRect(index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
-            tabRect.moveLeft(5)
-            icon = self.tabIcon(index).pixmap(self.iconSize())
-            if hasIcon:
+            if not(self.tabIcon(index).isNull()):
+                tabRect.moveLeft(5)
+                icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 if self.iconPosition == QtGui.QTabWidget.West:
                     alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
@@ -120,20 +126,11 @@ class FingerTabBarWidget(QtGui.QTabBar):
                 tabRect.moveLeft(10)
                 painter.drawItemPixmap(tabRect,alignment,icon)
                 tabRect.moveLeft(self.iconSize().width() + 15)
-                tabRect.setWidth(tabRect.width() - self.iconSize().width())
-            painter.drawText(tabRect, QtCore.Qt.AlignVCenter |\
-                             QtCore.Qt.TextWordWrap, \
-                             self.tabText(index))
-            self.tabSizes[index] = tabRect.size()
+            else:
+                tabRect.moveLeft(10)
+            painter.drawText(tabRect, QtCore.Qt.AlignVCenter, self.tabText(index))
         painter.end()
   
-    def tabSizeHint(self,index):
-        try:
-            return self.tabSizes[index]
-        except:
-            size = QtGui.QTabBar.tabSizeHint(self,index)
-            return QtCore.QSize(size.height(),size.width())
-        
     def tabSizeHint(self,index):
         return self.tabSize
         
@@ -182,6 +179,61 @@ class LeftClickTreeView(QtGui.QTreeView):
         self._pressed_index = None
         return result
         
+class AlternatingColorModel(QtGui.QStandardItemModel):
+    COLOR_ERROR = '#FF9999' # light red
+    COLOR_ERROR_ALTERNATE = '#E68A8A'
+    COLOR_OK = '#AAFFCC' # light green
+    COLOR_OK_ALTERNATE = '#99E6B8'
+    COLOR_BOOL_ON = '#66FF33' # bright green
+    COLOR_BOOL_ON_ALTERNATE = '#5CE62E'
+    COLOR_BOOL_OFF = '#608060' # dark green
+    COLOR_BOOL_OFF_ALTERNATE = '#4D664D'
+    
+    BLANK = 0
+    OK = 1
+    ERROR = 2
+    BOOL_ON = 3
+    BOOL_OFF = 4
+    
+    def __init__(self, role):
+        QtGui.QStandardItemModel.__init__(self)
+        self.ROLE_COLOR_ID = role
+        self.BRUSH_BLANK = QtGui.QBrush(QtGui.QColor(0,0,0,0))
+        self.BRUSH_ERROR = QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR))
+        self.BRUSH_ERROR_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR_ALTERNATE))
+        self.BRUSH_OK = QtGui.QBrush(QtGui.QColor(self.COLOR_OK))
+        self.BRUSH_OK_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_OK_ALTERNATE))
+        self.BRUSH_BOOL_ON = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_ON))
+        self.BRUSH_BOOL_ON_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_ON_ALTERNATE))
+        self.BRUSH_BOOL_OFF = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF))
+        self.BRUSH_BOOL_OFF_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF_ALTERNATE))
+    
+        # Put 'em in a dict for faster dispatch:
+        self.brushes = {}
+        self.brushes[self.BLANK, 0] = self.BRUSH_BLANK
+        self.brushes[self.BLANK, 1] = self.BRUSH_BLANK
+        self.brushes[self.ERROR, 0] = self.BRUSH_ERROR
+        self.brushes[self.ERROR, 1] = self.BRUSH_ERROR_ALTERNATE
+        self.brushes[self.OK, 0] = self.BRUSH_OK
+        self.brushes[self.OK, 1] = self.BRUSH_OK_ALTERNATE
+        self.brushes[self.BOOL_ON, 0] = self.BRUSH_BOOL_ON
+        self.brushes[self.BOOL_ON, 1] = self.BRUSH_BOOL_ON_ALTERNATE
+        self.brushes[self.BOOL_OFF, 0] = self.BRUSH_BOOL_OFF
+        self.brushes[self.BOOL_OFF, 1] = self.BRUSH_BOOL_OFF_ALTERNATE
+        
+    def data(self, index, role):
+        if role == QtCore.Qt.BackgroundRole:
+            color, valid = QtGui.QStandardItemModel.data(self, index, self.ROLE_COLOR_ID).toInt()
+            if valid:
+                alternate = index.row() % 2
+                return self.brushes[color, alternate]
+        return QtGui.QStandardItemModel.data(self, index, role)
+
+class FixedHeightItemDelegate(QtGui.QStyledItemDelegate):
+    HEIGHT = 24
+    def sizeHint(self, *args):
+        size = QtGui.QStyledItemDelegate.sizeHint(self, *args)
+        return QtCore.QSize(size.width(), self.HEIGHT)
         
 class GroupTab(object):
     GLOBALS_COL_NAME = 0
@@ -193,16 +245,10 @@ class GroupTab(object):
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
+    GLOBALS_ROLE_COLOR = QtCore.Qt.UserRole + 5
+
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
-    
-    COLOR_ERROR = '#FF9999' # light red
-    COLOR_ERROR_ALTERNATE = '#E68A8A'
-    COLOR_OK = '#AAFFCC' # light green
-    COLOR_OK_ALTERNATE = '#99E6B8'
-    COLOR_BOOL_ON = '#66FF33' # bright green
-    COLOR_BOOL_ON_ALTERNATE = '#5CE62E'
-    COLOR_BOOL_OFF = '#608060' # dark green
-    COLOR_BOOL_OFF_ALTERNATE = '#4D664D'
+
     
     def __init__(self, tabWidget, globals_file, group_name):
     
@@ -217,9 +263,13 @@ class GroupTab(object):
         
         self.set_file_and_group_name(globals_file, group_name)
         
-        self.globals_model = QtGui.QStandardItemModel()
+        self.globals_model = AlternatingColorModel(role=self.GLOBALS_ROLE_COLOR)
         self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion','Delete'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
+        
+        self.item_delegate = FixedHeightItemDelegate()
+        self.ui.treeView_globals.setItemDelegateForColumn(self.GLOBALS_COL_NAME, self.item_delegate)
+        
         self.ui.treeView_globals.setModel(self.globals_model)
         self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_globals.setSortingEnabled(True)
@@ -247,10 +297,6 @@ class GroupTab(object):
         self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_EXPANSION, 100)
         self.ui.treeView_globals.resizeColumnToContents(self.GLOBALS_COL_DELETE)
         
-        font = QtGui.QFont('Monospaced')
-        font.setPixelSize(12)
-        self.ui.treeView_globals.setFont(font)
-        
     def connect_signals(self):
         self.ui.treeView_globals.leftClicked.connect(self.on_treeView_globals_leftClicked)
         self.ui.treeView_globals.customContextMenuRequested.connect(self.on_treeView_globals_context_menu_requested)
@@ -272,7 +318,6 @@ class GroupTab(object):
         self.tabWidget.setTabText(index, group_name)
         self.tabWidget.setTabToolTip(index, '%s\n(%s)'%(group_name, globals_file))
     
-    @inmain_decorator() # Can be called from the preparser thread in the main app class
     def set_tab_icon(self, icon_string):
         index = self.tabWidget.indexOf(self.ui)
         if icon_string is not None:
@@ -299,7 +344,7 @@ class GroupTab(object):
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
-    
+        
         dummy_value_item = QtGui.QStandardItem()
         dummy_value_item.setEditable(False)
         dummy_value_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
@@ -327,23 +372,22 @@ class GroupTab(object):
         self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item, dummy_delete_item])
     
     def make_global_row(self, name, value='', units='', expansion=''):
+        logger.info('%s:%s - make global row: %s '%(self.globals_file, self.group_name, name))
         # We just set some data here, other stuff is set in self.update_parse_indication
         # after runmanager has a chance to parse everything and get back to us about what
         # that data should be.
         
         name_item = QtGui.QStandardItem(name)
-        name_item.setToolTip(name)
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        name_item.setToolTip(name)
         #name_item.setData(QtCore.Qt.AlignRight, QtCore.Qt.TextAlignmentRole)
-        size = QtCore.QSize(-1, 22)
-        name_item.setData(size, QtCore.Qt.SizeHintRole)
         
         value_item = QtGui.QStandardItem(value)
-        value_item.setToolTip('Evaluating...')
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
-        value_item.setData(value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-        
+        value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        value_item.setToolTip('Evaluating...')
+              
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -543,6 +587,7 @@ class GroupTab(object):
         return item
         
     def new_global(self, global_name):
+        logger.info('%s:%s - new global: %s'%(self.globals_file, self.group_name, global_name))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME,
                                            previous_name=self.GLOBALS_DUMMY_ROW_TEXT)
         try:
@@ -567,6 +612,7 @@ class GroupTab(object):
             item.setText(self.GLOBALS_DUMMY_ROW_TEXT)
     
     def rename_global(self, previous_global_name, new_global_name):
+        logger.info('%s:%s - rename global: %s -> %s'%(self.globals_file, self.group_name, previous_global_name, new_global_name))
         item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_NAME,
                                             previous_name=previous_global_name)
         try:
@@ -593,6 +639,9 @@ class GroupTab(object):
             item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
             self.check_for_boolean_values(item)
+            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
+            item.setData(self.GLOBALS_ROLE_COLOR, QtCore.Qt.DecorationRole)
+            item.setToolTip('Evaluating...')
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
             units = qstring_to_unicode(units_item.text())
@@ -603,6 +652,8 @@ class GroupTab(object):
                 self.ui.treeView_globals.edit(units_item_index)
     
     def change_global_units(self, global_name, previous_units, new_units):
+        logger.info('%s:%s - change units: %s = %s -> %s'%
+                        (self.globals_file, self.group_name, global_name, previous_units, new_units))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
         try:
             runmanager.set_units(self.globals_file, self.group_name, global_name, new_units)
@@ -615,6 +666,8 @@ class GroupTab(object):
             item.setData(new_units, self.GLOBALS_ROLE_SORT_DATA)
     
     def change_global_expansion(self, global_name, previous_expansion, new_expansion):
+        logger.info('%s:%s - change expansion: %s = %s -> %s'%
+                        (self.globals_file, self.group_name, global_name, previous_expansion, new_expansion))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
         try:
             runmanager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
@@ -638,24 +691,22 @@ class GroupTab(object):
         name_item = self.globals_model.itemFromIndex(name_index)
         units_item = self.globals_model.itemFromIndex(units_index)
         global_name = qstring_to_unicode(name_item.text())
+        logger.debug('%s:%s - check for boolean values: %s'%
+                        (self.globals_file, self.group_name, global_name))
         if value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
             units_item.setEditable(False)
             units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Checked)
-            color = QtGui.QColor(self.COLOR_BOOL_ON_ALTERNATE if value_item.row()%2 else self.COLOR_BOOL_ON)
-            brush = QtGui.QBrush(color)
-            units_item.setBackground(brush)
+            units_item.setData(self.globals_model.BOOL_ON, self.GLOBALS_ROLE_COLOR)
         elif value == 'False':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
             units_item.setEditable(False)
             units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Unchecked)
-            color = QtGui.QColor(self.COLOR_BOOL_OFF_ALTERNATE if value_item.row()%2 else self.COLOR_BOOL_OFF)
-            brush = QtGui.QBrush(color)
-            units_item.setBackground(brush)
+            units_item.setData(self.globals_model.BOOL_OFF, self.GLOBALS_ROLE_COLOR)
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool()
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
@@ -663,8 +714,7 @@ class GroupTab(object):
             units_item.setCheckable(False)
             # Checkbox still visible unless we do the following:
             units_item.setData(None, QtCore.Qt.CheckStateRole)
-            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
-            units_item.setBackground(brush)
+            units_item.setData(self.globals_model.BLANK, self.GLOBALS_ROLE_COLOR)
             if was_bool:
                 # If the item was a bool and now isn't, clear the units
                 # and go into editing so the user can enter a new units string:
@@ -682,19 +732,12 @@ class GroupTab(object):
         # Tell the main app about it:
         app.globals_changed()
     
-    @inmain_decorator() # Can be called from preparsing thread in main app class
     def set_parsing_in_progress_indication(self):
         self.set_tab_icon(':qtutils/fugue/hourglass')
-        brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
-        for row in range(self.globals_model.rowCount()):
-            item = self.globals_model.item(row, self.GLOBALS_COL_VALUE)
-            if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
-                continue
-            item.setData(None, QtCore.Qt.DecorationRole)
-            item.setToolTip('Evaluating...')
-            item.setBackground(brush)
                         
     def delete_global(self, global_name, confirm=True):
+        logger.info('%s:%s - delete global: %s'%
+                        (self.globals_file, self.group_name, global_name))
         if confirm:
             if not question_dialog("Delete the global '%s'?"%global_name):
                 return
@@ -704,7 +747,6 @@ class GroupTab(object):
         self.globals_model.removeRow(name_item.row())
         self.globals_changed()
     
-    @inmain_decorator() # So it can be called from a thread in the main app
     def update_parse_indication(self, sequence_globals, evaled_globals):
         if self.group_name in evaled_globals:
             tab_contains_errors = False
@@ -728,16 +770,14 @@ class GroupTab(object):
                 # icon in the expansion item, so that will still occur in the callback.
                 expansion_item.setText(expansion)
                 if isinstance(value, Exception):
-                    color = QtGui.QColor(self.COLOR_ERROR_ALTERNATE if value_item.row()%2 else self.COLOR_ERROR)
+                    value_item.setData(self.globals_model.ERROR, self.GLOBALS_ROLE_COLOR)
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
                     tooltip = '%s: %s'%(value.__class__.__name__, value.message)
                     tab_contains_errors = True
                 else:
-                    color = QtGui.QColor(self.COLOR_OK_ALTERNATE if value_item.row()%2 else self.COLOR_OK)
+                    value_item.setData(self.globals_model.OK, self.GLOBALS_ROLE_COLOR)
                     value_item.setData(None, QtCore.Qt.DecorationRole)
                     tooltip = repr(value)
-                brush = QtGui.QBrush(color)
-                value_item.setBackground(brush)
                 value_item.setToolTip(tooltip)
             if tab_contains_errors:
                 self.set_tab_icon(':qtutils/fugue/exclamation')
@@ -746,14 +786,13 @@ class GroupTab(object):
         else:
             # Clear everything:
             self.set_tab_icon(None)
-            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
             for row in range(self.globals_model.rowCount()):
                 item = self.globals_model.item(row, self.GLOBALS_COL_VALUE)
                 if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
                     continue
                 item.setData(None, QtCore.Qt.DecorationRole)
                 item.setToolTip('Group inactive')
-                item.setBackground(brush)
+                item.item.setData(self.globals_model.BLANK, self.GLOBALS_ROLE_COLOR)
 
                         
 class RunManager(object):
@@ -1131,11 +1170,17 @@ class RunManager(object):
         name_items = [item for item in selected_items
                             if item.column() == self.GROUPS_COL_NAME
                             and item.parent() is not None]
-        for item in name_items:
-            globals_file = qstring_to_unicode(item.parent().text())
-            group_name = qstring_to_unicode(item.text())
-            if (globals_file, group_name) not in self.currently_open_groups:
-                self.open_group(globals_file, group_name)
+        # Make things a bit faster by acquiring network only locks on
+        # all the files we're dealing with.  That way all the open and
+        # close operations will be faster.
+        filenames = set(qstring_to_unicode(item.parent().text()) for item in name_items)
+        file_locks = [labscript_utils.h5_lock.NetworkOnlyLock(filename) for filename in filenames]
+        with nested(*file_locks):
+            for item in name_items:
+                globals_file = qstring_to_unicode(item.parent().text())
+                group_name = qstring_to_unicode(item.text())
+                if (globals_file, group_name) not in self.currently_open_groups:
+                    self.open_group(globals_file, group_name)
 
     def on_groups_close_selected_groups_triggered(self):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -1475,7 +1520,17 @@ class RunManager(object):
         """Called from either self or a GroupTab to inform runmanager that something
         about globals has changed, and that they need parsing again"""
         self.preparse_globals_required.set()
-        
+    
+    @inmain_decorator() # Is called by preparser thread
+    def set_tabs_parsing_in_progress_indication(self):
+        for group_tab in self.currently_open_groups.values():
+            group_tab.set_parsing_in_progress_indication()
+    
+    @inmain_decorator() # Is called by preparser thread
+    def update_tabs_parsing_indication(self, sequence_globals, evaled_globals):
+        for group_tab in self.currently_open_groups.values():
+            group_tab.update_parse_indication(sequence_globals, evaled_globals)
+            
     def preparse_globals(self):
         """Runs in a thread, waiting on a threading.Event that tells us when some globals
         have changed, and calls parse_globals to evaluate them all before feeding
@@ -1489,8 +1544,7 @@ class RunManager(object):
                 self.preparse_globals_required.clear()
                 # Do some work:
                 active_groups = self.get_active_groups()
-                for tab in self.currently_open_groups.values():
-                    tab.set_parsing_in_progress_indication()
+                self.set_tabs_parsing_in_progress_indication()
                 # Expansion mode is automatically updated when the global's type changes. If this occurs,
                 # we will have to parse again to include the change:
                 while True:
@@ -1499,8 +1553,7 @@ class RunManager(object):
                     expansions_changed = self.guess_expansion_modes(active_groups, evaled_globals, global_hierarchy, expansions)
                     if not expansions_changed:
                         break
-                for group_tab in self.currently_open_groups.values():
-                    group_tab.update_parse_indication(sequence_globals, evaled_globals)
+                self.update_tabs_parsing_indication(sequence_globals, evaled_globals)
             except Exception:
                 # Raise the error, but keep going so we don't take
                 # down the whole thread if there is a bug.
@@ -1922,5 +1975,6 @@ if __name__ == "__main__":
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
     qapplication = QtGui.QApplication(sys.argv)
+    qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
     sys.exit(qapplication.exec_())
