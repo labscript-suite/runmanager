@@ -178,55 +178,37 @@ class LeftClickTreeView(QtGui.QTreeView):
             self.leftClicked.emit(index)
         self._pressed_index = None
         return result
-        
+
 class AlternatingColorModel(QtGui.QStandardItemModel):
-    COLOR_ERROR = '#FF9999' # light red
-    COLOR_ERROR_ALTERNATE = '#E68A8A'
-    COLOR_OK = '#AAFFCC' # light green
-    COLOR_OK_ALTERNATE = '#99E6B8'
-    COLOR_BOOL_ON = '#66FF33' # bright green
-    COLOR_BOOL_ON_ALTERNATE = '#5CE62E'
-    COLOR_BOOL_OFF = '#608060' # dark green
-    COLOR_BOOL_OFF_ALTERNATE = '#4D664D'
-    
-    BLANK = 0
-    OK = 1
-    ERROR = 2
-    BOOL_ON = 3
-    BOOL_OFF = 4
-    
-    def __init__(self, role):
+    def __init__(self, treeview):
         QtGui.QStandardItemModel.__init__(self)
-        self.ROLE_COLOR_ID = role
-        self.BRUSH_BLANK = QtGui.QBrush(QtGui.QColor(0,0,0,0))
-        self.BRUSH_ERROR = QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR))
-        self.BRUSH_ERROR_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR_ALTERNATE))
-        self.BRUSH_OK = QtGui.QBrush(QtGui.QColor(self.COLOR_OK))
-        self.BRUSH_OK_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_OK_ALTERNATE))
-        self.BRUSH_BOOL_ON = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_ON))
-        self.BRUSH_BOOL_ON_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_ON_ALTERNATE))
-        self.BRUSH_BOOL_OFF = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF))
-        self.BRUSH_BOOL_OFF_ALTERNATE = QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF_ALTERNATE))
-    
-        # Put 'em in a dict for faster dispatch:
-        self.brushes = {}
-        self.brushes[self.BLANK, 0] = self.BRUSH_BLANK
-        self.brushes[self.BLANK, 1] = self.BRUSH_BLANK
-        self.brushes[self.ERROR, 0] = self.BRUSH_ERROR
-        self.brushes[self.ERROR, 1] = self.BRUSH_ERROR_ALTERNATE
-        self.brushes[self.OK, 0] = self.BRUSH_OK
-        self.brushes[self.OK, 1] = self.BRUSH_OK_ALTERNATE
-        self.brushes[self.BOOL_ON, 0] = self.BRUSH_BOOL_ON
-        self.brushes[self.BOOL_ON, 1] = self.BRUSH_BOOL_ON_ALTERNATE
-        self.brushes[self.BOOL_OFF, 0] = self.BRUSH_BOOL_OFF
-        self.brushes[self.BOOL_OFF, 1] = self.BRUSH_BOOL_OFF_ALTERNATE
-        
+        # How much darker in each channel is the alternate base color compared to the base color?
+        palette = treeview.palette()
+        normal_color = palette.color(QtGui.QPalette.Base)
+        alternate_color = palette.color(QtGui.QPalette.AlternateBase)
+        r,g,b = normal_color.red(), normal_color.green(), normal_color.blue()
+        ar,ag,ab = alternate_color.red(), alternate_color.green(), alternate_color.blue()
+        self.r_factor = 1-(r - ar)/float(r) 
+        self.g_factor = 1-(g - ag)/float(g)
+        self.b_factor = 1-(b - ab)/float(b) 
+     
     def data(self, index, role):
+        """When background color data is being requested, returns modified colours for every second role,
+           according to the palette of the treeview. This has the effect of making the alternate colours
+           visible even when custom colors have been set - the same shading will be applied to the custom
+           colours."""
         if role == QtCore.Qt.BackgroundRole:
-            color, valid = QtGui.QStandardItemModel.data(self, index, self.ROLE_COLOR_ID).toInt()
-            if valid:
-                alternate = index.row() % 2
-                return self.brushes[color, alternate]
+            brush_variant = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
+            if not brush_variant.isNull():
+                normal_brush = QtGui.QBrush(brush_variant)
+                if index.row() % 2:
+                    normal_color = normal_brush.color()
+                    r, g, b, a = normal_color.red(), normal_color.green(), normal_color.blue(), normal_color.alpha()
+                    alt_r = sorted([0, int(round(r*self.r_factor)), 255])[1]
+                    alt_g = sorted([0, int(round(g*self.g_factor)), 255])[1]
+                    alt_b = sorted([0, int(round(b*self.b_factor)), 255])[1]
+                    alternate_color = QtGui.QColor(alt_r, alt_g, alt_b, a)
+                    return QtGui.QBrush(alternate_color)
         return QtGui.QStandardItemModel.data(self, index, role)
 
 class FixedHeightItemDelegate(QtGui.QStyledItemDelegate):
@@ -245,7 +227,11 @@ class GroupTab(object):
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
-    GLOBALS_ROLE_COLOR = QtCore.Qt.UserRole + 5
+    
+    COLOR_ERROR = '#FF9999' # light red
+    COLOR_OK = '#AAFFCC' # light green
+    COLOR_BOOL_ON = '#66FF33' # bright green
+    COLOR_BOOL_OFF = '#608060' # dark green
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
 
@@ -263,7 +249,7 @@ class GroupTab(object):
         
         self.set_file_and_group_name(globals_file, group_name)
         
-        self.globals_model = AlternatingColorModel(role=self.GLOBALS_ROLE_COLOR)
+        self.globals_model = AlternatingColorModel(treeview=self.ui.treeView_globals)
         self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion','Delete'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
         
@@ -639,8 +625,8 @@ class GroupTab(object):
             item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
             self.check_for_boolean_values(item)
-            brush = QtGui.QBrush(QtGui.QColor(0,0,0,0))
-            item.setData(self.GLOBALS_ROLE_COLOR, QtCore.Qt.DecorationRole)
+            item.setData(None, QtCore.Qt.BackgroundRole)
+            item.setData(None, QtCore.Qt.DecorationRole)
             item.setToolTip('Evaluating...')
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
@@ -699,14 +685,14 @@ class GroupTab(object):
             units_item.setEditable(False)
             units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Checked)
-            units_item.setData(self.globals_model.BOOL_ON, self.GLOBALS_ROLE_COLOR)
+            units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_ON)))
         elif value == 'False':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
             units_item.setEditable(False)
             units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Unchecked)
-            units_item.setData(self.globals_model.BOOL_OFF, self.GLOBALS_ROLE_COLOR)
+            units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF)))
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool()
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
@@ -714,7 +700,7 @@ class GroupTab(object):
             units_item.setCheckable(False)
             # Checkbox still visible unless we do the following:
             units_item.setData(None, QtCore.Qt.CheckStateRole)
-            units_item.setData(self.globals_model.BLANK, self.GLOBALS_ROLE_COLOR)
+            units_item.setData(None, QtCore.Qt.BackgroundRole)
             if was_bool:
                 # If the item was a bool and now isn't, clear the units
                 # and go into editing so the user can enter a new units string:
@@ -770,12 +756,12 @@ class GroupTab(object):
                 # icon in the expansion item, so that will still occur in the callback.
                 expansion_item.setText(expansion)
                 if isinstance(value, Exception):
-                    value_item.setData(self.globals_model.ERROR, self.GLOBALS_ROLE_COLOR)
+                    value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
                     tooltip = '%s: %s'%(value.__class__.__name__, value.message)
                     tab_contains_errors = True
                 else:
-                    value_item.setData(self.globals_model.OK, self.GLOBALS_ROLE_COLOR)
+                    value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_OK)))
                     value_item.setData(None, QtCore.Qt.DecorationRole)
                     tooltip = repr(value)
                 value_item.setToolTip(tooltip)
@@ -792,7 +778,7 @@ class GroupTab(object):
                     continue
                 item.setData(None, QtCore.Qt.DecorationRole)
                 item.setToolTip('Group inactive')
-                item.item.setData(self.globals_model.BLANK, self.GLOBALS_ROLE_COLOR)
+                item.setData(None, QtCore.Qt.BackgroundRole)
 
                         
 class RunManager(object):
