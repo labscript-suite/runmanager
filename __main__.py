@@ -90,6 +90,7 @@ def nested(*contextmanagers):
                 yield
     else:
         yield
+        
                 
 class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
@@ -112,7 +113,6 @@ class FingerTabBarWidget(QtGui.QTabBar):
             tabRect = self.tabRect(index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
             if not(self.tabIcon(index).isNull()):
-                tabRect.moveLeft(5)
                 icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 if self.iconPosition == QtGui.QTabWidget.West:
@@ -179,6 +179,7 @@ class LeftClickTreeView(QtGui.QTreeView):
         self._pressed_index = None
         return result
 
+
 class AlternatingColorModel(QtGui.QStandardItemModel):
     def __init__(self, treeview):
         QtGui.QStandardItemModel.__init__(self)
@@ -186,36 +187,47 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
         palette = treeview.palette()
         normal_color = palette.color(QtGui.QPalette.Base)
         alternate_color = palette.color(QtGui.QPalette.AlternateBase)
-        r,g,b = normal_color.red(), normal_color.green(), normal_color.blue()
-        ar,ag,ab = alternate_color.red(), alternate_color.green(), alternate_color.blue()
-        self.r_factor = 1-(r - ar)/float(r) 
-        self.g_factor = 1-(g - ag)/float(g)
-        self.b_factor = 1-(b - ab)/float(b) 
-     
+        r, g, b, a = normal_color.getRgb()
+        alt_r, alt_g, alt_b, alt_a = alternate_color.getRgb()
+        self.delta_r = alt_r - r
+        self.delta_g = alt_g - g
+        self.delta_b = alt_b - b
+        self.delta_a = alt_a - a
+        
+        # A cache, store brushes so we don't have to recalculate them. Is faster.
+        self.alternate_brushes = {}
+        
     def data(self, index, role):
-        """When background color data is being requested, returns modified colours for every second role,
-           according to the palette of the treeview. This has the effect of making the alternate colours
-           visible even when custom colors have been set - the same shading will be applied to the custom
-           colours."""
-        if role == QtCore.Qt.BackgroundRole:
+        """When background color data is being requested, returns modified colours for every second row,
+       according to the palette of the treeview. This has the effect of making the alternate colours
+       visible even when custom colors have been set - the same shading will be applied to the custom
+       colours. Only really looks sensible when the normal and alternate colors are similar."""
+        if role == QtCore.Qt.BackgroundRole and index.row() % 2:
             brush_variant = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
             if not brush_variant.isNull():
                 normal_brush = QtGui.QBrush(brush_variant)
-                if index.row() % 2:
-                    normal_color = normal_brush.color()
-                    r, g, b, a = normal_color.red(), normal_color.green(), normal_color.blue(), normal_color.alpha()
-                    alt_r = sorted([0, int(round(r*self.r_factor)), 255])[1]
-                    alt_g = sorted([0, int(round(g*self.g_factor)), 255])[1]
-                    alt_b = sorted([0, int(round(b*self.b_factor)), 255])[1]
-                    alternate_color = QtGui.QColor(alt_r, alt_g, alt_b, a)
-                    return QtGui.QBrush(alternate_color)
+                normal_color = normal_brush.color()
+                try:
+                    return self.alternate_brushes[normal_color.rgb()]
+                except KeyError:
+                    r, g, b, a = normal_color.getRgb()
+                    alt_r = min(max(r + self.delta_r, 0), 255)
+                    alt_g = min(max(g + self.delta_g, 0), 255)
+                    alt_b = min(max(b + self.delta_b, 0), 255)
+                    alt_a = min(max(a + self.delta_a, 0), 255)
+                    alternate_color = QtGui.QColor(alt_r, alt_g, alt_b, alt_a)
+                    alternate_brush = QtGui.QBrush(alternate_color)
+                    self.alternate_brushes[normal_color.rgb()] = alternate_brush
+                    return alternate_brush
         return QtGui.QStandardItemModel.data(self, index, role)
+
 
 class FixedHeightItemDelegate(QtGui.QStyledItemDelegate):
     HEIGHT = 24
     def sizeHint(self, *args):
         size = QtGui.QStyledItemDelegate.sizeHint(self, *args)
         return QtCore.QSize(size.width(), self.HEIGHT)
+        
         
 class GroupTab(object):
     GLOBALS_COL_NAME = 0
