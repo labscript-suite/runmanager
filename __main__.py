@@ -100,7 +100,6 @@ class FingerTabBarWidget(QtGui.QTabBar):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
         self.iconPosition=kwargs.pop('iconPosition',QtGui.QTabWidget.West)
-        self.tabSizes = []
   
     def paintEvent(self, event):
         painter = QtGui.QStylePainter(self)
@@ -109,6 +108,16 @@ class FingerTabBarWidget(QtGui.QTabBar):
         self.tabSizes = range(self.count())
   
         for index in range(self.count()):
+            tab_size = self.tabSizeHint(index)
+            tab_width, tab_height = tab_size.width(), tab_size.height()
+            right_button = self.tabButton(index, QtGui.QTabBar.RightSide)
+            if right_button:
+                right_button_size = right_button.sizeHint()
+                right_button_width = right_button_size.width()
+                right_button_height = right_button_size.height()
+                padding = int((tab_height - right_button_height)/2)
+                right_button.move(tab_width - right_button_width - padding, tab_height*index + padding)
+            
             self.initStyleOption(option, index)
             tabRect = self.tabRect(index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
@@ -131,7 +140,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
             painter.drawText(tabRect, QtCore.Qt.AlignVCenter, self.tabText(index))
         painter.end()
   
-    def tabSizeHint(self,index):
+    def tabSizeHint(self, index):
         return self.tabSize
         
         
@@ -140,7 +149,14 @@ class FingerTabWidget(QtGui.QTabWidget):
     def __init__(self, parent, *args):
         QtGui.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
-     
+        
+    def addTab(self, *args):
+        index = QtGui.QTabWidget.addTab(self, *args)
+        close_button = QtGui.QToolButton(self.parent())
+        close_button.setIcon(QtGui.QIcon(':/qtutils/fugue/cross'))
+        self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, close_button)
+        return index
+        
      
 class LeftClickTreeView(QtGui.QTreeView):
     leftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
@@ -521,10 +537,6 @@ class GroupTab(object):
         if new_expansion != previous_expansion:
             self.change_global_expansion(global_name, previous_expansion, new_expansion)
             
-    def on_closetab_button_clicked(self, *args):
-        # Move this method to main runmanager class
-        raise NotImplementedError
-    
     def on_treeView_globals_context_menu_requested(self, point):
         menu = QtGui.QMenu(self.ui)
         menu.addAction(self.action_globals_set_selected_true)
@@ -904,9 +916,10 @@ class RunManager(object):
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
         self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','Delete','Open/Close'])
-
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
+        self.item_delegate = FixedHeightItemDelegate()
         self.ui.treeView_groups.setModel(self.groups_model)
+        self.ui.treeView_groups.setItemDelegateForColumn(self.GROUPS_COL_NAME, self.item_delegate)
         self.ui.treeView_groups.setAnimated(True) # Pretty
         self.ui.treeView_groups.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
@@ -1178,7 +1191,9 @@ class RunManager(object):
                 globals_file = qstring_to_unicode(item.parent().text())
                 group_name = qstring_to_unicode(item.text())
                 if (globals_file, group_name) not in self.currently_open_groups:
-                    self.open_group(globals_file, group_name)
+                    self.open_group(globals_file, group_name, trigger_preparse=False)
+        if name_items:
+            self.globals_changed()
 
     def on_groups_close_selected_groups_triggered(self):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -1542,6 +1557,9 @@ class RunManager(object):
                 self.preparse_globals_required.clear()
                 # Do some work:
                 active_groups = self.get_active_groups()
+                if active_groups is None:
+                    # There was an error, get_active_groups has already shown it to the user.
+                    continue
                 self.set_tabs_parsing_in_progress_indication()
                 # Expansion mode is automatically updated when the global's type changes. If this occurs,
                 # we will have to parse again to include the change:
@@ -1747,7 +1765,7 @@ class RunManager(object):
             # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GROUPS_DUMMY_ROW_TEXT)
             
-    def open_group(self, globals_file, group_name):
+    def open_group(self, globals_file, group_name, trigger_preparse=True):
         assert (globals_file, group_name) not in self.currently_open_groups # sanity check
         group_tab = GroupTab(self.ui.tabWidget, globals_file, group_name)
         self.currently_open_groups[globals_file, group_name] = group_tab
@@ -1757,8 +1775,11 @@ class RunManager(object):
         # other data roles, icons etc:
         openclose_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_OPENCLOSE)
         openclose_item.setData(True, self.GROUPS_ROLE_GROUP_IS_OPEN)
-        # Trigger a preparse to occur in light of this:
-        self.globals_changed()
+        # Trigger a preparse to occur in light of this.
+        # Calling code can disable this so that multiple groups can be opened at once without
+        # triggering a preparse. If they do so, they should call self.globals_changed() themselves.
+        if trigger_preparse:
+            self.globals_changed()
         
     def rename_group(self, globals_file, previous_group_name, new_group_name):
         item = self.get_group_item_by_name(globals_file, new_group_name, self.GROUPS_COL_NAME,
