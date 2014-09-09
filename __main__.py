@@ -91,7 +91,17 @@ def nested(*contextmanagers):
     else:
         yield
         
-                
+class KeyPressQApplication(QtGui.QApplication):
+    """A Qapplication that emits a signal keyPress(key) on keypresses"""
+    keyPress = QtCore.pyqtSignal(int, QtCore.Qt.KeyboardModifiers, bool)
+    keyRelease = QtCore.pyqtSignal(int, QtCore.Qt.KeyboardModifiers, bool)
+    def notify(self, object, event):
+        if event.type() == QtCore.QEvent.KeyPress and event.key():
+            self.keyPress.emit(event.key(), event.modifiers(), event.isAutoRepeat())
+        elif event.type() == QtCore.QEvent.KeyRelease and event.key():
+            self.keyRelease.emit(event.key(), event.modifiers(), event.isAutoRepeat())
+        return QtGui.QApplication.notify(self, object, event)
+        
 class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
@@ -1009,6 +1019,15 @@ class RunManager(object):
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
         # Todo add 
         pass
+    
+    def on_keyPress(self, key, modifiers, is_autorepeat):
+        if key == QtCore.Qt.Key_F5 and modifiers == QtCore.Qt.NoModifier and not is_autorepeat:
+            self.ui.pushButton_engage.setDown(True)
+            
+    def on_keyRelease(self, key, modifiers, is_autorepeat):
+        if key == QtCore.Qt.Key_F5 and not is_autorepeat:
+           self.ui.pushButton_engage.setDown(False)
+           self.ui.pushButton_engage.clicked.emit(False)
         
     def on_select_labscript_file_clicked(self, checked):
         labscript_file = QtGui.QFileDialog.getOpenFileName(self.ui,
@@ -1855,9 +1874,6 @@ class RunManager(object):
     def load_configuration(self, filename=None):
         raise NotImplementedError
          
-    def on_keypress(self, widget, event):
-        raise NotImplementedError
-    
     def compile_loop(self):
         raise NotImplementedError
         
@@ -2010,7 +2026,9 @@ if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
-    qapplication = QtGui.QApplication(sys.argv)
+    qapplication = KeyPressQApplication(sys.argv)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
+    qapplication.keyPress.connect(app.on_keyPress)
+    qapplication.keyRelease.connect(app.on_keyRelease)
     sys.exit(qapplication.exec_())
