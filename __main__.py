@@ -874,13 +874,28 @@ class RunManager(object):
         self.preparse_globals_required = threading.Event()
         self.preparse_globals_thread.start()
         
+        # A flag telling the compilation thread to abort:
+        self.compilation_aborted = threading.Event()
+        
         # A few attributes for self.guess_expansion_modes() to keep track of its state,
         # and thus detect changes:
         self.previous_evaled_globals = {}
         self.previous_global_hierarchy = {}
         self.previous_expansion_types = {}
         self.previous_expansions = {}
-            
+        
+        # Start the loop that allows compilations to be queued up:
+        self.compile_queue = Queue.Queue()
+        self.compile_queue_thread = threading.Thread(target=self.compile_loop)
+        self.compile_queue_thread.daemon = True
+        self.compile_queue_thread.start()
+        
+        # Another loop, for submitting to mise in a separate thread:
+        self.mise_submission_queue = Queue.Queue()
+        self.mise_submission_queue_thread = threading.Thread(target=self.mise_submission_loop)
+        self.mise_submission_queue_thread.daemon = True
+        self.mise_submission_queue_thread.start()
+        
         # Start the compiler subprocess:
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
         
@@ -1017,8 +1032,6 @@ class RunManager(object):
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
-        # Todo add 
-        pass
     
     def on_keyPress(self, key, modifiers, is_autorepeat):
         if key == QtCore.Qt.Key_F5 and modifiers == QtCore.Qt.NoModifier and not is_autorepeat:
@@ -1130,10 +1143,43 @@ class RunManager(object):
             self.ui.stackedWidget_compile_or_mise.setCurrentWidget(page)
     
     def on_engage_clicked(self):
-        raise NotImplementedError
+        logger.info('Engage')
+        try:
+            compile = self.ui.radioButton_compile.isChecked()
+            submit_to_mise = self.ui.radioButton_send_to_mise.isChecked()
+            send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
+            send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
+            labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
+            shuffle = self.ui.pushButton_shuffle.isChecked()
+            if not labscript_file:
+                raise Exception('Error: No labscript file selected')
+            output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
+            if not output_folder:
+                raise Exception('Error: No output folder selected')
+            BLACS_host = qstring_to_unicode(self.ui.lineEdit_BLACS_hostname.text())
+            mise_host = qstring_to_unicode(self.ui.lineEdit_mise_hostname.text())
+            logger.info('Parsing globals...')
+            active_groups = self.get_active_groups()
+            sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
+            if compile:
+                logger.info('Making h5 files')
+                labscript_file, run_files = self.make_h5_files(labscript_file, output_folder, sequenceglobals, shots, shuffle)
+                self.ui.pushButton_abort.setEnabled(True)
+                self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
+            elif submit_to_mise:
+                if not mise_host:
+                    raise Exception('Error: No mise host entered')
+                self.mise_submission_queue.put([mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle])
+            else:
+                raise RuntimeError('neither radiobutton selected') # Sanity check
+            logger.info('finishing try statement')
+        except Exception as e:
+            raise # TODO remove!!!!
+            self.output_box.output('%s\n'%str(e), red=True)
+        logger.info('end engage')
         
     def on_abort_clicked(self):
-        raise NotImplementedError
+        self.compilation_aborted.set()
         
     def on_restart_subprocess_clicked(self):
         # Kill and restart the compilation subprocess
@@ -1875,7 +1921,45 @@ class RunManager(object):
         raise NotImplementedError
          
     def compile_loop(self):
-        raise NotImplementedError
+        # Silence spurious HDF5 errors:
+        h5py._errors.silence_errors()
+        while True:
+            try:
+                labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                run_files = iter(run_files) # Should already be in iterator but just in case
+                while True:
+                    if self.compilation_aborted.is_set():
+                        inmain(self.ui.pushButton_abort.setEnabled, False)
+                        self.output_box.output('Compilation aborted.\n', red=True)
+                        self.compilation_aborted.clear()
+                        break
+                    try:
+                        try:
+                            # We do .next() instead of looping over run_files so that if compilation is aborted we
+                            # won't create an extra file unnecessarily.
+                            run_file = run_files.next()
+                        except StopIteration:
+                            break
+                        else:
+                            self.to_child.put(['compile',[labscript_file, run_file]])
+                            signal, success = self.from_child.get()
+                            assert signal == 'done'
+                            if not success:
+                                self.compilation_aborted.set()
+                                continue
+                            if send_to_BLACS:
+                                self.send_to_BLACS(run_file, BLACS_host)
+                            if send_to_runviewer:
+                                self.send_to_runviewer(run_file)
+                    except Exception as e:
+                        self.output_box.output(str(e)+'\n', red=True)
+                        self.compilation_aborted.set()
+                    
+            except Exception:
+                # Raise it so whatever bug it is gets seen, but keep going so the thread keeps functioning:
+                exc_info = sys.exc_info()
+                zprocess.raise_exception_in_thread(exc_info)
+                continue
         
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True):
         sequence_globals = runmanager.get_globals(active_groups)
@@ -2009,19 +2093,39 @@ class RunManager(object):
         
         return expansion_types_changed
         
-    def make_h5_files(self, sequence_globals, shots):
-        raise NotImplementedError
+    def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
+        mkdir_p(output_folder) # ensure it exists
+        sequence_id = runmanager.generate_sequence_id(labscript_file)
+        run_files = runmanager.make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle)
+        logger.debug(run_files)
+        return labscript_file, run_files
 
-    def compile_labscript(self, labscript_file, run_files):
-        raise NotImplementedError
+    def send_to_BLACS(self, run_file, BLACS_hostname):
+        raise NotImplementedError('Send to BLACS not implemented')
     
-    def submit_job(self, run_file):
-        raise NotImplementedError
-    
-    def submit_to_mise(self, sequenceglobals, shots):
-        raise NotImplementedError
+    def send_to_runviewer(self, run_file):
+        raise NotImplementedError('Send to runviwer not implemented')
         
-
+    def mise_submission_loop(self):
+        mise_port = int(self.exp_config.get('ports','mise'))
+        BLACS_port = int(self.exp_config.get('ports','BLACS'))
+        while True:
+            try:
+                mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle = self.mise_submission_queue.get()
+                self.output('submitting labscript and parameter space to mise\n')
+                data = ('from runmanager', labscript_file, sequenceglobals, shots,
+                        output_folder, shuffle, BLACS_host, BLACS_port, self.shared_drive_prefix)
+                try:
+                    success, message = zprocess.zmq_get(port, host=host, data=data, timeout=2)
+                except ZMQError as e:
+                    success, message = False, 'Could not send to mise: %s\n'%str(e)
+                self.output(message, red = not success)
+            except Exeption:
+                # Raise it so whatever bug it is gets seen, but keep going so the thread keeps functioning:
+                exc_info = sys.exc_info()
+                zprocess.raise_exception_in_thread(exc_info)
+                continue
+                
 if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)

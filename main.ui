@@ -287,7 +287,7 @@ subprocess</string>
             </sizepolicy>
            </property>
            <property name="currentIndex">
-            <number>1</number>
+            <number>0</number>
            </property>
            <widget class="QWidget" name="stackedWidgetPage_compile">
             <layout class="QFormLayout" name="formLayout">
@@ -305,15 +305,18 @@ subprocess</string>
                <property name="text">
                 <string>Run shot(s)</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item row="0" column="1">
-              <widget class="QCheckBox" name="checkBox_view_runs">
+              <widget class="QCheckBox" name="checkBox_view_shots">
                <property name="toolTip">
                 <string>Open the shot files in runviewer after compilation</string>
                </property>
                <property name="text">
-                <string>View run(s)</string>
+                <string>View shot(s)</string>
                </property>
               </widget>
              </item>
@@ -382,7 +385,7 @@ subprocess</string>
           <number>6</number>
          </property>
          <item row="2" column="1">
-          <widget class="QLineEdit" name="lineEdit">
+          <widget class="QLineEdit" name="lineEdit_BLACS_hostname">
            <property name="toolTip">
             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The host computer running BLACS.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
@@ -649,7 +652,7 @@ QToolButton:hover {
        <enum>QTabWidget::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <property name="elideMode">
        <enum>Qt::ElideRight</enum>
@@ -1024,14 +1027,14 @@ QToolButton:hover {
   <tabstop>radioButton_compile</tabstop>
   <tabstop>radioButton_send_to_mise</tabstop>
   <tabstop>checkBox_run_shots</tabstop>
-  <tabstop>checkBox_view_runs</tabstop>
+  <tabstop>checkBox_view_shots</tabstop>
   <tabstop>lineEdit_labscript_file</tabstop>
   <tabstop>toolButton_select_labscript_file</tabstop>
   <tabstop>toolButton_edit_labscript_file</tabstop>
   <tabstop>lineEdit_shot_output_folder</tabstop>
   <tabstop>toolButton_select_shot_output_folder</tabstop>
   <tabstop>toolButton_reset_shot_output_folder</tabstop>
-  <tabstop>lineEdit</tabstop>
+  <tabstop>lineEdit_BLACS_hostname</tabstop>
   <tabstop>tabWidget</tabstop>
   <tabstop>scrollArea</tabstop>
   <tabstop>toolButton_axis_to_top</tabstop>
