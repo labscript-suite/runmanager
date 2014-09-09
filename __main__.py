@@ -99,39 +99,28 @@ class FingerTabBarWidget(QtGui.QTabBar):
     def __init__(self, parent=None, width=200, height=30, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
-        self.iconPosition=kwargs.pop('iconPosition',QtGui.QTabWidget.West)
-  
+        self.iconPosition=kwargs.pop('iconPosition', QtGui.QTabWidget.West)
+
     def paintEvent(self, event):
         painter = QtGui.QStylePainter(self)
         option = QtGui.QStyleOptionTab()
-  
-        self.tabSizes = range(self.count())
-  
         for index in range(self.count()):
-            tab_size = self.tabSizeHint(index)
-            tab_width, tab_height = tab_size.width(), tab_size.height()
+            tabRect = self.tabRect(index)
+            tab_x, tab_y, tab_width, tab_height = tabRect.x(), tabRect.y(), tabRect.width(), tabRect.height()
             right_button = self.tabButton(index, QtGui.QTabBar.RightSide)
             if right_button:
                 right_button_size = right_button.sizeHint()
                 right_button_width = right_button_size.width()
                 right_button_height = right_button_size.height()
                 padding = int((tab_height - right_button_height)/2)
-                right_button.move(tab_width - right_button_width - padding, tab_height*index + padding)
-            
+                right_button_x = tab_x + tab_width - right_button_width - padding
+                right_button_y = tab_y + padding
+                right_button.move(right_button_x, right_button_y)
             self.initStyleOption(option, index)
-            tabRect = self.tabRect(index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
             if not(self.tabIcon(index).isNull()):
                 icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
-                if self.iconPosition == QtGui.QTabWidget.West:
-                    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
-                #if self.iconPosition == QtGui.QTabWidget.East:
-                #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
-                #if self.iconPosition == QtGui.QTabWidget.North:
-                #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
-                #if self.iconPosition == QtGui.QTabWidget.South:
-                #    alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 tabRect.moveLeft(10)
                 painter.drawItemPixmap(tabRect,alignment,icon)
                 tabRect.moveLeft(self.iconSize().width() + 15)
@@ -150,14 +139,32 @@ class FingerTabWidget(QtGui.QTabWidget):
         QtGui.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
         
-    def addTab(self, *args):
-        index = QtGui.QTabWidget.addTab(self, *args)
-        close_button = QtGui.QToolButton(self.parent())
-        close_button.setIcon(QtGui.QIcon(':/qtutils/fugue/cross'))
-        self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, close_button)
+    def addTab(self, *args, **kwargs):
+        closeable = kwargs.pop('closable', False)
+        index = QtGui.QTabWidget.addTab(self, *args, **kwargs)
+        self.setTabClosable(index, closeable)
         return index
         
-     
+    def setTabClosable(self, index, closable):
+        right_button = self.tabBar().tabButton(index, QtGui.QTabBar.RightSide)
+        if closable:
+            if not right_button:
+                # Make one:
+                close_button = QtGui.QToolButton(self.parent())
+                close_button.setIcon(QtGui.QIcon(':/qtutils/fugue/cross'))
+                self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, close_button)
+                close_button.clicked.connect(lambda: self._on_close_button_clicked(close_button))
+        else:
+            if right_button:
+                # Get rid of it:
+                self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, None)
+                
+    def _on_close_button_clicked(self, button):
+        for index in range(self.tabBar().count()):
+            if self.tabBar().tabButton(index, QtGui.QTabBar.RightSide) is button:
+                self.tabCloseRequested.emit(index)
+                break
+        
 class LeftClickTreeView(QtGui.QTreeView):
     leftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
     """A QTreeview that emits a custom signal leftClicked(index)
@@ -273,7 +280,7 @@ class GroupTab(object):
         self.ui = loader.load('group.ui')
         
         # Add the ui to the parent tabWidget:
-        self.tabWidget.addTab(self.ui, group_name)
+        self.tabWidget.addTab(self.ui, group_name, closable=True)
         
         self.set_file_and_group_name(globals_file, group_name)
         
@@ -971,6 +978,9 @@ class RunManager(object):
         self.ui.pushButton_abort.clicked.connect(self.on_abort_clicked)
         self.ui.pushButton_restart_subprocess.clicked.connect(self.on_restart_subprocess_clicked)
         
+        # Tab closebutton clicked:
+        self.ui.tabWidget.tabCloseRequested.connect(self.on_tabCloseRequested)
+        
         # Axes tab; right click menu, menu actions, reordering
         self.ui.treeView_axes.customContextMenuRequested.connect(self.on_treeView_axes_context_menu_requested)
         self.action_axes_check_selected.triggered.connect(self.on_axes_check_selected_triggered)
@@ -1112,6 +1122,13 @@ class RunManager(object):
         self.from_child.put(['done', False])
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
     
+    def on_tabCloseRequested(self, index):
+        tab_page = self.ui.tabWidget.widget(index)
+        for (globals_file, group_name), group_tab in self.currently_open_groups.items():
+            if group_tab.ui is tab_page:
+                self.close_group(globals_file, group_name)
+                break
+        
     def on_treeView_axes_context_menu_requested(self, point):
         raise NotImplementedError
         # menu = QtGui.QMenu(self.ui)
