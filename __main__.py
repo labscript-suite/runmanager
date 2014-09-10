@@ -38,7 +38,7 @@ import labscript_utils.shared_drive as shared_drive
 import runmanager
 
 from qtutils.outputbox import OutputBox
-from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager
+from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager, qstring_to_unicode
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -75,13 +75,6 @@ def mkdir_p(path):
             pass
         else: raise
         
-@inmain_decorator()
-def qstring_to_unicode(qstring):
-    if sys.version > '3':
-        return str(qstring.toUtf8(), encoding="UTF-8")
-    else:
-        return unicode(qstring.toUtf8(), encoding="UTF-8")
-
 @contextlib.contextmanager
 def nested(*contextmanagers):
     if contextmanagers:
@@ -2140,7 +2133,18 @@ class RunManager(object):
         return labscript_file, run_files
 
     def send_to_BLACS(self, run_file, BLACS_hostname):
-        raise NotImplementedError('Send to BLACS not implemented')
+        port = int(self.exp_config.get('ports','BLACS'))
+        agnostic_path = shared_drive.path_to_agnostic(run_file)
+        self.output_box.output('Submitting run file %s.\n'%os.path.basename(run_file))
+        try:
+            response = zprocess.zmq_get(port, host, data=agnostic_path)
+            if 'added successfully' in response:
+                self.output(response)
+            else:
+                raise Exception(response)
+        except Exception as e:
+            self.output_box.output('Couldn\'t submit job to control server: %s\n'%str(e),red=True)
+            self.aborted = True
     
     def send_to_runviewer(self, run_file):
         raise NotImplementedError('Send to runviwer not implemented')
