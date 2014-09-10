@@ -821,7 +821,13 @@ class GroupTab(object):
                 item.setToolTip('Group inactive')
                 item.setData(None, QtCore.Qt.BackgroundRole)
 
-                
+
+class RunmanagerMainWindow(QtGui.QMainWindow):
+    def closeEvent(self, event):
+        app.on_close_event()
+        return QtGui.QMainWindow.closeEvent(self, event)
+              
+              
 class PoppedOutOutputBoxWindow(QtGui.QDialog):
     def closeEvent(self, event):
         app.on_output_popout_button_clicked()
@@ -850,7 +856,7 @@ class RunManager(object):
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
         loader.registerCustomWidget(LeftClickTreeView)
-        self.ui = loader.load('main.ui')
+        self.ui = loader.load('main.ui', RunmanagerMainWindow())
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
         
         # Add a 'pop-out' button to the output tab:
@@ -1056,6 +1062,9 @@ class RunManager(object):
         # A context manager with which we can temporarily disconnect the above connection.
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
     
+    def on_close_event(self):
+        self.to_child.put(['quit',None])
+
     def on_keyPress(self, key, modifiers, is_autorepeat):
         if key == QtCore.Qt.Key_F5 and modifiers == QtCore.Qt.NoModifier and not is_autorepeat:
             self.ui.pushButton_engage.setDown(True)
