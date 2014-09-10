@@ -821,7 +821,12 @@ class GroupTab(object):
                 item.setToolTip('Group inactive')
                 item.setData(None, QtCore.Qt.BackgroundRole)
 
-                        
+                
+class PoppedOutOutputBoxWindow(QtGui.QDialog):
+    def closeEvent(self, event):
+        app.on_output_popout_button_clicked()
+       
+       
 class RunManager(object):
     
     # Constants for the model in the axes tab:
@@ -847,6 +852,21 @@ class RunManager(object):
         loader.registerCustomWidget(LeftClickTreeView)
         self.ui = loader.load('main.ui')
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
+        
+        # Add a 'pop-out' button to the output tab:
+        output_tab_index = self.ui.tabWidget.indexOf(self.ui.tab_output)
+        self.output_popout_button = QtGui.QToolButton(self.ui.tabWidget.parent())
+        self.output_popout_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-out'))
+        self.output_popout_button.setToolTip('Toggle whether the output box is in a separate window')
+        self.ui.tabWidget.tabBar().setTabButton(output_tab_index, QtGui.QTabBar.RightSide, self.output_popout_button)
+        # Whether or not the output box is currently popped out:
+        self.output_box_is_popped_out = False
+        # The window it will be moved to when popped out:
+        self.output_box_window = PoppedOutOutputBoxWindow(self.ui, QtCore.Qt.WindowSystemMenuHint)
+        self.output_box_window_verticalLayout = QtGui.QVBoxLayout(self.output_box_window) 
+        self.output_box_window_verticalLayout.setContentsMargins(0,0,0,0)
+        self.output_box_window.setWindowTitle('runmanager output')
+        self.output_box_window.resize(800,1000)
         
         self.setup_config()
         self.setup_axes_tab()
@@ -986,6 +1006,9 @@ class RunManager(object):
         self.on_groups_model_active_changed_recursion_depth = 0
         
     def connect_signals(self):
+        # The button that pops the output box in and out:
+        self.output_popout_button.clicked.connect(self.on_output_popout_button_clicked)
+        
         # labscript file and folder selection stuff:
         self.ui.toolButton_select_labscript_file.clicked.connect(self.on_select_labscript_file_clicked)
         self.ui.toolButton_select_shot_output_folder.clicked.connect(self.on_select_shot_output_folder_clicked)
@@ -1041,7 +1064,20 @@ class RunManager(object):
         if key == QtCore.Qt.Key_F5 and not is_autorepeat:
            self.ui.pushButton_engage.setDown(False)
            self.ui.pushButton_engage.clicked.emit(False)
-        
+    
+    def on_output_popout_button_clicked(self):
+        if self.output_box_is_popped_out:
+            self.ui.verticalLayout_output_tab.addWidget(self.output_box.output_textedit)
+            self.output_box_window.hide()
+            self.output_popout_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-out'))
+        else:
+            # pop it out
+            # self.ui.verticalLayout_output_tab.remove(self.output_box)
+            self.output_box_window_verticalLayout.addWidget(self.output_box.output_textedit)
+            self.output_popout_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-in'))
+            self.output_box_window.show()
+        self.output_box_is_popped_out = not self.output_box_is_popped_out
+    
     def on_select_labscript_file_clicked(self, checked):
         labscript_file = QtGui.QFileDialog.getOpenFileName(self.ui,
                                                      'Select labscript file',
