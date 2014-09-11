@@ -660,7 +660,7 @@ class GroupTab(object):
             item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
             self.check_for_boolean_values(item)
             item.setData(None, QtCore.Qt.BackgroundRole)
-            item.setData(None, QtCore.Qt.DecorationRole)
+            item.setIcon(QtGui.QIcon(':qtutils/fugue/hourglass'))
             item.setToolTip('Evaluating...')
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
@@ -752,9 +752,6 @@ class GroupTab(object):
         # Tell the main app about it:
         app.globals_changed()
     
-    def set_parsing_in_progress_indication(self):
-        self.set_tab_icon(':qtutils/fugue/hourglass')
-                        
     def delete_global(self, global_name, confirm=True):
         logger.info('%s:%s - delete global: %s'%
                         (self.globals_file, self.group_name, global_name))
@@ -923,6 +920,8 @@ class RunManager(object):
         inthread(self.rollover_shot_output_folder)
         self.ui.show()
     
+        self.output_box.output('Ready.\n\n')
+        
     def setup_config(self):
         config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
         required_config_params = {"DEFAULT":["experiment_name"],
@@ -1038,7 +1037,6 @@ class RunManager(object):
         self.ui.toolButton_axis_to_bottom.clicked.connect(self.on_axis_to_bottom_clicked)
         
         # Groups tab; right click menu, menu actions, open globals file, new globals file, diff globals file, 
-        # (TODO add comment for remaining)
         self.ui.treeView_groups.customContextMenuRequested.connect(self.on_treeView_groups_context_menu_requested)
         self.action_groups_set_selection_active.triggered.connect(lambda: self.on_groups_set_selection_active_triggered(QtCore.Qt.Checked))
         self.action_groups_set_selection_inactive.triggered.connect(lambda: self.on_groups_set_selection_active_triggered(QtCore.Qt.Unchecked))
@@ -1207,12 +1205,11 @@ class RunManager(object):
             elif submit_to_mise:
                 if not mise_host:
                     raise Exception('Error: No mise host entered')
-                self.mise_submission_queue.put([mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle])
+                self.mise_submission_queue.put([mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder])
             else:
                 raise RuntimeError('neither radiobutton selected') # Sanity check
             logger.info('finishing try statement')
         except Exception as e:
-            raise # TODO remove!!!!
             self.output_box.output('%s\n'%str(e), red=True)
         logger.info('end engage')
         
@@ -1433,7 +1430,7 @@ class RunManager(object):
                 self.output_box.output('%s : %s\n' % (key, diff_globals[key]))
         else:
             self.output_box.output('Current runmanager globals are identical to those of:\n%s\n' % globals_file)
-        self.output_box.output('Ready\n')
+        self.output_box.output('Ready.\n\n')
             
     def on_treeView_groups_leftClicked(self, index):
         """Here we respond to user clicks on the treeview. We do the following:
@@ -1655,11 +1652,6 @@ class RunManager(object):
         self.preparse_globals_required.set()
     
     @inmain_decorator() # Is called by preparser thread
-    def set_tabs_parsing_in_progress_indication(self):
-        for group_tab in self.currently_open_groups.values():
-            group_tab.set_parsing_in_progress_indication()
-    
-    @inmain_decorator() # Is called by preparser thread
     def update_tabs_parsing_indication(self, sequence_globals, evaled_globals):
         for group_tab in self.currently_open_groups.values():
             group_tab.update_parse_indication(sequence_globals, evaled_globals)
@@ -1680,7 +1672,6 @@ class RunManager(object):
                 if active_groups is None:
                     # There was an error, get_active_groups has already shown it to the user.
                     continue
-                self.set_tabs_parsing_in_progress_indication()
                 # Expansion mode is automatically updated when the global's type changes. If this occurs,
                 # we will have to parse again to include the change:
                 while True:
@@ -1961,9 +1952,7 @@ class RunManager(object):
                 run_files = iter(run_files) # Should already be in iterator but just in case
                 while True:
                     if self.compilation_aborted.is_set():
-                        inmain(self.ui.pushButton_abort.setEnabled, False)
                         self.output_box.output('Compilation aborted.\n', red=True)
-                        self.compilation_aborted.clear()
                         break
                     try:
                         try:
@@ -1971,6 +1960,7 @@ class RunManager(object):
                             # won't create an extra file unnecessarily.
                             run_file = run_files.next()
                         except StopIteration:
+                            self.output_box.output('Ready.\n\n')
                             break
                         else:
                             self.to_child.put(['compile',[labscript_file, run_file]])
@@ -1986,7 +1976,8 @@ class RunManager(object):
                     except Exception as e:
                         self.output_box.output(str(e)+'\n', red=True)
                         self.compilation_aborted.set()
-                    
+                inmain(self.ui.pushButton_abort.setEnabled, False)
+                self.compilation_aborted.clear()
             except Exception:
                 # Raise it so whatever bug it is gets seen, but keep going so the thread keeps functioning:
                 exc_info = sys.exc_info()
@@ -2137,14 +2128,14 @@ class RunManager(object):
         agnostic_path = shared_drive.path_to_agnostic(run_file)
         self.output_box.output('Submitting run file %s.\n'%os.path.basename(run_file))
         try:
-            response = zprocess.zmq_get(port, host, data=agnostic_path)
+            response = zprocess.zmq_get(port, BLACS_hostname, data=agnostic_path)
             if 'added successfully' in response:
-                self.output(response)
+                self.output_box.output(response)
             else:
                 raise Exception(response)
         except Exception as e:
             self.output_box.output('Couldn\'t submit job to control server: %s\n'%str(e),red=True)
-            self.aborted = True
+            self.compilation_aborted.set()
     
     def send_to_runviewer(self, run_file):
         raise NotImplementedError('Send to runviwer not implemented')
@@ -2154,16 +2145,18 @@ class RunManager(object):
         BLACS_port = int(self.exp_config.get('ports','BLACS'))
         while True:
             try:
-                mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle = self.mise_submission_queue.get()
-                self.output('submitting labscript and parameter space to mise\n')
+                mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder = self.mise_submission_queue.get()
+                self.output_box.output('submitting labscript and parameter space to mise\n')
                 data = ('from runmanager', labscript_file, sequenceglobals, shots,
                         output_folder, shuffle, BLACS_host, BLACS_port, self.shared_drive_prefix)
                 try:
-                    success, message = zprocess.zmq_get(port, host=host, data=data, timeout=2)
+                    success, message = zprocess.zmq_get(mise_port, host=mise_host, data=data, timeout=2)
                 except ZMQError as e:
                     success, message = False, 'Could not send to mise: %s\n'%str(e)
-                self.output(message, red = not success)
-            except Exeption:
+                self.output_box.output(message, red = not success)
+                if success:
+                    self.output_box.output('Ready.\n\n')
+            except Exception:
                 # Raise it so whatever bug it is gets seen, but keep going so the thread keeps functioning:
                 exc_info = sys.exc_info()
                 zprocess.raise_exception_in_thread(exc_info)
