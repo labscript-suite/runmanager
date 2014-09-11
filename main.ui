@@ -991,16 +991,28 @@ QToolButton:hover {
    <addaction name="menuFile"/>
   </widget>
   <action name="actionLoad_configuration">
+   <property name="icon">
+    <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+     <normaloff>:/qtutils/fugue/folder-open.png</normaloff>:/qtutils/fugue/folder-open.png</iconset>
+   </property>
    <property name="text">
     <string>Load configuration</string>
    </property>
   </action>
   <action name="actionSave_configuration">
+   <property name="icon">
+    <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+     <normaloff>:/qtutils/fugue/disk-black.png</normaloff>:/qtutils/fugue/disk-black.png</iconset>
+   </property>
    <property name="text">
     <string>Save configuration</string>
    </property>
   </action>
   <action name="actionQuit">
+   <property name="icon">
+    <iconset resource="../../Anaconda/Lib/site-packages/qtutils/icons/icons.qrc">
+     <normaloff>:/qtutils/fugue/cross-button.png</normaloff>:/qtutils/fugue/cross-button.png</iconset>
+   </property>
    <property name="text">
     <string>Quit</string>
    </property>

@@ -24,6 +24,7 @@ import subprocess
 import threading
 import Queue
 import socket
+import ast
 
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
@@ -766,8 +767,9 @@ class GroupTab(object):
         self.globals_model.removeRow(name_item.row())
         self.globals_changed()
     
-    def update_parse_indication(self, sequence_globals, evaled_globals):
-        if self.group_name in evaled_globals:
+    def update_parse_indication(self, active_groups, sequence_globals, evaled_globals):
+        # Check that we are an active group:
+        if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
             tab_contains_errors = False
             for global_name, value in evaled_globals[self.group_name].items():
                 name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
@@ -816,9 +818,10 @@ class GroupTab(object):
 
 class RunmanagerMainWindow(QtGui.QMainWindow):
     def closeEvent(self, event):
-        app.on_close_event()
-        return QtGui.QMainWindow.closeEvent(self, event)
-              
+        if app.on_close_event():
+            return QtGui.QMainWindow.closeEvent(self, event)
+        else:
+            event.ignore()
               
 class PoppedOutOutputBoxWindow(QtGui.QDialog):
     def closeEvent(self, event):
@@ -875,11 +878,12 @@ class RunManager(object):
         self.last_opened_labscript_folder = self.exp_config.get('paths','labscriptlib')
         # The last location from which a globals file was selected, defaults to experiment_shot_storage:
         self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
+        # The last location the user saved or loaded a configuration, defaults to experiment_shot_storage/runmanager.ini:
+        self.last_save_config_file = os.path.join(self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
         # The last manually selected shot output folder, defaults to experiment_shot_storage:
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         self.experiment_shot_storage = self.exp_config.get('paths','experiment_shot_storage')
-        
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
         
@@ -921,7 +925,19 @@ class RunManager(object):
         self.output_folder_update_required = threading.Event()
         inthread(self.rollover_shot_output_folder)
         self.ui.show()
-    
+        
+        # The data from the last time we saved the configuration, so we can know if something's changed:
+        self.last_save_data = self.get_save_data()
+        
+        # autoload a config file, if labconfig is set to do so:
+        try:
+            autoload_config_file = self.exp_config.get('runmanager', 'autoload_config_file')
+        except Exception:
+            pass
+        else:
+            self.load_configuration(autoload_config_file)
+            
+            
         self.output_box.output('Ready.\n\n')
         
     def setup_config(self):
@@ -1010,6 +1026,11 @@ class RunManager(object):
         # The button that pops the output box in and out:
         self.output_popout_button.clicked.connect(self.on_output_popout_button_clicked)
         
+        # The menu items:
+        self.ui.actionSave_configuration.triggered.connect(self.on_save_configuration_triggered)
+        self.ui.actionLoad_configuration.triggered.connect(self.on_load_configuration_triggered)
+        self.ui.actionQuit.triggered.connect(self.ui.close)
+        
         # labscript file and folder selection stuff:
         self.ui.toolButton_select_labscript_file.clicked.connect(self.on_select_labscript_file_clicked)
         self.ui.toolButton_select_shot_output_folder.clicked.connect(self.on_select_shot_output_folder_clicked)
@@ -1057,8 +1078,18 @@ class RunManager(object):
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
     
     def on_close_event(self):
+        save_data = self.get_save_data()
+        if save_data != self.last_save_data:
+            message = 'Save runmanager state to config file \'%s\'?'%self.last_save_config_file
+            reply = QtGui.QMessageBox.question(self.ui, 'Quit runmanager', message,
+                                               QtGui.QMessageBox.Yes|QtGui.QMessageBox.No|QtGui.QMessageBox.Cancel)
+            if reply == QtGui.QMessageBox.Cancel:
+                return False
+            if reply == QtGui.QMessageBox.Yes:
+                self.save_configuration(self.last_save_config_file)
         self.to_child.put(['quit',None])
-
+        return True
+        
     def on_keyPress(self, key, modifiers, is_autorepeat):
         if key == QtCore.Qt.Key_F5 and modifiers == QtCore.Qt.NoModifier and not is_autorepeat:
             self.ui.pushButton_engage.setDown(True)
@@ -1379,7 +1410,8 @@ class RunManager(object):
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
-            
+        # Save the containing folder for use next time we open the dialog box:
+        self.last_opened_globals_folder = os.path.dirname(globals_file)
         # Create the new file and open it:
         runmanager.new_globals_file(globals_file)
         self.open_globals_file(globals_file)
@@ -1655,9 +1687,9 @@ class RunManager(object):
         self.preparse_globals_required.set()
     
     @inmain_decorator() # Is called by preparser thread
-    def update_tabs_parsing_indication(self, sequence_globals, evaled_globals):
+    def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals):
         for group_tab in self.currently_open_groups.values():
-            group_tab.update_parse_indication(sequence_globals, evaled_globals)
+            group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals)
             
     def preparse_globals(self):
         """Runs in a thread, waiting on a threading.Event that tells us when some globals
@@ -1683,7 +1715,7 @@ class RunManager(object):
                     expansions_changed = self.guess_expansion_modes(active_groups, evaled_globals, global_hierarchy, expansions)
                     if not expansions_changed:
                         break
-                self.update_tabs_parsing_indication(sequence_globals, evaled_globals)
+                self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals)
             except Exception:
                 # Raise the error, but keep going so we don't take
                 # down the whole thread if there is a bug.
@@ -1753,9 +1785,9 @@ class RunManager(object):
         
         file_active_item = QtGui.QStandardItem()
         file_active_item.setCheckable(True)
-        file_active_item.setCheckState(QtCore.Qt.Checked)
+        file_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated when checkstate changes:
-        file_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA)
+        file_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
         file_active_item.setEditable(False)
         file_active_item.setToolTip('Check to set all the file\'s groups as active.')
         
@@ -1805,6 +1837,7 @@ class RunManager(object):
         file_name_item.appendRow([dummy_name_item, dummy_active_item, dummy_delete_item, dummy_open_close_item])
         # Expand the child items to be visible:
         self.ui.treeView_groups.setExpanded(file_name_item.index(), True)
+        self.globals_changed()
     
     def make_group_row(self, group_name):
         """Returns a new row representing one group in the groups tab, ready to be
@@ -1817,9 +1850,9 @@ class RunManager(object):
         
         group_active_item = QtGui.QStandardItem()
         group_active_item.setCheckable(True)
-        group_active_item.setCheckState(QtCore.Qt.Checked)
+        group_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated whenever the checkstate changes:
-        group_active_item.setData(QtCore.Qt.Checked, self.GROUPS_ROLE_SORT_DATA)
+        group_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
         group_active_item.setEditable(False)
         group_active_item.setToolTip('Whether or not the globals within this group should be used by runmanager for compilation.')
         
@@ -1860,6 +1893,7 @@ class RunManager(object):
             
         # Remove the globals file from the model:
         self.groups_model.removeRow(item.row())
+        self.globals_changed()
         
     def new_group(self, globals_file, group_name):
         item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME,
@@ -1875,6 +1909,7 @@ class RunManager(object):
             last_index = item.parent().rowCount()
             # Insert it as the row before the last (dummy) row: 
             item.parent().insertRow(last_index-1, group_row)
+            self.globals_changed()
         finally:
             # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GROUPS_DUMMY_ROW_TEXT)
@@ -1933,19 +1968,185 @@ class RunManager(object):
         # Find the entry for this group in self.groups_model and remove it:
         name_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
         name_item.parent().removeRow(name_item.row())
+        self.globals_changed()
         
-    def on_save_configuration(self, widget):
-        raise NotImplementedError
+    def on_save_configuration_triggered(self):
+        save_file = QtGui.QFileDialog.getSaveFileName(self.ui,
+                                                     'Select  file to save current runmanager configuration',
+                                                      self.last_save_config_file,
+                                                      "config files (*.ini)")
+        if not save_file:
+            # User cancelled
+            return
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        save_file = qstring_to_unicode(save_file)
+        save_file = os.path.abspath(save_file)
+        self.save_configuration(save_file)
     
-    def save_configuration(self, filename=None):
-        raise NotImplementedError
+    def get_save_data(self):
+        # Get the currently open files and active groups:
+        h5_files_open = []
+        active_groups = []
+        for i in range(self.groups_model.rowCount()):
+            file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
+            globals_file_name = qstring_to_unicode(file_name_item.text())
+            h5_files_open.append(globals_file_name)
+            for j in range(file_name_item.rowCount()):
+                group_name_item = file_name_item.child(j, self.GROUPS_COL_NAME)
+                group_name = qstring_to_unicode(group_name_item.text())
+                group_active_item = file_name_item.child(j, self.GROUPS_COL_ACTIVE)
+                if group_active_item.checkState() == QtCore.Qt.Checked:
+                    active_groups.append((globals_file_name, group_name))
+        # Get the currently open groups:
+        groups_open = []
+        for i in range(self.ui.tabWidget.count()):
+            tab_page = self.ui.tabWidget.widget(i)
+            for (globals_file_name, group_name), group_tab in self.currently_open_groups.items():
+                if group_tab.ui is tab_page:
+                    groups_open.append((globals_file_name, group_name))
+                    break
+        # Get the labscript file, output folder, and whether the output folder is default:
+        current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
+        shot_output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
+        is_using_default_shot_output_folder = (shot_output_folder == self.get_default_output_folder())
         
-    def on_load_configuration(self, filename):
-        raise NotImplementedError        
-
-    def load_configuration(self, filename=None):
-        raise NotImplementedError
-         
+        # Get the server hostnames:
+        BLACS_host = qstring_to_unicode(self.ui.lineEdit_BLACS_hostname.text())
+        mise_host = qstring_to_unicode(self.ui.lineEdit_mise_hostname.text())
+        
+        # Get other GUI settings:
+        compile = self.ui.radioButton_compile.isChecked()
+        submit_to_mise = self.ui.radioButton_send_to_mise.isChecked()
+        compile = self.ui.checkBox_run_shots.isChecked()
+        send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
+        shuffle = self.ui.pushButton_shuffle.isChecked()
+            
+        save_data = {'h5_files_open': h5_files_open,
+                     'active_groups': active_groups,
+                     'groups_open': groups_open,
+                     'current_labscript_file': current_labscript_file, 
+                     'shot_output_folder': shot_output_folder,
+                     'is_using_default_shot_output_folder': is_using_default_shot_output_folder,
+                     'submit_to_mise': submit_to_mise,
+                     'compile': compile,
+                     'send_to_runviewer': send_to_runviewer,
+                     'shuffle': shuffle}
+        return save_data
+                     
+    def save_configuration(self, save_file):
+        runmanager_config = LabConfig(save_file)
+        save_data = self.get_save_data()
+        self.last_save_config_file = save_file
+        self.last_save_data = save_data
+        for key, value in save_data.items():
+            runmanager_config.set('runmanager_state', key, repr(value))
+        
+    def on_load_configuration_triggered(self):
+        save_data = self.get_save_data()
+        if save_data != self.last_save_data:
+            message = 'Current configuration has chaged: save config file \'%s\'?'%self.last_save_config_file
+            reply = QtGui.QMessageBox.question(self.ui, 'Load configuration', message,
+                                               QtGui.QMessageBox.Yes|QtGui.QMessageBox.No|QtGui.QMessageBox.Cancel)
+            if reply == QtGui.QMessageBox.Cancel:
+                return
+            if reply == QtGui.QMessageBox.Yes:
+                self.save_configuration(self.last_save_config_file)
+                
+        file = QtGui.QFileDialog.getOpenFileName(self.ui,
+                                                 'Select runmanager configuration file to load',
+                                                  self.last_save_config_file,
+                                                  "config files (*.ini)")
+        if not file:
+            # User cancelled
+            return
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        file = qstring_to_unicode(file)
+        file = os.path.abspath(file)
+        self.load_configuration(file)
+    
+    def load_configuration(self, filename):
+        save_data = self.get_save_data()
+        self.last_save_data = save_data
+        self.last_save_config_file = filename
+        
+        # Close all files:
+        for globals_file in save_data['h5_files_open']:
+            self.close_globals_file(globals_file, confirm=False)
+        runmanager_config = LabConfig(filename)
+        try:
+            h5_files_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'h5_files_open'))
+        except Exception:
+            pass
+        else:
+            for globals_file in h5_files_open:
+                try:
+                    self.open_globals_file(globals_file)
+                except Exception:
+                    zprocess.raise_exception_in_thread(sys.exc_info())
+                    continue
+        try:
+            active_groups = ast.literal_eval(runmanager_config.get('runmanager_state', 'active_groups'))
+        except Exception:
+            pass
+        else:
+            for globals_file, group_name in active_groups:
+                group_active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
+                group_active_item.setCheckState(QtCore.Qt.Checked)
+        try:
+            groups_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'groups_open'))
+        except Exception:
+            pass
+        else:
+            for globals_file, group_name in groups_open:
+                self.open_group(globals_file, group_name)
+        try:
+            current_labscript_file = ast.literal_eval(runmanager_config.get('runmanager_state', 'current_labscript_file'))
+        except Exception:
+            pass
+        else:
+            self.ui.lineEdit_labscript_file.setText(current_labscript_file)
+        try:
+            shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'shot_output_folder'))
+        except Exception:
+            pass
+        else:
+            self.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
+        try:
+            is_using_default_shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'is_using_default_shot_output_folder'))
+        except Exception:
+            pass
+        else:
+            if is_using_default_shot_output_folder:
+                self.ui.lineEdit_shot_output_folder.setText(self.get_default_output_folder())
+        try:
+            submit_to_mise = ast.literal_eval(runmanager_config.get('runmanager_state', 'submit_to_mise'))
+        except Exception:
+            pass
+        else:
+            if submit_to_mise:
+                self.ui.radioButton_send_to_mise.setChecked(True)
+        try:
+            compile = ast.literal_eval(runmanager_config.get('runmanager_state', 'compile'))
+        except Exception:
+            pass
+        else:
+            if compile:
+                self.ui.radioButton_compile.setChecked(True)
+        try:
+            send_to_runviewer = ast.literal_eval(runmanager_config.get('runmanager_state', 'send_to_runviewer'))
+        except Exception:
+            pass
+        else:
+            if send_to_runviewer:
+                self.ui.checkBox_view_shots.setChecked(True)
+        try:
+            shuffle = ast.literal_eval(runmanager_config.get('runmanager_state', 'shuffle'))
+        except Exception:
+            pass
+        else:
+            if shuffle:
+                self.ui.pushButton_shuffle.setChecked(True)
+      
     def compile_loop(self):
         # Silence spurious HDF5 errors:
         h5py._errors.silence_errors()
@@ -2165,7 +2366,7 @@ class RunManager(object):
             if 'ok' not in response:
                 raise Exception(response)
             else:
-                self.output_box.output('Shot %s sent to runviewer.\n'%os.path.basename(run_file)))
+                self.output_box.output('Shot %s sent to runviewer.\n'%os.path.basename(run_file))
         except Exception as e:
             self.output_box.output('Couldn\'t submit shot to runviewer: %s\n'%str(e),red=True)
                 
