@@ -99,7 +99,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
     Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
     We will promote the TabBar from the ui file to one of these."""
-    def __init__(self, parent=None, width=200, height=30, **kwargs):
+    def __init__(self, parent=None, width=220, height=30, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
         self.iconPosition=kwargs.pop('iconPosition', QtGui.QTabWidget.West)
@@ -352,7 +352,9 @@ class GroupTab(object):
         
     def populate_model(self):
         globals = runmanager.get_globals({self.group_name: self.globals_file})[self.group_name]
-        for name, (value, units, expansion) in globals.items():
+        globals_items = list(globals.items())
+        globals_items.sort() # Ensure globals ordered alphabetically at load time
+        for name, (value, units, expansion) in globals_items:
             row = self.make_global_row(name, value, units, expansion)
             self.globals_model.appendRow(row)
             value_item = row[self.GLOBALS_COL_VALUE]
