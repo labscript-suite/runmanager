@@ -930,6 +930,7 @@ class RunManager(object):
                                   "programs":["text_editor",
                                               "text_editor_arguments",
                                              ],
+                                  "ports":['BLACS', 'runviewer'],
                                   "paths":["shared_drive",
                                            "experiment_shot_storage",
                                            "labscriptlib",
@@ -2140,8 +2141,34 @@ class RunManager(object):
             self.compilation_aborted.set()
     
     def send_to_runviewer(self, run_file):
-        raise NotImplementedError('Send to runviwer not implemented')
+        runviewer_port = int(self.exp_config.get('ports','runviewer'))
+        agnostic_path = shared_drive.path_to_agnostic(run_file)
+        try:
+            response = zprocess.zmq_get(runviewer_port, 'localhost', data='hello', timeout=1)
+            if 'hello' not in response:
+                raise Exception(response)
+        except Exception as e:    
+            logger.info('runviewer not running, attempting to start...')
+            # Runviewer not running, start it:
+            if os.name == 'nt':
+                # Keeps it running after runmanager stops:
+                creationflags=0x00000008 # DETACHED_PROCESS from the win32 API
+            else:
+                creationflags=None
+            subprocess.Popen([sys.executable,'-m','runviewer'], 
+                              creationflags=creationflags,
+                              stdout=None, stderr=None, close_fds=True)
+            time.sleep(3)
         
+        try:
+            response = zprocess.zmq_get(runviewer_port, 'localhost', data=agnostic_path, timeout=0.5)
+            if 'ok' not in response:
+                raise Exception(response)
+            else:
+                self.output_box.output('Shot %s sent to runviewer.\n'%os.path.basename(run_file)))
+        except Exception as e:
+            self.output_box.output('Couldn\'t submit shot to runviewer: %s\n'%str(e),red=True)
+                
     def mise_submission_loop(self):
         mise_port = int(self.exp_config.get('ports','mise'))
         BLACS_port = int(self.exp_config.get('ports','BLACS'))
