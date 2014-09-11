@@ -43,9 +43,9 @@ class BatchProcessor(object):
     def compile(self,labscript_file, run_file):
         # The namespace the labscript will run in:
         sandbox = {'__name__':'__main__'}
-        labscript.labscript_init(run_file, labscript_file=labscript_file)
         try:
             with kill_lock:
+                labscript.labscript_init(run_file, labscript_file=labscript_file)
                 execfile(labscript_file,sandbox,sandbox)
             return True
         except:

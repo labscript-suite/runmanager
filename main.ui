@@ -1005,7 +1005,7 @@ QToolButton:hover {
      <normaloff>:/qtutils/fugue/disk-black.png</normaloff>:/qtutils/fugue/disk-black.png</iconset>
    </property>
    <property name="text">
-    <string>Save configuration</string>
+    <string>Save configuration as</string>
    </property>
   </action>
   <action name="actionQuit">

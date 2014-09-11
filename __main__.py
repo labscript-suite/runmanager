@@ -28,7 +28,24 @@ import ast
 
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
-    
+
+def check_version(module_name, greater_or_equal, less_than, version=None):
+    class VersionException(Exception):
+        pass
+    min_tuple = [int(v.split('-')[0]) for v in greater_or_equal.split('.')]
+    while len(min_tuple) < 3: min_tuple += (0,)
+    max_tuple = [int(v.split('-')[0]) for v in less_than.split('.')]
+    while len(max_tuple) < 3: max_tuple += (0,)
+    if version is None:
+        version = __import__(module_name).__version__
+    version_tuple = [int(v) for v in version.split('-')[0].split('.')]
+    if not min_tuple <= version_tuple < max_tuple:
+        raise VersionException('{module_name} {version} found. {greater_or_equal} <= {module_name} < {less_than} required.'.format(**locals()))
+
+check_version('labscript_utils', '1.1', '2')
+check_version('qtutils', '1.1', '2')
+check_version('zprocess', '1.1.2', '2')
+
 import zprocess.locking, labscript_utils.h5_lock, h5py
 from zmq import ZMQError
 
@@ -399,7 +416,7 @@ class GroupTab(object):
         self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item, dummy_delete_item])
     
     def make_global_row(self, name, value='', units='', expansion=''):
-        logger.info('%s:%s - make global row: %s '%(self.globals_file, self.group_name, name))
+        logger.debug('%s:%s - make global row: %s '%(self.globals_file, self.group_name, name))
         # We just set some data here, other stuff is set in self.update_parse_indication
         # after runmanager has a chance to parse everything and get back to us about what
         # that data should be.
@@ -651,6 +668,7 @@ class GroupTab(object):
             self.globals_changed()
             
     def change_global_value(self, global_name, previous_value, new_value):
+        logger.info('%s:%s - change global value: %s = %s -> %s'%(self.globals_file, self.group_name, global_name, previous_value, new_value))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
         try:
             runmanager.set_value(self.globals_file, self.group_name, global_name, new_value)
@@ -1190,7 +1208,8 @@ class RunManager(object):
         self.ui.toolButton_edit_labscript_file.setEnabled(enabled)
         # Blank out the 'select shot output folder' button if no labscript file is selected:
         self.ui.toolButton_select_shot_output_folder.setEnabled(enabled)
-            
+        self.ui.lineEdit_labscript_file.setToolTip(text)
+        
     def on_shot_output_folder_text_changed(self, text):
         # Blank out the 'reset default output folder' button
         # if the user is already using the default output folder
@@ -1199,7 +1218,8 @@ class RunManager(object):
         else:
             enabled = True
         self.ui.toolButton_reset_shot_output_folder.setEnabled(enabled)
-    
+        self.ui.lineEdit_shot_output_folder.setToolTip(text)
+        
     def on_compile_toggled(self, checked):
         if checked:
             # Show the corresponding page of the stackedWidget:
@@ -1681,16 +1701,20 @@ class RunManager(object):
             return current_default_output_folder
         return previous_default_output_folder
     
+    @inmain_decorator()
     def globals_changed(self):
         """Called from either self or a GroupTab to inform runmanager that something
         about globals has changed, and that they need parsing again"""
+        self.ui.pushButton_engage.setEnabled(False)
         self.preparse_globals_required.set()
+        
     
     @inmain_decorator() # Is called by preparser thread
     def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals):
         for group_tab in self.currently_open_groups.values():
             group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals)
-            
+        self.ui.pushButton_engage.setEnabled(True)
+        
     def preparse_globals(self):
         """Runs in a thread, waiting on a threading.Event that tells us when some globals
         have changed, and calls parse_globals to evaluate them all before feeding
@@ -1793,6 +1817,8 @@ class RunManager(object):
         
         file_delete_item = QtGui.QStandardItem() # Blank, only groups have a delete button
         file_delete_item.setEditable(False)
+        # Must be set to something so that the dummy row doesn't get sorted first:
+        file_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
         
         file_close_item = QtGui.QStandardItem()
         file_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
@@ -2065,11 +2091,9 @@ class RunManager(object):
         self.load_configuration(file)
     
     def load_configuration(self, filename):
-        save_data = self.get_save_data()
-        self.last_save_data = save_data
         self.last_save_config_file = filename
-        
         # Close all files:
+        save_data = self.get_save_data()
         for globals_file in save_data['h5_files_open']:
             self.close_globals_file(globals_file, confirm=False)
         runmanager_config = LabConfig(filename)
@@ -2146,7 +2170,10 @@ class RunManager(object):
         else:
             if shuffle:
                 self.ui.pushButton_shuffle.setChecked(True)
-      
+        # Set as self.last_save_data:
+        save_data = self.get_save_data()
+        self.last_save_data = save_data
+        
     def compile_loop(self):
         # Silence spurious HDF5 errors:
         h5py._errors.silence_errors()

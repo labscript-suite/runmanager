@@ -28,7 +28,7 @@ import pylab
 import zprocess
 import mise
 
-__version__ = '2.0.0-dev'
+__version__ = '2.0.0'
 
 class ExpansionError(Exception):
     """An exception class so that error handling code can tell when a
@@ -151,9 +151,9 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
             raise Exception('Can\'t rename global: target name already exists.')
-        group.attrs[newglobalname] = value.encode('utf8')
-        group['units'].attrs[newglobalname] = units.encode('utf8')
-        group['expansion'].attrs[newglobalname] = expansion.encode('utf8')
+        group.attrs[newglobalname] = value
+        group['units'].attrs[newglobalname] = units
+        group['expansion'].attrs[newglobalname] = expansion
         del group.attrs[oldglobalname]
         del group['units'].attrs[oldglobalname]
         del group['expansion'].attrs[oldglobalname]
@@ -161,33 +161,33 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
 def get_value(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname].attrs[globalname]
-        return value.decode('utf8')
+        return value
                 
 def set_value(filename, groupname, globalname, value):
     if not isinstance(value, bytes):
-        value = value.encode('utf8')
+        value = value
     with h5py.File(filename,'a') as f:
         f['globals'][groupname].attrs[globalname] = value
     
 def get_units(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname]['units'].attrs[globalname]
-        return value.decode('utf8')
+        return value
 
 def set_units(filename, groupname, globalname, units):
     if not isinstance(units, bytes):
-        units = units.encode('utf8')
+        units = units
     with h5py.File(filename,'a') as f:
         f['globals'][groupname]['units'].attrs[globalname] = units
 
 def get_expansion(filename, groupname, globalname):
     with h5py.File(filename,'r') as f:
         value = f['globals'][groupname]['expansion'].attrs[globalname]
-        return value.decode('utf8')
+        return value
         
 def set_expansion(filename, groupname, globalname, expansion):
     if not isinstance(expansion, bytes):
-        expansion = expansion.encode('utf8')
+        expansion = expansion
     with h5py.File(filename,'a') as f:
         f['globals'][groupname]['expansion'].attrs[globalname] = expansion
                   
