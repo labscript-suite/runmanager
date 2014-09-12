@@ -25,6 +25,7 @@ import threading
 import Queue
 import socket
 import ast
+import pprint
 
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
@@ -2068,7 +2069,7 @@ class RunManager(object):
         self.last_save_config_file = save_file
         self.last_save_data = save_data
         for key, value in save_data.items():
-            runmanager_config.set('runmanager_state', key, repr(value))
+            runmanager_config.set('runmanager_state', key, pprint.pformat(value))
         
     def on_load_configuration_triggered(self):
         save_data = self.get_save_data()
