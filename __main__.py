@@ -896,7 +896,7 @@ class RunManager(object):
         self.last_opened_labscript_folder = self.exp_config.get('paths','labscriptlib')
         # The last location from which a globals file was selected, defaults to experiment_shot_storage:
         self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
-        # The last location the user saved or loaded a configuration, defaults to experiment_shot_storage/runmanager.ini:
+        # The last file to which the user saved or loaded a configuration, defaults to experiment_shot_storage/runmanager.ini:
         self.last_save_config_file = os.path.join(self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
         # The last manually selected shot output folder, defaults to experiment_shot_storage:
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
@@ -945,7 +945,7 @@ class RunManager(object):
         self.ui.show()
         
         # The data from the last time we saved the configuration, so we can know if something's changed:
-        self.last_save_data = self.get_save_data()
+        self.last_save_data = None
         
         # autoload a config file, if labconfig is set to do so:
         try:
@@ -954,7 +954,6 @@ class RunManager(object):
             pass
         else:
             self.load_configuration(autoload_config_file)
-            
             
         self.output_box.output('Ready.\n\n')
         
@@ -1097,8 +1096,8 @@ class RunManager(object):
     
     def on_close_event(self):
         save_data = self.get_save_data()
-        if save_data != self.last_save_data:
-            message = 'Save runmanager state to config file \'%s\'?'%self.last_save_config_file
+        if self.last_save_data is not None and save_data != self.last_save_data:
+            message = 'Current configuration (which groups are active/open and other GUI state) has changed: save config file \'%s\'?'%self.last_save_config_file
             reply = QtGui.QMessageBox.question(self.ui, 'Quit runmanager', message,
                                                QtGui.QMessageBox.Yes|QtGui.QMessageBox.No|QtGui.QMessageBox.Cancel)
             if reply == QtGui.QMessageBox.Cancel:
@@ -2035,6 +2034,10 @@ class RunManager(object):
         current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
         shot_output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
         is_using_default_shot_output_folder = (shot_output_folder == self.get_default_output_folder())
+        # Only save the shot output folder if not using the default, that way the folder updating
+        # as the day rolls over will not be detected as a change to the save data:
+        if is_using_default_shot_output_folder:
+            shot_output_folder = ''
         
         # Get the server hostnames:
         BLACS_host = qstring_to_unicode(self.ui.lineEdit_BLACS_hostname.text())
@@ -2069,8 +2072,8 @@ class RunManager(object):
         
     def on_load_configuration_triggered(self):
         save_data = self.get_save_data()
-        if save_data != self.last_save_data:
-            message = 'Current configuration has chaged: save config file \'%s\'?'%self.last_save_config_file
+        if self.last_save_data is not None and save_data != self.last_save_data:
+            message = 'Current configuration (which groups are active/open and other GUI state) has changed: save config file \'%s\'?'%self.last_save_config_file
             reply = QtGui.QMessageBox.question(self.ui, 'Load configuration', message,
                                                QtGui.QMessageBox.Yes|QtGui.QMessageBox.No|QtGui.QMessageBox.Cancel)
             if reply == QtGui.QMessageBox.Cancel:
