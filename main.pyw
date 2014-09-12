@@ -1053,11 +1053,11 @@ class RunManager(object):
         chooser.destroy()
         if response == gtk.RESPONSE_OK:
         
-            def flatten_globals(sequence_globals):
+            def flatten_globals(sequence_globals,evaluated=False):
                 sequence_globals_2 = {}
                 for globals_group in sequence_globals.values():
                     for key, val in globals_group.items():
-                        sequence_globals_2[key] = val[0]
+                        sequence_globals_2[key] = val if evaluated else val[0].split('#',1)[0].strip()
                 return sequence_globals_2         
             
             # Get files globals
@@ -1068,20 +1068,34 @@ class RunManager(object):
             self.update_active_groups()
             sequence_globals = runmanager.get_globals(self.active_groups)
             
+            # evaluate globals
+            evaluated_globals = flatten_globals(runmanager.evaluate_globals(sequence_globals)[0],True)
+            evaluated_globals_1 = flatten_globals(runmanager.evaluate_globals(sequence_globals_1)[0],True)
+            
             # flatten globals dictionaries
             sequence_globals = flatten_globals(sequence_globals)
             sequence_globals_1 = flatten_globals(sequence_globals_1)
-                   
+            
             # do a diff of the two dictionaries
-            diff_globals = runmanager.dict_diff(sequence_globals_1, sequence_globals)
+            # diff_globals = runmanager.dict_diff(sequence_globals_1, sequence_globals)
+            diff_globals = runmanager.dict_diff(evaluated_globals_1, evaluated_globals)
             if len(diff_globals):
-                self.output('\nGlobals diff with:\n%s\n' % f)
+                self.output('\nGlobals diff with:\n%s\n\n' % f)
                 diff_keys = diff_globals.keys()
                 diff_keys.sort()
+                diff_list = {}
                 for key in diff_keys:
-                    self.output('%s : %s\n' % (key, diff_globals[key]))
+                    raw = sequence_globals.get(key,'-')
+                    raw_1 = sequence_globals_1.get(key,'-')
+                    if raw == raw_1: continue
+                    val_1, val = diff_globals[key]
+                    diff_list[key] = [str(val_1), str(val), raw_1, raw]
+                import pandas as pd
+                df = pd.DataFrame.from_dict(diff_list,'index')
+                df.columns = ['Prev (Eval)','Current (Eval)','Prev (Raw)','Current (Raw)']
+                self.output(str(df)+'\n\n')
             else:
-                self.output('Sequence globals are identical to those of:\n%s\n' % f)
+                self.output('Evaluated globals are identical to those of:\n%s\n' % f)
             self.output('Ready\n')
             
     def on_global_toggle(self, cellrenderer_toggle, path):
