@@ -23,7 +23,7 @@ import traceback
 import tokenize,token, StringIO
 
 import labscript_utils.h5_lock, h5py
-import pylab
+import numpy as np
 
 import zprocess
 import mise
@@ -197,7 +197,7 @@ def delete_global(filename, groupname, globalname):
         del group.attrs[globalname]
 
 def guess_expansion_type(value):
-    if isinstance(value, pylab.ndarray) or  isinstance(value, list):
+    if isinstance(value, np.ndarray) or  isinstance(value, list):
         return u'outer'
     else:
         return u''
@@ -469,7 +469,7 @@ def make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle=
     given is simply the sequence_id with increasing integers appended."""
     basename = os.path.join(output_folder,sequence_id)
     nruns = len(shots)
-    ndigits = int(pylab.ceil(pylab.log10(nruns)))
+    ndigits = int(np.ceil(np.log10(nruns)))
     if shuffle:
         random.shuffle(shots)
     for i, shot_globals in enumerate(shots):
@@ -616,10 +616,10 @@ def dict_diff(dict1, dict2):
     """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
     Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
     diff_keys = []
-    common_keys = pylab.intersect1d(dict1.keys(), dict2.keys())
+    common_keys = np.intersect1d(dict1.keys(), dict2.keys())
     for key in common_keys:
-        if pylab.iterable(dict1[key]):
-            if pylab.any(dict1[key] != dict2[key]):
+        if np.iterable(dict1[key]) or np.iterable(dict2[key]):
+            if not np.array_equal(dict1[key], dict2[key]):
                 diff_keys.append(key)
         else:
             if dict1[key] != dict2[key]:

@@ -30,6 +30,9 @@ import pprint
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
+import signal
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
 def check_version(module_name, greater_or_equal, less_than, version=None):
     class VersionException(Exception):
         pass
@@ -189,11 +192,14 @@ class FingerTabWidget(QtGui.QTabWidget):
         
 class LeftClickTreeView(QtGui.QTreeView):
     leftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
+    doubleLeftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
     """A QTreeview that emits a custom signal leftClicked(index)
-    after a left click on a valid index."""
+    after a left click on a valid index, and doubleLeftClicked(index)
+    (in addition) on double click """
     def __init__(self, *args):
         QtGui.QTreeView.__init__(self, *args)
         self._pressed_index = None
+        self._double_click = False
         
     def mousePressEvent(self, event):
         result =  QtGui.QTreeView.mousePressEvent(self, event)
@@ -205,6 +211,7 @@ class LeftClickTreeView(QtGui.QTreeView):
     def leaveEvent(self, event):
         result = QtGui.QTreeView.leaveEvent(self, event)
         self._pressed_index = None
+        self._double_click = False
         return result
     
     def mouseDoubleClickEvent(self, event):
@@ -214,6 +221,7 @@ class LeftClickTreeView(QtGui.QTreeView):
         index = self.indexAt(event.pos())
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
             self._pressed_index = self.indexAt(event.pos())
+            self._double_click = True
         return result
         
     def mouseReleaseEvent(self, event):
@@ -221,7 +229,10 @@ class LeftClickTreeView(QtGui.QTreeView):
         index = self.indexAt(event.pos())
         if event.button() == QtCore.Qt.LeftButton and index.isValid() and index == self._pressed_index:
             self.leftClicked.emit(index)
+            if self._double_click:
+                self.doubleLeftClicked.emit(index)
         self._pressed_index = None
+        self._double_click = False
         return result
 
 
@@ -1091,6 +1102,7 @@ class RunManager(object):
         self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
         self.ui.pushButton_diff_globals_file.clicked.connect(self.on_diff_globals_file_clicked)
         self.ui.treeView_groups.leftClicked.connect(self.on_treeView_groups_leftClicked)
+        self.ui.treeView_groups.doubleLeftClicked.connect(self.on_treeView_groups_doubleLeftClicked)
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.groups_model_item_changed_disconnected = DisconnectContextManager(self.groups_model.itemChanged, self.on_groups_model_item_changed)
@@ -1449,17 +1461,45 @@ class RunManager(object):
         globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
         
-        def flatten_globals(sequence_globals):
-            sequence_globals_2 = {}
-            for globals_group in sequence_globals.values():
-                for key, val in globals_group.items():
-                    sequence_globals_2[key] = val[0]
-            return sequence_globals_2
+        def remove_comments_and_tokenify(line):
+            """Removed EOL comments from a line, leaving it otherwise intact, and returns it.
+            Also returns the raw tokens for the line, allowing comparisons between lines
+            to be made without being sensitive to whitespace."""
+            import tokenize
+            import StringIO
+            result_expression = ''
+            result_tokens = []
+            error_encountered = False
+            tokens = tokenize.generate_tokens(StringIO.StringIO(line).readline)
+            try:
+                for token_type, token_value, (_, start), (_, end), _ in tokens:
+                    if token_type == tokenize.COMMENT and not error_encountered:
+                        break
+                    if token_type == tokenize.ERRORTOKEN:
+                        error_encountered = True
+                    result_expression = result_expression.ljust(start)
+                    result_expression += token_value
+                    if token_value:
+                        result_tokens.append(token_value)
+            except tokenize.TokenError:
+                # Means EOF was reached without closing brackets or something.
+                # We don't care, return what we've got.
+                pass 
+            return result_expression, result_tokens
         
-        # Get file's globals
-        other_groups = runmanager.get_all_groups(globals_file)
-        other_sequence_globals = runmanager.get_globals(other_groups)
-
+        def flatten_globals(sequence_globals, evaluated=False):
+            """Flattens the data structure of the globals. If evaluated=False,
+            saves only the value expression string of the global, not the units or expansion."""
+            flattened_sequence_globals = {}
+            for globals_group in sequence_globals.values():
+                for name, value in globals_group.items():
+                    if evaluated:
+                        flattened_sequence_globals[name] = value
+                    else:
+                        value_expression, units, expansion = value
+                        flattened_sequence_globals[name] = value_expression
+            return flattened_sequence_globals
+        
         # Get runmanager's globals
         active_groups = self.get_active_groups()
         if active_groups is None:
@@ -1467,24 +1507,49 @@ class RunManager(object):
             return
         our_sequence_globals = runmanager.get_globals(active_groups)
         
+        # Get file's globals
+        other_groups = runmanager.get_all_groups(globals_file)
+        other_sequence_globals = runmanager.get_globals(other_groups)
+
+        # evaluate globals
+        our_evaluated_sequence_globals, _, _ = runmanager.evaluate_globals(our_sequence_globals, raise_exceptions=False)
+        other_evaluated_sequence_globals, _, _ = runmanager.evaluate_globals(other_sequence_globals, raise_exceptions=False)
+            
         # flatten globals dictionaries
-        our_sequence_globals = flatten_globals(our_sequence_globals)
-        other_sequence_globals = flatten_globals(other_sequence_globals)
+        our_globals = flatten_globals(our_sequence_globals, evaluated=False)
+        other_globals = flatten_globals(other_sequence_globals, evaluated=False)
+        our_evaluated_globals = flatten_globals(our_evaluated_sequence_globals, evaluated=True)
+        other_evaluated_globals = flatten_globals(other_evaluated_sequence_globals, evaluated=True)
                
-        # do a diff of the two dictionaries
-        diff_globals = runmanager.dict_diff(other_sequence_globals, our_sequence_globals)
+        # diff the *evaluated* globals
+        value_differences = runmanager.dict_diff(other_evaluated_globals, our_evaluated_globals)
         
         # Display the output tab so the user can see the output:
         self.ui.tabWidget.setCurrentWidget(self.ui.tab_output)
         
-        if len(diff_globals):
-            self.output_box.output('\nGlobals diff with:\n%s\n' % globals_file)
-            diff_keys = diff_globals.keys()
-            diff_keys.sort()
-            for key in diff_keys:
-                self.output_box.output('%s : %s\n' % (key, diff_globals[key]))
+        # We are interested only in displaying globals where *both* the evaluated global
+        # *and* its unevaluated expression (ignoring comments and whitespace) differ. This
+        # will minimise false positives where a slight change in an expression still leads to
+        # the same value, or where an object has a poorly defined equality operator that returns
+        # False even when the two objects are identical.
+        filtered_differences = {}
+        for name, (other_value, our_value) in sorted(value_differences.items()):
+            our_expression = our_globals.get(name, '-')
+            other_expression = other_globals.get(name, '-')
+            # Strip comments, get tokens so we can diff without being sensitive to comments or whitespace:
+            our_expression, our_tokens = remove_comments_and_tokenify(our_expression)
+            other_expression, other_tokens = remove_comments_and_tokenify(other_expression)
+            if our_tokens != other_tokens:
+                filtered_differences[name] = [repr(other_value), repr(our_value), other_expression, our_expression]
+        if filtered_differences:
+            import pandas as pd
+            df = pd.DataFrame.from_dict(filtered_differences, 'index')
+            df.columns = ['Prev (Eval)','Current (Eval)','Prev (Raw)','Current (Raw)']
+            self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
+            df_string = df.to_string(max_cols=1000)
+            self.output_box.output(df_string + '\n\n')
         else:
-            self.output_box.output('Current runmanager globals are identical to those of:\n%s\n' % globals_file)
+            self.output_box.output('Evaluated globals are identical to those of:\n%s\n' % globals_file)
         self.output_box.output('Ready.\n\n')
             
     def on_treeView_groups_leftClicked(self, index):
@@ -1532,7 +1597,27 @@ class RunManager(object):
                     self.close_group(globals_file, group_name)
                 else:
                     self.open_group(globals_file, group_name)
-                    
+    
+    def on_treeView_groups_doubleLeftClicked(self, index):
+        item = self.groups_model.itemFromIndex(index)
+        # The parent item, None if there is no parent:
+        parent_item = item.parent()
+        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+            return
+        elif parent_item and item.column() == self.GROUPS_COL_NAME:
+            # it's a group name item. What's the group and file name?
+            globals_file = qstring_to_unicode(parent_item.text())
+            group_name = qstring_to_unicode(item.text())
+            if (globals_file, group_name) not in self.currently_open_groups:
+                self.open_group(globals_file, group_name)
+            # Focus the tab:
+            group_tab = self.currently_open_groups[globals_file, group_name]
+            for i in range(self.ui.tabWidget.count()):
+                if self.ui.tabWidget.widget(i) is group_tab.ui:
+                    self.ui.tabWidget.setCurrentIndex(i)
+                    break
+                
+            
     def on_groups_model_item_changed(self, item):
         """This function is for responding to data changes in the model. The methods for responding to 
         changes different columns do different things. Mostly they make other data changes
