@@ -365,7 +365,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             if raise_exceptions:
                 message = 'Error parsing globals:\n'
                 for global_name, exception in errors:
-                    message += '%s: %s\n'%(global_name,str(exception))
+                    message += '%s: %s: %s\n'%(global_name,exception.__class__.__name__, exception.message)
                 raise Exception(message)
             else:
                 for global_name, exception in errors:
@@ -503,13 +503,16 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
                     unitsgroup.attrs[name] = units
                     expansiongroup.attrs[name] = expansion
         for name, value in runglobals.items():
+            if value is None:
+                # Store it as a null object reference:
+                value = h5py.Reference()
             try:
                 f['globals'].attrs[name] = value
-            except Exception:
+            except Exception as e:
                 message = ('Global %s cannot be saved as an hdf5 attribute. '%name +
-                                     'Globals can only have relatively simple datatypes, with no nested structures. ' +
-                                     'Original error was:\n' +
-                                     '%s: %s'%(sys.exc_info()[0].__name__,sys.sys.exc_info()[1].message))
+                           'Globals can only have relatively simple datatypes, with no nested structures. ' +
+                           'Original error was:\n' +
+                           '%s: %s'%(e.__class__.__name__, e.message))
                 raise ValueError(message)
                 
 def make_run_file_from_globals_files(labscript_file, globals_files, output_path):
@@ -612,6 +615,25 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
         t.daemon=True
         t.start()
 
+def get_shot_globals(filepath):
+    """Returns the evaluated globals for a shot, for use by labscript or lyse.
+    Simple dictionary access as in dict(h5py.File(filepath).attrs) would be fine
+    except we want to apply some hacks, so it's best to do that in one place."""
+    params = {}
+    with h5py.File(filepath) as f:
+        for name, value in f['globals'].attrs.items():
+            # Convert numpy bools to normal bools:
+            if isinstance(value, np.bool_):
+                value = bool(value)
+            # Convert null HDF references to None:
+            if isinstance(value, h5py.Reference) and not value:
+                value = None
+            # Convert numpy strings to Python ones:
+            if isinstance(value, np.str_):
+                value = str(value)
+            params[name] = value
+    return params
+    
 def dict_diff(dict1, dict2):
     """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
     Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
