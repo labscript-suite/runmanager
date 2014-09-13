@@ -1702,7 +1702,7 @@ class RunManager(object):
             if 'hello' not in response:
                 raise Exception(response)
         except Exception as e:                
-            subprocess.Popen([sys.executable,'-m','runviewer.main'])
+            subprocess.Popen([sys.executable,'-m','runviewer'])
             time.sleep(3)
         
         try:
