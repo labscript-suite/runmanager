@@ -278,12 +278,25 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
         return QtGui.QStandardItemModel.data(self, index, role)
 
 
-class FixedHeightItemDelegate(QtGui.QStyledItemDelegate):
+class ItemDelegate(QtGui.QStyledItemDelegate):
+    """An item delegate with a fixed height
+    and faint grey vertical lines between columns"""
     HEIGHT = 24
+    def __init__(self, *args, **kwargs):
+        QtGui.QStyledItemDelegate.__init__(self, *args, **kwargs)
+        self._pen = QtGui.QPen()
+        self._pen.setWidth(1)
+        self._pen.setColor(QtGui.QColor.fromRgb(128,128,128,64))
+        
     def sizeHint(self, *args):
         size = QtGui.QStyledItemDelegate.sizeHint(self, *args)
         return QtCore.QSize(size.width(), self.HEIGHT)
         
+    def paint(self, painter, option, index):
+        QtGui.QStyledItemDelegate.paint(self, painter, option, index)
+        if index.column() > 0:
+            painter.setPen(self._pen)
+            painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
         
 class GroupTab(object):
     GLOBALS_COL_NAME = 0
@@ -300,6 +313,7 @@ class GroupTab(object):
     COLOR_OK = '#AAFFCC' # light green
     COLOR_BOOL_ON = '#66FF33' # bright green
     COLOR_BOOL_OFF = '#608060' # dark green
+    COLOR_NAME = '#EFEFEF' # light grey
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
 
@@ -321,8 +335,9 @@ class GroupTab(object):
         self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion','Delete'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
         
-        self.item_delegate = FixedHeightItemDelegate()
-        self.ui.treeView_globals.setItemDelegateForColumn(self.GLOBALS_COL_NAME, self.item_delegate)
+        self.item_delegate = ItemDelegate()
+        for col in range(self.globals_model.columnCount()):
+            self.ui.treeView_globals.setItemDelegateForColumn(col, self.item_delegate)
         
         self.ui.treeView_globals.setModel(self.globals_model)
         self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
@@ -345,10 +360,16 @@ class GroupTab(object):
         # Populate the model with globals from the h5 file:
         self.populate_model()
         # Set sensible column widths:
-        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_NAME, 200)
-        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_VALUE, 200)
-        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_UNITS, 100)
-        self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_EXPANSION, 100)
+        for col in range(self.globals_model.columnCount()):
+            self.ui.treeView_globals.resizeColumnToContents(col)
+        if self.ui.treeView_globals.columnWidth(self.GLOBALS_COL_NAME) < 200:
+            self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_NAME, 200)
+        if self.ui.treeView_globals.columnWidth(self.GLOBALS_COL_VALUE) < 200:
+            self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_VALUE, 200)
+        if self.ui.treeView_globals.columnWidth(self.GLOBALS_COL_UNITS) < 100:
+            self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_UNITS, 100)
+        if self.ui.treeView_globals.columnWidth(self.GLOBALS_COL_EXPANSION) < 100:
+            self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_EXPANSION, 100)
         self.ui.treeView_globals.resizeColumnToContents(self.GLOBALS_COL_DELETE)
         
     def connect_signals(self):
@@ -400,6 +421,7 @@ class GroupTab(object):
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
+        dummy_name_item.setBackground(QtGui.QColor(self.COLOR_NAME))
         
         dummy_value_item = QtGui.QStandardItem()
         dummy_value_item.setEditable(False)
@@ -437,7 +459,7 @@ class GroupTab(object):
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
-        #name_item.setData(QtCore.Qt.AlignRight, QtCore.Qt.TextAlignmentRole)
+        name_item.setBackground(QtGui.QColor(self.COLOR_NAME))
         
         value_item = QtGui.QStandardItem(value)
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
@@ -1015,9 +1037,10 @@ class RunManager(object):
         self.groups_model = QtGui.QStandardItemModel()
         self.groups_model.setHorizontalHeaderLabels(['File/group name','Active','Delete','Open/Close'])
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
-        self.item_delegate = FixedHeightItemDelegate()
+        self.item_delegate = ItemDelegate()
         self.ui.treeView_groups.setModel(self.groups_model)
-        self.ui.treeView_groups.setItemDelegateForColumn(self.GROUPS_COL_NAME, self.item_delegate)
+        for col in range(self.groups_model.columnCount()):
+            self.ui.treeView_groups.setItemDelegateForColumn(col, self.item_delegate)
         self.ui.treeView_groups.setAnimated(True) # Pretty
         self.ui.treeView_groups.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
