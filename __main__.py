@@ -50,7 +50,7 @@ check_version('labscript_utils', '1.1', '2')
 check_version('qtutils', '1.1', '2')
 check_version('zprocess', '1.1.2', '2')
 
-import zprocess.locking, labscript_utils.h5_lock, h5py
+import zprocess.locking
 from zmq import ZMQError
 
 import pylab
@@ -869,12 +869,26 @@ class GroupTab(object):
 
 
 class RunmanagerMainWindow(QtGui.QMainWindow):
+    firstActivation = QtCore.pyqtSignal()
+    def __init__(self, *args, **kwargs):
+        QtGui.QMainWindow.__init__(self, *args, **kwargs)
+        self._previously_activated = False
+        
     def closeEvent(self, event):
         if app.on_close_event():
             return QtGui.QMainWindow.closeEvent(self, event)
         else:
             event.ignore()
-              
+    
+    def event(self, event):
+        result = QtGui.QMainWindow.event(self, event)
+        if event.type() == QtCore.QEvent.WindowActivate:
+            if not self._previously_activated:
+                self._previously_activated = True
+                self.firstActivation.emit()
+        return result 
+
+       
 class PoppedOutOutputBoxWindow(QtGui.QDialog):
     def closeEvent(self, event):
         app.on_output_popout_button_clicked()
@@ -904,6 +918,7 @@ class RunManager(object):
         loader.registerCustomWidget(FingerTabWidget)
         loader.registerCustomWidget(LeftClickTreeView)
         self.ui = loader.load('main.ui', RunmanagerMainWindow())
+
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
         
         # Add a 'pop-out' button to the output tab:
@@ -976,7 +991,6 @@ class RunManager(object):
         # Start a thread to monitor the time of day and create new shot output folders for each day:
         self.output_folder_update_required = threading.Event()
         inthread(self.rollover_shot_output_folder)
-        self.ui.show()
         
         # The data from the last time we saved the configuration, so we can know if something's changed:
         self.last_save_data = None
@@ -985,11 +999,23 @@ class RunManager(object):
         try:
             autoload_config_file = self.exp_config.get('runmanager', 'autoload_config_file')
         except Exception:
-            pass
+            self.output_box.output('Ready.\n\n')
         else:
-            self.load_configuration(autoload_config_file)
+            self.ui.setEnabled(False)
+            self.output_box.output('Loading default config file %s...'%autoload_config_file)
             
-        self.output_box.output('Ready.\n\n')
+            def load_the_config_file():
+                try:
+                    self.load_configuration(autoload_config_file)
+                    self.output_box.output('done.\n')
+                finally:
+                    self.ui.setEnabled(True)
+                    self.output_box.output('Ready.\n\n')
+            
+            # Defer this until the window has shown, so that the GUI pops up faster in the meantime
+            self.ui.firstActivation.connect(load_the_config_file)
+                  
+        self.ui.show()       
         
     def setup_config(self):
         config_path = os.path.join(config_prefix,'%s.ini'%socket.gethostname())
@@ -1297,7 +1323,6 @@ class RunManager(object):
                 self.mise_submission_queue.put([mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder])
             else:
                 raise RuntimeError('neither radiobutton selected') # Sanity check
-            logger.info('finishing try statement')
         except Exception as e:
             self.output_box.output('%s\n'%str(e), red=True)
         logger.info('end engage')
@@ -1827,8 +1852,6 @@ class RunManager(object):
         """Runs in a thread, waiting on a threading.Event that tells us when some globals
         have changed, and calls parse_globals to evaluate them all before feeding
         the results back to the relevant tabs to be displayed."""
-        # Silence spurious HDF5 errors:
-        h5py._errors.silence_errors()
         while True:
             try:
                 # Wait until we're needed:
@@ -2287,8 +2310,6 @@ class RunManager(object):
         self.last_save_data = save_data
         
     def compile_loop(self):
-        # Silence spurious HDF5 errors:
-        h5py._errors.silence_errors()
         while True:
             try:
                 labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
