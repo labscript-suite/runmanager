@@ -31,6 +31,7 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 import signal
+# Quit on ctrl-c
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 def check_version(module_name, greater_or_equal, less_than, version=None):
@@ -106,6 +107,7 @@ def nested(*contextmanagers):
     else:
         yield
         
+        
 class KeyPressQApplication(QtGui.QApplication):
     """A Qapplication that emits a signal keyPress(key) on keypresses"""
     keyPress = QtCore.pyqtSignal(int, QtCore.Qt.KeyboardModifiers, bool)
@@ -116,6 +118,7 @@ class KeyPressQApplication(QtGui.QApplication):
         elif event.type() == QtCore.QEvent.KeyRelease and event.key():
             self.keyRelease.emit(event.key(), event.modifiers(), event.isAutoRepeat())
         return QtGui.QApplication.notify(self, object, event)
+        
         
 class FingerTabBarWidget(QtGui.QTabBar):
     """A TabBar with the tabs on the left and the text horizontal.
@@ -1332,10 +1335,37 @@ class RunManager(object):
         
     def on_restart_subprocess_clicked(self):
         # Kill and restart the compilation subprocess
-        self.child.terminate()
+        self.to_child.put(['quit', None])
         self.from_child.put(['done', False])
+        time.sleep(0.1)
+        self.output_box.output('Asking subprocess to quit...')
+        timeout_time = time.time() + 2
+        QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time, kill=False))
+        
+    def check_child_exited(self, timeout_time, kill=False):
+        self.child.poll()
+        if self.child.returncode is None and time.time() < timeout_time:
+            QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time, kill))
+            return
+        elif self.child.returncode is None:
+            if not kill:
+                self.child.terminate()
+                self.output_box.output('not responding.\n')
+                timeout_time = time.time() + 2
+                QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time, kill=True))
+                return
+            else:
+                self.child.kill()
+                self.output_box.output('Killed\n', red=True)
+        elif kill:
+            self.output_box.output('Terminated\n', red=True)
+        else:
+            self.output_box.output('done.\n')
+        self.output_box.output('Spawning new compiler subprocess...')
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues('batch_compiler.py', self.output_box.port)
-    
+        self.output_box.output('done.\n')
+        self.output_box.output('Ready.\n\n')
+        
     def on_tabCloseRequested(self, index):
         tab_page = self.ui.tabWidget.widget(index)
         for (globals_file, group_name), group_tab in self.currently_open_groups.items():
