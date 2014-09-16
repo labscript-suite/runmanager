@@ -27,12 +27,21 @@ import socket
 import ast
 import pprint
 
-import PyQt4.QtCore as QtCore
-import PyQt4.QtGui as QtGui
+import sip
+
+API_NAMES = ["QDate", "QDateTime", "QString", "QTextStream", "QTime", "QUrl", "QVariant"]
+API_VERSION = 2
+for name in API_NAMES:
+    sip.setapi(name, API_VERSION)
+    
+from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import pyqtSignal as Signal
+from PyQt4.QtCore import pyqtSlot as Slot
 
 import signal
 # Quit on ctrl-c
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
 
 def check_version(module_name, at_least, less_than, version=None):
 
@@ -63,7 +72,7 @@ import labscript_utils.shared_drive as shared_drive
 import runmanager
 
 from qtutils.outputbox import OutputBox
-from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager, qstring_to_unicode
+from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -87,10 +96,12 @@ zprocess.locking.set_client_process_name('runmanager')
 def error_dialog(message):
     QtGui.QMessageBox.warning(app.ui, 'runmanager', message)
 
+
 def question_dialog(message):
     reply = QtGui.QMessageBox.question(app.ui, 'runmanager', message,
                                        QtGui.QMessageBox.Yes|QtGui.QMessageBox.No)
     return (reply == QtGui.QMessageBox.Yes)
+ 
  
 def mkdir_p(path):
     try:
@@ -99,6 +110,7 @@ def mkdir_p(path):
         if exc.errno == errno.EEXIST and os.path.isdir(path):
             pass
         else: raise
+        
         
 @contextlib.contextmanager
 def nested(*contextmanagers):
@@ -112,8 +124,8 @@ def nested(*contextmanagers):
         
 class KeyPressQApplication(QtGui.QApplication):
     """A Qapplication that emits a signal keyPress(key) on keypresses"""
-    keyPress = QtCore.pyqtSignal(int, QtCore.Qt.KeyboardModifiers, bool)
-    keyRelease = QtCore.pyqtSignal(int, QtCore.Qt.KeyboardModifiers, bool)
+    keyPress = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
+    keyRelease = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
     def notify(self, object, event):
         if event.type() == QtCore.QEvent.KeyPress and event.key():
             self.keyPress.emit(event.key(), event.modifiers(), event.isAutoRepeat())
@@ -148,7 +160,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
                 right_button.move(right_button_x, right_button_y)
             self.initStyleOption(option, index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
-            if not(self.tabIcon(index).isNull()):
+            if self.tabIcon(index) is not None:
                 icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 tabRect.moveLeft(10)
@@ -195,9 +207,10 @@ class FingerTabWidget(QtGui.QTabWidget):
                 self.tabCloseRequested.emit(index)
                 break
         
+        
 class LeftClickTreeView(QtGui.QTreeView):
-    leftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
-    doubleLeftClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
+    leftClicked = Signal(QtCore.QModelIndex)
+    doubleLeftClicked = Signal(QtCore.QModelIndex)
     """A QTreeview that emits a custom signal leftClicked(index)
     after a left click on a valid index, and doubleLeftClicked(index)
     (in addition) on double click """
@@ -264,9 +277,8 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
        visible even when custom colors have been set - the same shading will be applied to the custom
        colours. Only really looks sensible when the normal and alternate colors are similar."""
         if role == QtCore.Qt.BackgroundRole and index.row() % 2:
-            brush_variant = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
-            if not brush_variant.isNull():
-                normal_brush = QtGui.QBrush(brush_variant)
+            normal_brush = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
+            if normal_brush is not None:
                 normal_color = normal_brush.color()
                 try:
                     return self.alternate_brushes[normal_color.rgb()]
@@ -302,6 +314,7 @@ class ItemDelegate(QtGui.QStyledItemDelegate):
         if index.column() > 0:
             painter.setPen(self._pen)
             painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
+        
         
 class GroupTab(object):
     GLOBALS_COL_NAME = 0
@@ -497,14 +510,14 @@ class GroupTab(object):
         # The 'name' item in the same row:
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
-        global_name = qstring_to_unicode(name_item.text())
-        if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+        global_name = name_item.text()
+        if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
             # They clicked on an 'add new global' row. Enter editing
             # mode on the name item so they can enter a name for 
             # the new global:
             self.ui.treeView_globals.setCurrentIndex(name_index)
             self.ui.treeView_globals.edit(name_index)
-        elif item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+        elif item.data(self.GLOBALS_ROLE_IS_BOOL):
             # It's a bool indicator. Toggle it
             value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
             if value_item.text() == 'True':
@@ -518,7 +531,7 @@ class GroupTab(object):
         elif item.column() == self.GLOBALS_COL_DELETE:
             # They clicked a delete button.
             self.delete_global(global_name)
-        elif not item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+        elif not item.data(self.GLOBALS_ROLE_IS_BOOL):
             # Edit whatever it is:
             self.ui.treeView_globals.setCurrentIndex(index)
             self.ui.treeView_globals.edit(index)
@@ -536,8 +549,8 @@ class GroupTab(object):
     def on_globals_model_name_changed(self, item): 
         """Handles global renaming and creation of new globals due to the user
         editing the <click to add global> item"""
-        item_text = qstring_to_unicode(item.text())
-        if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+        item_text = item.text()
+        if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
             if item_text != self.GLOBALS_DUMMY_ROW_TEXT:
                 # The user has made a new global by editing the <click to add global> item
                 global_name = item_text
@@ -545,31 +558,31 @@ class GroupTab(object):
         else:
             # User has renamed a global.
             new_global_name = item_text
-            previous_global_name = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+            previous_global_name = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
             # Ensure the name actually changed, rather than something else about the item:
             if new_global_name != previous_global_name:
                 self.rename_global(previous_global_name, new_global_name)
     
     def on_globals_model_value_changed(self, item):
         index = item.index()
-        new_value = qstring_to_unicode(item.text())
-        previous_value = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+        new_value = item.text()
+        previous_value = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
-        global_name = qstring_to_unicode(name_item.text())
+        global_name = name_item.text()
         # Ensure the value actually changed, rather than something else about the item:
         if new_value != previous_value:
             self.change_global_value(global_name, previous_value, new_value)
     
     def on_globals_model_units_changed(self, item):
         index = item.index()
-        new_units = qstring_to_unicode(item.text())
-        previous_units = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+        new_units = item.text()
+        previous_units = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
-        global_name = qstring_to_unicode(name_item.text())
+        global_name = name_item.text()
         # If it's a boolean value, ensure the check state matches the bool state:
-        if item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+        if item.data(self.GLOBALS_ROLE_IS_BOOL):
             value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
             if value_item.text() == 'True':
                 item.setCheckState(QtCore.Qt.Checked)
@@ -583,11 +596,11 @@ class GroupTab(object):
     
     def on_globals_model_expansion_changed(self, item):
         index = item.index()
-        new_expansion = qstring_to_unicode(item.text())
-        previous_expansion = qstring_to_unicode(item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString())
+        new_expansion = item.text()
+        previous_expansion = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
-        global_name = qstring_to_unicode(name_item.text())
+        global_name = name_item.text()
         # Don't want icon changing to recurse - which happens even if it is the same icon.
         # So disconnect the signal temporarily:
         with self.globals_model_item_changed_disconnected:
@@ -624,7 +637,7 @@ class GroupTab(object):
             if not question_dialog("Delete %d globals?"%len(name_items)):
                 return
         for item in name_items:
-            global_name = qstring_to_unicode(item.text())
+            global_name = item.text()
             self.delete_global(global_name, confirm=not confirm_multiple)
     
     def on_globals_set_selected_bools_triggered(self, state):
@@ -633,7 +646,7 @@ class GroupTab(object):
         value_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_VALUE]
         units_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_UNITS]
         for value_item, units_item in zip(value_items, units_items):
-            if units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool():
+            if units_item.data(self.GLOBALS_ROLE_IS_BOOL):
                 value_item.setText(state)
         
     def close(self):
@@ -653,7 +666,7 @@ class GroupTab(object):
             # and two rows may temporarily contain the same name (though the rename code with throw
             # an error and revert it).
             possible_name_items = [item for item in possible_name_items
-                                       if item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).toString() == previous_name]
+                                       if item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT) == previous_name]
         if len(possible_name_items) > 1:
             raise ValueError('Multiple items found')
         elif not possible_name_items:
@@ -724,7 +737,7 @@ class GroupTab(object):
             item.setToolTip('Evaluating...')
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
-            units = qstring_to_unicode(units_item.text())
+            units = units_item.text()
             if not (previous_value or units):
                 # Go into editing the units item automatically:
                 units_item_index = units_item.index()
@@ -765,12 +778,12 @@ class GroupTab(object):
         cell checkable, uneditable, and coloured to indicate the state. The units cell
         can then be clicked to toggle the value."""
         index = item.index()
-        value = qstring_to_unicode(item.text())
+        value = item.text()
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         units_index = index.sibling(index.row(), self.GLOBALS_COL_UNITS)
         name_item = self.globals_model.itemFromIndex(name_index)
         units_item = self.globals_model.itemFromIndex(units_index)
-        global_name = qstring_to_unicode(name_item.text())
+        global_name = name_item.text()
         logger.debug('%s:%s - check for boolean values: %s'%
                         (self.globals_file, self.group_name, global_name))
         if value == 'True':
@@ -788,7 +801,7 @@ class GroupTab(object):
             units_item.setCheckState(QtCore.Qt.Unchecked)
             units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF)))
         else:
-            was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL).toBool()
+            was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL)
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setEditable(True)
             units_item.setCheckable(False)
@@ -866,7 +879,7 @@ class GroupTab(object):
             self.set_tab_icon(None)
             for row in range(self.globals_model.rowCount()):
                 item = self.globals_model.item(row, self.GLOBALS_COL_VALUE)
-                if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW).toBool():
+                if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
                     continue
                 item.setData(None, QtCore.Qt.DecorationRole)
                 item.setToolTip('Group inactive')
@@ -874,7 +887,7 @@ class GroupTab(object):
 
 
 class RunmanagerMainWindow(QtGui.QMainWindow):
-    firstActivation = QtCore.pyqtSignal()
+    firstActivation = Signal()
     def __init__(self, *args, **kwargs):
         QtGui.QMainWindow.__init__(self, *args, **kwargs)
         self._previously_activated = False
@@ -1205,7 +1218,6 @@ class RunManager(object):
             # User cancelled selection
             return 
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        labscript_file = qstring_to_unicode(labscript_file)
         labscript_file = os.path.abspath(labscript_file)
         if not os.path.isfile(labscript_file):
             error_dialog("No such file %s."%labscript_file)
@@ -1222,7 +1234,7 @@ class RunManager(object):
         editor_path = self.exp_config.get('programs','text_editor')
         editor_args = self.exp_config.get('programs','text_editor_arguments')
         # Get the current labscript file:
-        current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
+        current_labscript_file = self.ui.lineEdit_labscript_file.text()
         # Ignore if no file selected
         if not current_labscript_file:
             return
@@ -1247,7 +1259,6 @@ class RunManager(object):
             # User cancelled selection
             return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        shot_output_folder = qstring_to_unicode(shot_output_folder)
         shot_output_folder = os.path.abspath(shot_output_folder)
         # Save the containing folder for use next time we open the dialog box:
         self.last_selected_shot_output_folder = os.path.dirname(shot_output_folder)
@@ -1279,7 +1290,7 @@ class RunManager(object):
     def on_shot_output_folder_text_changed(self, text):
         # Blank out the 'reset default output folder' button
         # if the user is already using the default output folder
-        if qstring_to_unicode(text) == self.get_default_output_folder():
+        if text == self.get_default_output_folder():
             enabled = False
         else:
             enabled = True
@@ -1305,15 +1316,15 @@ class RunManager(object):
             submit_to_mise = self.ui.radioButton_send_to_mise.isChecked()
             send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
             send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
-            labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
+            labscript_file = self.ui.lineEdit_labscript_file.text()
             shuffle = self.ui.pushButton_shuffle.isChecked()
             if not labscript_file:
                 raise Exception('Error: No labscript file selected')
-            output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
+            output_folder = self.ui.lineEdit_shot_output_folder.text()
             if not output_folder:
                 raise Exception('Error: No output folder selected')
-            BLACS_host = qstring_to_unicode(self.ui.lineEdit_BLACS_hostname.text())
-            mise_host = qstring_to_unicode(self.ui.lineEdit_mise_hostname.text())
+            BLACS_host = self.ui.lineEdit_BLACS_hostname.text()
+            mise_host = self.ui.lineEdit_mise_hostname.text()
             logger.info('Parsing globals...')
             active_groups = self.get_active_groups()
             sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
@@ -1434,8 +1445,8 @@ class RunManager(object):
             if not question_dialog("Delete %d groups?"%len(name_items)):
                 return
         for item in name_items:
-            globals_file = qstring_to_unicode(item.parent().text())
-            group_name = qstring_to_unicode(item.text())
+            globals_file = item.parent().text()
+            group_name = item.text()
             self.delete_group(globals_file, group_name, confirm=not confirm_multiple)
                             
     def on_groups_open_selected_triggered(self):
@@ -1447,12 +1458,12 @@ class RunManager(object):
         # Make things a bit faster by acquiring network only locks on
         # all the files we're dealing with.  That way all the open and
         # close operations will be faster.
-        filenames = set(qstring_to_unicode(item.parent().text()) for item in name_items)
+        filenames = set(item.parent().text() for item in name_items)
         file_locks = [labscript_utils.h5_lock.NetworkOnlyLock(filename) for filename in filenames]
         with nested(*file_locks):
             for item in name_items:
-                globals_file = qstring_to_unicode(item.parent().text())
-                group_name = qstring_to_unicode(item.text())
+                globals_file = item.parent().text()
+                group_name = item.text()
                 if (globals_file, group_name) not in self.currently_open_groups:
                     self.open_group(globals_file, group_name, trigger_preparse=False)
         if name_items:
@@ -1465,8 +1476,8 @@ class RunManager(object):
                             if item.column() == self.GROUPS_COL_NAME
                             and item.parent() is not None]
         for item in name_items:
-            globals_file = qstring_to_unicode(item.parent().text())
-            group_name = qstring_to_unicode(item.text())
+            globals_file = item.parent().text()
+            group_name = item.text()
             if (globals_file, group_name) in self.currently_open_groups:
                 self.close_group(globals_file, group_name)
 
@@ -1482,14 +1493,14 @@ class RunManager(object):
         child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE)
                                     for item in name_items
                                         for i in range(item.rowCount())]
-        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                              for child_item in child_openclose_items]
         if any(child_is_open):
             if not question_dialog('Close %d file(s)? This will close %d currently open group(s).' %
                                    (len(name_items), child_is_open.count(True))):
                 return
         for item in name_items:
-            globals_file = qstring_to_unicode(item.text())
+            globals_file = item.text()
             self.close_globals_file(globals_file, confirm=False)
 
     def on_open_globals_file_clicked(self):
@@ -1501,7 +1512,6 @@ class RunManager(object):
             # User cancelled selection
             return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
         if not os.path.isfile(globals_file):
             error_dialog("No such file %s."%globals_file)
@@ -1520,7 +1530,6 @@ class RunManager(object):
             # User cancelled
             return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_globals_folder = os.path.dirname(globals_file)
@@ -1538,7 +1547,6 @@ class RunManager(object):
             return
             
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        globals_file = qstring_to_unicode(globals_file)
         globals_file = os.path.abspath(globals_file)
         
         def remove_comments_and_tokenify(line):
@@ -1649,7 +1657,7 @@ class RunManager(object):
         parent_item = item.parent()
         # What kind of row did the user click on?
         # A globals file, a group, or a 'click to add group' row?
-        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
             # They clicked on an 'add new group' row. Enter editing
             # mode on the name item so they can enter a name for 
             # the new group:
@@ -1657,22 +1665,22 @@ class RunManager(object):
             self.ui.treeView_groups.edit(name_index)
         elif parent_item is None:
             # They clicked on a globals file row.
-            globals_file = qstring_to_unicode(name_item.text())
+            globals_file = name_item.text()
             # What column did they click on?
             if item.column() == self.GROUPS_COL_OPENCLOSE:
                 # They clicked the close button. Close the file:
                 self.close_globals_file(globals_file)
         else:
             # They clicked on a globals group row.
-            globals_file = qstring_to_unicode(parent_item.text())
-            group_name = qstring_to_unicode(name_item.text())
+            globals_file = parent_item.text()
+            group_name = name_item.text()
             # What column did they click on?
             if item.column() == self.GROUPS_COL_DELETE:
                 # They clicked the delete button. Delete the group:
                 self.delete_group(globals_file, group_name, confirm=True)
             elif item.column() == self.GROUPS_COL_OPENCLOSE:
                 # They clicked the open/close button. Which is it, open or close?
-                group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+                group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                 if group_is_open:
                     self.close_group(globals_file, group_name)
                 else:
@@ -1682,12 +1690,12 @@ class RunManager(object):
         item = self.groups_model.itemFromIndex(index)
         # The parent item, None if there is no parent:
         parent_item = item.parent()
-        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
             return
         elif parent_item and item.column() == self.GROUPS_COL_NAME:
             # it's a group name item. What's the group and file name?
-            globals_file = qstring_to_unicode(parent_item.text())
-            group_name = qstring_to_unicode(item.text())
+            globals_file = parent_item.text()
+            group_name = item.text()
             if (globals_file, group_name) not in self.currently_open_groups:
                 self.open_group(globals_file, group_name)
             # Focus the tab:
@@ -1725,20 +1733,20 @@ class RunManager(object):
         parent_item = item.parent()
         # File rows are supposed to be uneditable, but just to be sure we have a group row:
         assert parent_item is not None
-        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
-            item_text = qstring_to_unicode(item.text())
+        if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
+            item_text = item.text()
             if item_text != self.GROUPS_DUMMY_ROW_TEXT:
                 # The user has made a new globals group by editing the <click to add group> item.
-                globals_file = qstring_to_unicode(parent_item.text())
+                globals_file = parent_item.text()
                 group_name = item_text
                 self.new_group(globals_file, group_name)
         else:
             # User has renamed a globals group.
-            new_group_name = qstring_to_unicode(item.text())
-            previous_group_name = qstring_to_unicode(item.data(self.GROUPS_ROLE_PREVIOUS_NAME).toString())
+            new_group_name = item.text()
+            previous_group_name = item.data(self.GROUPS_ROLE_PREVIOUS_NAME)
             # Ensure it truly is a name change, and not something else about the item changing:
             if new_group_name != previous_group_name:
-                globals_file = qstring_to_unicode(parent_item.text())
+                globals_file = parent_item.text()
                 self.rename_group(globals_file, previous_group_name, new_group_name)
         
     def on_groups_model_active_changed(self, item):
@@ -1769,7 +1777,7 @@ class RunManager(object):
                 # Update the parent file checkbox to reflect the state of its children
                 children = [parent_item.child(i, self.GROUPS_COL_ACTIVE) for i in range(parent_item.rowCount())]
                 child_states = [child.checkState() for child in children
-                                    if not child.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool()]
+                                    if not child.data(self.GROUPS_ROLE_IS_DUMMY_ROW)]
                 parent_active_index = parent_item.index().sibling(parent_item.index().row(), self.GROUPS_COL_ACTIVE)
                 parent_active_item = self.groups_model.itemFromIndex(parent_active_index)
                 if all(state == QtCore.Qt.Checked for state in child_states):
@@ -1786,7 +1794,7 @@ class RunManager(object):
                 checkstate = item.checkState()
                 children = [name_item.child(i, self.GROUPS_COL_ACTIVE) for i in range(name_item.rowCount())]
                 for child in children:
-                    if not child.data(self.GROUPS_ROLE_IS_DUMMY_ROW).toBool():
+                    if not child.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
                         child.setCheckState(checkstate)
         finally:
             self.on_groups_model_active_changed_recursion_depth -= 1
@@ -1802,7 +1810,7 @@ class RunManager(object):
         # not a file, as the open/close state of a file shouldn't be changing.
         assert parent_item is not None # Just to be sure.
         # Ensure the sort data matches the open/close state:
-        group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+        group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
         item.setData(group_is_open, self.GROUPS_ROLE_SORT_DATA)
         # Set the appropriate icon and tooltip. Changing the icon causes itemChanged
         # to be emitted, even if it the same icon, and even if we were to use the same 
@@ -1824,7 +1832,7 @@ class RunManager(object):
         the default output folder, does not check if it exists."""
         sep = os.path.sep
         current_day_folder_suffix = time.strftime('%Y'+sep+'%m'+sep+'%d')
-        current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
+        current_labscript_file = self.ui.lineEdit_labscript_file.text()
         if not current_labscript_file:
             return ''
         current_labscript_basename = os.path.splitext(os.path.basename(current_labscript_file))[0]
@@ -1856,7 +1864,7 @@ class RunManager(object):
         if current_default_output_folder is None:
             # No labscript file selected:
             return previous_default_output_folder
-        currently_selected_output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
+        currently_selected_output_folder = self.ui.lineEdit_shot_output_folder.text()
         if current_default_output_folder != previous_default_output_folder:
             # It's a new day, or a new labscript file.
             # Is the user using default folders?
@@ -1924,7 +1932,7 @@ class RunManager(object):
             # and two rows may temporarily contain the same name (though the rename code with throw
             # an error and revert it).
             possible_name_items = [item for item in possible_name_items
-                                       if item.data(self.GROUPS_ROLE_PREVIOUS_NAME).toString() == previous_name]
+                                       if item.data(self.GROUPS_ROLE_PREVIOUS_NAME) == previous_name]
         if len(possible_name_items) > 1:
             raise ValueError('Multiple items found')
         elif not possible_name_items:
@@ -1949,8 +1957,8 @@ class RunManager(object):
                 group_name_item = file_name_item.child(j, self.GROUPS_COL_NAME)
                 group_active_item = file_name_item.child(j, self.GROUPS_COL_ACTIVE)
                 if group_active_item.checkState() == QtCore.Qt.Checked:
-                    group_name = qstring_to_unicode(group_name_item.text())
-                    globals_file = qstring_to_unicode(file_name_item.text())
+                    group_name = group_name_item.text()
+                    globals_file = file_name_item.text()
                     if group_name in active_groups:
                         error_dialog('There are two active groups named %s. Active groups must have unique names to be used together.'%group_name)
                         return
@@ -2070,7 +2078,7 @@ class RunManager(object):
         
         child_name_items = [item.child(i, self.GROUPS_COL_NAME) for i in range(item.rowCount())]
         child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE) for i in range(item.rowCount())]
-        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN).toBool()
+        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                              for child_item in child_openclose_items]
         if confirm and any(child_is_open):
             if not question_dialog('Close %s? This will close %d currently open group(s).' %
@@ -2078,7 +2086,7 @@ class RunManager(object):
                 return
         to_close = [name_item for name_item, is_open in zip(child_name_items, child_is_open) if is_open]
         for name_item in to_close:
-            group_name = qstring_to_unicode(name_item.text())
+            group_name = name_item.text()
             self.close_group(globals_file, group_name)
             
         # Remove the globals file from the model:
@@ -2169,7 +2177,6 @@ class RunManager(object):
             # User cancelled
             return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        save_file = qstring_to_unicode(save_file)
         save_file = os.path.abspath(save_file)
         self.save_configuration(save_file)
     
@@ -2179,11 +2186,11 @@ class RunManager(object):
         active_groups = []
         for i in range(self.groups_model.rowCount()):
             file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
-            globals_file_name = qstring_to_unicode(file_name_item.text())
+            globals_file_name = file_name_item.text()
             h5_files_open.append(globals_file_name)
             for j in range(file_name_item.rowCount()):
                 group_name_item = file_name_item.child(j, self.GROUPS_COL_NAME)
-                group_name = qstring_to_unicode(group_name_item.text())
+                group_name = group_name_item.text()
                 group_active_item = file_name_item.child(j, self.GROUPS_COL_ACTIVE)
                 if group_active_item.checkState() == QtCore.Qt.Checked:
                     active_groups.append((globals_file_name, group_name))
@@ -2196,8 +2203,8 @@ class RunManager(object):
                     groups_open.append((globals_file_name, group_name))
                     break
         # Get the labscript file, output folder, and whether the output folder is default:
-        current_labscript_file = qstring_to_unicode(self.ui.lineEdit_labscript_file.text())
-        shot_output_folder = qstring_to_unicode(self.ui.lineEdit_shot_output_folder.text())
+        current_labscript_file = self.ui.lineEdit_labscript_file.text()
+        shot_output_folder = self.ui.lineEdit_shot_output_folder.text()
         is_using_default_shot_output_folder = (shot_output_folder == self.get_default_output_folder())
         # Only save the shot output folder if not using the default, that way the folder updating
         # as the day rolls over will not be detected as a change to the save data:
@@ -2205,8 +2212,8 @@ class RunManager(object):
             shot_output_folder = ''
         
         # Get the server hostnames:
-        BLACS_host = qstring_to_unicode(self.ui.lineEdit_BLACS_hostname.text())
-        mise_host = qstring_to_unicode(self.ui.lineEdit_mise_hostname.text())
+        BLACS_host = self.ui.lineEdit_BLACS_hostname.text()
+        mise_host = self.ui.lineEdit_mise_hostname.text()
         
         # Get other GUI settings:
         compile = self.ui.radioButton_compile.isChecked()
@@ -2254,7 +2261,6 @@ class RunManager(object):
             # User cancelled
             return
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
-        file = qstring_to_unicode(file)
         file = os.path.abspath(file)
         self.load_configuration(file)
     
