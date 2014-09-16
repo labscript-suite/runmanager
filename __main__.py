@@ -11,6 +11,8 @@
 #                                                                   #
 #####################################################################
 from __future__ import print_function
+
+from labscript_utils import impprof
 import os
 import errno
 import sys
@@ -26,6 +28,13 @@ import Queue
 import socket
 import ast
 import pprint
+
+# Evaluation of globals happens in a thread with the pylab module imported.
+# Although we don't care about plotting, importing pylab makes Qt calls.
+# We can't have that from a non main thread, so we'll just disable
+# matplotlib's GUI integration:
+import matplotlib
+matplotlib.use('Agg')
 
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
@@ -56,14 +65,13 @@ check_version('zprocess', '1.1.2', '2')
 import zprocess.locking
 from zmq import ZMQError
 
-import pylab
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
 import runmanager
 
-from qtutils.outputbox import OutputBox
 from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager, qstring_to_unicode
+from qtutils.outputbox import OutputBox
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -73,24 +81,18 @@ os.chdir(runmanager_dir)
 # Set a meaningful name for zprocess.locking's client id:
 zprocess.locking.set_client_process_name('runmanager')
   
-# if os.name == 'nt':
-    # # Have Windows 7 consider this program to be a separate app, and not
-    # # group it with other Python programs in the taskbar:
-    # import ctypes
-    # myappid = 'monashbec.labscript.runmanager.2-0' # arbitrary string
-    # try:
-        # ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    # except Exception:
-        # pass
-
+  
 @inmain_decorator()
 def error_dialog(message):
     QtGui.QMessageBox.warning(app.ui, 'runmanager', message)
 
+    
+@inmain_decorator()
 def question_dialog(message):
     reply = QtGui.QMessageBox.question(app.ui, 'runmanager', message,
                                        QtGui.QMessageBox.Yes|QtGui.QMessageBox.No)
     return (reply == QtGui.QMessageBox.Yes)
+ 
  
 def mkdir_p(path):
     try:
@@ -99,6 +101,7 @@ def mkdir_p(path):
         if exc.errno == errno.EEXIST and os.path.isdir(path):
             pass
         else: raise
+        
         
 @contextlib.contextmanager
 def nested(*contextmanagers):
@@ -1017,8 +1020,9 @@ class RunManager(object):
                     self.ui.setEnabled(True)
                     self.output_box.output('Ready.\n\n')
             
-            # Defer this until the window has shown, so that the GUI pops up faster in the meantime
-            self.ui.firstActivation.connect(load_the_config_file)
+            # Defer this until 50ms after the window has shown,
+            # so that the GUI pops up faster in the meantime
+            self.ui.firstActivation.connect(lambda: QtCore.QTimer.singleShot(50, load_the_config_file))
                   
         self.ui.show()       
         
