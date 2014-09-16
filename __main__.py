@@ -1316,7 +1316,10 @@ class RunManager(object):
             mise_host = qstring_to_unicode(self.ui.lineEdit_mise_hostname.text())
             logger.info('Parsing globals...')
             active_groups = self.get_active_groups()
-            sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
+            try:
+                sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
+            except Exception as e:
+                raise Exception('Error parsing globals:\n%s\nCompilation aborted.'%str(e))
             if compile:
                 logger.info('Making h5 files')
                 labscript_file, run_files = self.make_h5_files(labscript_file, output_folder, sequenceglobals, shots, shuffle)
@@ -1329,7 +1332,7 @@ class RunManager(object):
             else:
                 raise RuntimeError('neither radiobutton selected') # Sanity check
         except Exception as e:
-            self.output_box.output('%s\n'%str(e), red=True)
+            self.output_box.output('%s\n\n'%str(e), red=True)
         logger.info('end engage')
         
     def on_abort_clicked(self):
@@ -2349,7 +2352,7 @@ class RunManager(object):
                 run_files = iter(run_files) # Should already be in iterator but just in case
                 while True:
                     if self.compilation_aborted.is_set():
-                        self.output_box.output('Compilation aborted.\n', red=True)
+                        self.output_box.output('Compilation aborted.\n\n', red=True)
                         break
                     try:
                         try:
@@ -2561,7 +2564,7 @@ class RunManager(object):
             else:
                 self.output_box.output('Shot %s sent to runviewer.\n'%os.path.basename(run_file))
         except Exception as e:
-            self.output_box.output('Couldn\'t submit shot to runviewer: %s\n'%str(e),red=True)
+            self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n'%str(e),red=True)
                 
     def mise_submission_loop(self):
         mise_port = int(self.exp_config.get('ports','mise'))
@@ -2575,7 +2578,7 @@ class RunManager(object):
                 try:
                     success, message = zprocess.zmq_get(mise_port, host=mise_host, data=data, timeout=2)
                 except ZMQError as e:
-                    success, message = False, 'Could not send to mise: %s\n'%str(e)
+                    success, message = False, 'Could not send to mise: %s\n\n'%str(e)
                 self.output_box.output(message, red = not success)
                 if success:
                     self.output_box.output('Ready.\n\n')
