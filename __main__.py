@@ -561,6 +561,9 @@ class GroupTab(object):
         return row
         
     def on_treeView_globals_leftClicked(self, index):
+        if qapplication.keyboardModifiers() != QtCore.Qt.NoModifier:
+            # Only handle mouseclicks with no keyboard modifiers.
+            return 
         item = self.globals_model.itemFromIndex(index)
         # The 'name' item in the same row:
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
