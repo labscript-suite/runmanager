@@ -1142,10 +1142,12 @@ class RunManager(object):
                 try:
                     self.load_configuration(autoload_config_file)
                     self.output_box.output('done.\n')
+                except Exception as e:
+                    self.output_box.output('\nCould not load config file: %s: %s\n\n'%(e.__class__.__name__, str(e)), red=True)
+                else:
+                    self.output_box.output('Ready.\n\n')
                 finally:
                     self.ui.setEnabled(True)
-                    self.output_box.output('Ready.\n\n')
-            
             # Defer this until 50ms after the window has shown,
             # so that the GUI pops up faster in the meantime
             self.ui.firstActivation.connect(lambda: QtCore.QTimer.singleShot(50, load_the_config_file))
