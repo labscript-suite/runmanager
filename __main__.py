@@ -1041,6 +1041,13 @@ class RunManager(object):
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         self.experiment_shot_storage = self.exp_config.get('paths','experiment_shot_storage')
+        # What the automatically created output folders should be, as an argument to time.strftime():
+        try:
+            self.output_folder_format = self.exp_config.get('runmanager', 'output_folder_format')
+            # Better not start with slashes, irrelevant if it ends with them:
+            self.output_folder_format = self.output_folder_format.strip(os.path.sep)
+        except LabConfig.NoOptionError:
+            self.output_folder_format = os.path.join('%Y','%m','%d')
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
         
@@ -1088,7 +1095,7 @@ class RunManager(object):
         # autoload a config file, if labconfig is set to do so:
         try:
             autoload_config_file = self.exp_config.get('runmanager', 'autoload_config_file')
-        except Exception:
+        except LabConfig.NoSectionError:
             self.output_box.output('Ready.\n\n')
         else:
             self.ui.setEnabled(False)
@@ -1906,14 +1913,14 @@ class RunManager(object):
         based on the current date and selected labscript file.
         Returns empty string if no labscript file is selected. Does not create 
         the default output folder, does not check if it exists."""
-        sep = os.path.sep
-        current_day_folder_suffix = time.strftime('%Y'+sep+'%m'+sep+'%d')
+        current_day_folder_suffix = time.strftime(self.output_folder_format)
         current_labscript_file = self.ui.lineEdit_labscript_file.text()
         if not current_labscript_file:
             return ''
         current_labscript_basename = os.path.splitext(os.path.basename(current_labscript_file))[0]
         default_output_folder = os.path.join(self.experiment_shot_storage, 
                                     current_labscript_basename, current_day_folder_suffix)
+        default_output_folder = os.path.normpath(default_output_folder)
         return default_output_folder
     
     def rollover_shot_output_folder(self):
