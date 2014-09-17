@@ -819,7 +819,7 @@ class GroupTab(object):
             item.setToolTip(new_global_name)
             self.globals_changed()
             value_item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_VALUE)
-            value = qvalue_item.text()
+            value = value_item.text()
             if not value:
                 # Go into editing the units item automatically:
                 value_item_index = value_item.index()
