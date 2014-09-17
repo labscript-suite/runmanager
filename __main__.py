@@ -142,7 +142,42 @@ class FingerTabBarWidget(QtGui.QTabBar):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
         self.tabSize = QtCore.QSize(width, height)
         self.iconPosition=kwargs.pop('iconPosition', QtGui.QTabWidget.West)
-
+        self._movable = None
+        self.tab_movable = {}
+    
+    def setMovable(self, movable, index=None):
+        """Set tabs movable on an individual basis, or set for all tabs if no index specified"""
+        if index is None:
+            self._movable = movable
+            self.tab_movable = {}
+            QtGui.QTabBar.setMovable(self, movable)
+        else:
+            self.tab_movable[int(index)] = bool(movable)
+    
+    def isMovable(self, index=None):
+        if index is None:
+            if self._movable is None:
+                self._movable = QtGui.QTabBar.isMovable(self)
+            return self._movable
+        return self.tab_movable.get(i, self._movable)
+         
+    def indexAtPos(self, point):
+        for index in range(self.count()):
+            if self.tabRect(index).contains(point):
+                return index
+            
+    def mousePressEvent(self, event):
+        index = self.indexAtPos(event.pos())
+        if not self.tab_movable.get(index, self.isMovable()):
+            QtGui.QTabBar.setMovable(self, False) # disable dragging until they release the mouse
+        return QtGui.QTabBar.mousePressEvent(self, event)
+    
+    def mouseReleaseEvent(self, event):
+        if self.isMovable():
+            # Restore this in case it was temporarily disabled by mousePressEvent
+            QtGui.QTabBar.setMovable(self, True)
+        return QtGui.QTabBar.mouseReleaseEvent(self, event)
+        
     def paintEvent(self, event):
         painter = QtGui.QStylePainter(self)
         option = QtGui.QStyleOptionTab()
@@ -1017,6 +1052,9 @@ class RunManager(object):
         self.output_popout_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-out'))
         self.output_popout_button.setToolTip('Toggle whether the output box is in a separate window')
         self.ui.tabWidget.tabBar().setTabButton(output_tab_index, QtGui.QTabBar.RightSide, self.output_popout_button)
+        # Fix the first three tabs in place:
+        for index in range(3):
+            self.ui.tabWidget.tabBar().setMovable(False, index=index)
         # Whether or not the output box is currently popped out:
         self.output_box_is_popped_out = False
         # The window it will be moved to when popped out:
@@ -1025,7 +1063,6 @@ class RunManager(object):
         self.output_box_window_verticalLayout.setContentsMargins(0,0,0,0)
         self.output_box_window.setWindowTitle('runmanager output')
         self.output_box_window.resize(800,1000)
-        
         self.setup_config()
         self.setup_axes_tab()
         self.setup_groups_tab()
