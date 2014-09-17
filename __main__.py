@@ -1242,8 +1242,10 @@ class RunManager(object):
         self.output_popout_button.clicked.connect(self.on_output_popout_button_clicked)
         
         # The menu items:
-        self.ui.actionSave_configuration.triggered.connect(self.on_save_configuration_triggered)
         self.ui.actionLoad_configuration.triggered.connect(self.on_load_configuration_triggered)
+        self.ui.actionRevert_configuration.triggered.connect(self.on_revert_configuration_triggered)
+        self.ui.actionSave_configuration.triggered.connect(self.on_save_configuration_triggered)
+        self.ui.actionSave_configuration_as.triggered.connect(self.on_save_configuration_as_triggered)
         self.ui.actionQuit.triggered.connect(self.ui.close)
         
         # labscript file and folder selection stuff:
@@ -2296,8 +2298,29 @@ class RunManager(object):
         name_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
         name_item.parent().removeRow(name_item.row())
         self.globals_changed()
-        
+    
     def on_save_configuration_triggered(self):
+        if self.last_save_config_file is None:
+            self.on_save_configuration_as_triggered()
+            self.ui.actionSave_configuration_as.setEnabled(True)
+            self.ui.actionRevert_configuration.setEnabled(True)
+        else:
+            self.save_configuration(self.last_save_config_file)
+            
+    def on_revert_configuration_triggered(self):
+        save_data = self.get_save_data()
+        if self.last_save_data is not None and save_data != self.last_save_data:
+            message = 'Revert configuration to the last saved state in \'%s\'?'%self.last_save_config_file
+            reply = QtGui.QMessageBox.question(self.ui, 'Load configuration', message,
+                                               QtGui.QMessageBox.Yes|QtGui.QMessageBox.Cancel)
+            if reply == QtGui.QMessageBox.Cancel:
+                return
+            elif reply == QtGui.QMessageBox.Yes:
+                self.load_configuration(self.last_save_config_file)
+        else:
+            error_dialog('no changes to revert')
+            
+    def on_save_configuration_as_triggered(self):
         save_file = QtGui.QFileDialog.getSaveFileName(self.ui,
                                                      'Select  file to save current runmanager configuration',
                                                       self.last_save_config_file,
@@ -2476,7 +2499,9 @@ class RunManager(object):
         # Set as self.last_save_data:
         save_data = self.get_save_data()
         self.last_save_data = save_data
-        
+        self.ui.actionSave_configuration_as.setEnabled(True)
+        self.ui.actionRevert_configuration.setEnabled(True)
+            
     def compile_loop(self):
         while True:
             try:
