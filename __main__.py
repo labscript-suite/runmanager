@@ -215,6 +215,15 @@ class FingerTabWidget(QtGui.QTabWidget):
     def __init__(self, parent, *args):
         QtGui.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
+    
+    def keyPressEvent(self, event):
+        if event.modifiers() & QtCore.Qt.ControlModifier:
+            if event.key() in (QtCore.Qt.Key_Tab, QtCore.Qt.Key_Backtab):
+                # We are handling ctrl-tab events at the level of the whole
+                # application, so ignore them here so as not to double up.
+                event.ignore()
+                return
+        return QtGui.QTabWidget.keyPressEvent(self, event)
         
     def addTab(self, *args, **kwargs):
         closeable = kwargs.pop('closable', False)
@@ -1311,7 +1320,24 @@ class RunManager(object):
     def on_keyPress(self, key, modifiers, is_autorepeat):
         if key == QtCore.Qt.Key_F5 and modifiers == QtCore.Qt.NoModifier and not is_autorepeat:
             self.ui.pushButton_engage.setDown(True)
-            
+        elif key == QtCore.Qt.Key_W and modifiers == QtCore.Qt.ControlModifier and not is_autorepeat:
+            current_tab_widget = self.ui.tabWidget.currentWidget()
+            for (globals_file, group_name), tab in self.currently_open_groups.items():
+                if tab.ui is current_tab_widget:
+                    self.close_group(globals_file, group_name)
+            self.ui.pushButton_engage.setDown(True)
+        elif modifiers & QtCore.Qt.ControlModifier:
+            if key == QtCore.Qt.Key_Tab:
+                change = 1
+            elif key == QtCore.Qt.Key_Backtab:
+                change = -1
+            else:
+                return
+            current_index = self.ui.tabWidget.currentIndex()
+            n_tabs = self.ui.tabWidget.count()
+            new_index = (current_index + change) % n_tabs
+            self.ui.tabWidget.setCurrentIndex(new_index)
+                
     def on_keyRelease(self, key, modifiers, is_autorepeat):
         if key == QtCore.Qt.Key_F5 and not is_autorepeat:
            self.ui.pushButton_engage.setDown(False)
