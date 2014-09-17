@@ -11,6 +11,8 @@
 #                                                                   #
 #####################################################################
 from __future__ import print_function
+
+from labscript_utils import impprof
 import os
 import errno
 import sys
@@ -26,6 +28,13 @@ import Queue
 import socket
 import ast
 import pprint
+
+# Evaluation of globals happens in a thread with the pylab module imported.
+# Although we don't care about plotting, importing pylab makes Qt calls.
+# We can't have that from a non main thread, so we'll just disable
+# matplotlib's GUI integration:
+import matplotlib
+matplotlib.use('Agg')
 
 import sip
 
@@ -65,14 +74,13 @@ check_version('zprocess', '1.1.2', '2')
 import zprocess.locking
 from zmq import ZMQError
 
-import pylab
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
 import runmanager
 
-from qtutils.outputbox import OutputBox
 from qtutils import inmain, inmain_later, inmain_decorator, UiLoader, inthread, DisconnectContextManager
+from qtutils.outputbox import OutputBox
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -82,21 +90,13 @@ os.chdir(runmanager_dir)
 # Set a meaningful name for zprocess.locking's client id:
 zprocess.locking.set_client_process_name('runmanager')
   
-# if os.name == 'nt':
-    # # Have Windows 7 consider this program to be a separate app, and not
-    # # group it with other Python programs in the taskbar:
-    # import ctypes
-    # myappid = 'monashbec.labscript.runmanager.2-0' # arbitrary string
-    # try:
-        # ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    # except Exception:
-        # pass
-
+  
 @inmain_decorator()
 def error_dialog(message):
     QtGui.QMessageBox.warning(app.ui, 'runmanager', message)
 
-
+    
+@inmain_decorator()
 def question_dialog(message):
     reply = QtGui.QMessageBox.question(app.ui, 'runmanager', message,
                                        QtGui.QMessageBox.Yes|QtGui.QMessageBox.No)
@@ -208,12 +208,12 @@ class FingerTabWidget(QtGui.QTabWidget):
                 break
         
         
-class LeftClickTreeView(QtGui.QTreeView):
+class TreeView(QtGui.QTreeView):
     leftClicked = Signal(QtCore.QModelIndex)
     doubleLeftClicked = Signal(QtCore.QModelIndex)
     """A QTreeview that emits a custom signal leftClicked(index)
     after a left click on a valid index, and doubleLeftClicked(index)
-    (in addition) on double click """
+    (in addition) on double click. Also has modified tab and arrow key behaviour."""
     def __init__(self, *args):
         QtGui.QTreeView.__init__(self, *args)
         self._pressed_index = None
@@ -253,7 +253,48 @@ class LeftClickTreeView(QtGui.QTreeView):
         self._double_click = False
         return result
 
-
+    def event(self, event):
+        if (event.type() == QtCore.QEvent.ShortcutOverride
+                and event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]):
+            event.accept()
+            item = self.model().itemFromIndex(self.currentIndex())
+            if item.isEditable():
+                if self.state() != QtGui.QTreeView.EditingState:
+                    self.edit(self.currentIndex())
+            else:
+                # Enter on non-editable items simulates a left click:
+                self.leftClicked.emit(self.currentIndex())
+            return True
+        else:
+            return QtGui.QTreeView.event(self, event)
+    
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Space:
+            item = self.model().itemFromIndex(self.currentIndex())
+            if not item.isEditable():
+                # Space on non-editable items simulates a left click:
+                self.leftClicked.emit(self.currentIndex())
+        return QtGui.QTreeView.keyPressEvent(self, event)
+            
+    def moveCursor(self, cursor_action, keyboard_modifiers):
+        current_index = self.currentIndex()
+        current_row, current_column = current_index.row(), current_index.column()
+        if cursor_action == QtGui.QTreeView.MoveUp:
+            return current_index.sibling(current_row - 1, current_column)
+        elif cursor_action == QtGui.QTreeView.MoveDown:
+            return current_index.sibling(current_row + 1, current_column)
+        elif cursor_action == QtGui.QTreeView.MoveLeft:
+            return current_index.sibling(current_row, current_column - 1)
+        elif cursor_action == QtGui.QTreeView.MoveRight:
+            return current_index.sibling(current_row, current_column + 1)
+        elif cursor_action == QtGui.QTreeView.MovePrevious:
+            return current_index.sibling(current_row, current_column - 1)
+        elif cursor_action == QtGui.QTreeView.MoveNext:
+            return current_index.sibling(current_row, current_column + 1)
+        else:
+            return QtGui.QTreeView.moveCursor(self, cursor_action, keyboard_modifiers)
+            
+            
 class AlternatingColorModel(QtGui.QStandardItemModel):
     def __init__(self, treeview):
         QtGui.QStandardItemModel.__init__(self)
@@ -317,11 +358,12 @@ class ItemDelegate(QtGui.QStyledItemDelegate):
         
         
 class GroupTab(object):
-    GLOBALS_COL_NAME = 0
-    GLOBALS_COL_VALUE = 1
-    GLOBALS_COL_UNITS = 2
-    GLOBALS_COL_EXPANSION = 3
-    GLOBALS_COL_DELETE = 4
+    GLOBALS_COL_DELETE = 0
+    GLOBALS_COL_NAME = 1
+    GLOBALS_COL_VALUE = 2
+    GLOBALS_COL_UNITS = 3
+    GLOBALS_COL_EXPANSION = 4
+    
     GLOBALS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
@@ -341,7 +383,7 @@ class GroupTab(object):
         self.tabWidget = tabWidget
         
         loader = UiLoader()
-        loader.registerCustomWidget(LeftClickTreeView)
+        loader.registerCustomWidget(TreeView)
         self.ui = loader.load('group.ui')
         
         # Add the ui to the parent tabWidget:
@@ -350,7 +392,7 @@ class GroupTab(object):
         self.set_file_and_group_name(globals_file, group_name)
         
         self.globals_model = AlternatingColorModel(treeview=self.ui.treeView_globals)
-        self.globals_model.setHorizontalHeaderLabels(['Name','Value','Units','Expansion','Delete'])
+        self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name','Value','Units','Expansion'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
         
         self.item_delegate = ItemDelegate()
@@ -362,8 +404,7 @@ class GroupTab(object):
         self.ui.treeView_globals.setSortingEnabled(True)
         # Make it so the user can just start typing on an item to edit:
         self.ui.treeView_globals.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
-                                                QtGui.QTreeView.EditKeyPressed |
-                                                QtGui.QTreeView.DoubleClicked)
+                                                QtGui.QTreeView.EditKeyPressed)
         # Ensure the clickable region of the delete button doesn't extend forever:
         self.ui.treeView_globals.header().setStretchLastSection(False)
         # Setup stuff for a custom context menu:
@@ -432,40 +473,36 @@ class GroupTab(object):
             self.on_globals_model_expansion_changed(expansion_item)
             
         # Add the dummy item at the end:
-        dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
-        dummy_name_item.setToolTip('Click to add global')
+        dummy_delete_item = QtGui.QStandardItem()
         # This lets later code know that this row does
         # not correspond to an actual global:
+        dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
+        dummy_delete_item.setFlags(QtCore.Qt.NoItemFlags)
+        dummy_delete_item.setToolTip('Click to add global')
+        
+        dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
+        dummy_name_item.setToolTip('Click to add global')
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
         dummy_name_item.setBackground(QtGui.QColor(self.COLOR_NAME))
         
         dummy_value_item = QtGui.QStandardItem()
-        dummy_value_item.setEditable(False)
         dummy_value_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_value_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_value_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_value_item.setToolTip('Click to add global')
         
         dummy_units_item = QtGui.QStandardItem()
-        dummy_units_item.setEditable(False)
         dummy_units_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_units_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_units_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_units_item.setToolTip('Click to add global')
         
         dummy_expansion_item = QtGui.QStandardItem()
-        dummy_expansion_item.setEditable(False)
         dummy_expansion_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_expansion_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_expansion_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_expansion_item.setToolTip('Click to add global')
         
-        dummy_delete_item = QtGui.QStandardItem()
-        dummy_delete_item.setEditable(False)
-        dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
-        dummy_delete_item.setToolTip('Click to add global')
-        
-        self.globals_model.appendRow([dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item, dummy_delete_item])
+        self.globals_model.appendRow([dummy_delete_item, dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
     
     def make_global_row(self, name, value='', units='', expansion=''):
         logger.debug('%s:%s - make global row: %s '%(self.globals_file, self.group_name, name))
@@ -473,6 +510,13 @@ class GroupTab(object):
         # after runmanager has a chance to parse everything and get back to us about what
         # that data should be.
         
+        delete_item = QtGui.QStandardItem()
+        delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
+        # Must be set to something so that the dummy row doesn't get sorted first:
+        delete_item.setData(False, self.GLOBALS_ROLE_SORT_DATA)
+        delete_item.setEditable(False)
+        delete_item.setToolTip('Delete global from group.')
+
         name_item = QtGui.QStandardItem(name)
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -495,14 +539,7 @@ class GroupTab(object):
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         expansion_item.setToolTip('')
         
-        delete_item = QtGui.QStandardItem()
-        delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
-        # Must be set to something so that the dummy row doesn't get sorted first:
-        delete_item.setData(False, self.GLOBALS_ROLE_SORT_DATA)
-        delete_item.setEditable(False)
-        delete_item.setToolTip('Delete global from group.')
-            
-        row = [name_item, value_item, units_item, expansion_item, delete_item]
+        row = [delete_item, name_item, value_item, units_item, expansion_item]
         return row
         
     def on_treeView_globals_leftClicked(self, index):
@@ -533,8 +570,10 @@ class GroupTab(object):
             self.delete_global(global_name)
         elif not item.data(self.GLOBALS_ROLE_IS_BOOL):
             # Edit whatever it is:
-            self.ui.treeView_globals.setCurrentIndex(index)
-            self.ui.treeView_globals.edit(index)
+            if (self.ui.treeView_globals.currentIndex() != index
+                    or self.ui.treeView_globals.state() != QtGui.QTreeView.EditingState):
+                self.ui.treeView_globals.setCurrentIndex(index)
+                self.ui.treeView_globals.edit(index)
     
     def on_globals_model_item_changed(self, item):
         if item.column() == self.GLOBALS_COL_NAME:
@@ -667,6 +706,11 @@ class GroupTab(object):
             # an error and revert it).
             possible_name_items = [item for item in possible_name_items
                                        if item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT) == previous_name]
+        elif global_name != self.GLOBALS_DUMMY_ROW_TEXT:
+            # Don't return the dummy item unless they asked for it explicitly - if a new global is being
+            # created, its name might be simultaneously present in its own row and the dummy row too.
+            possible_name_items = [item for item in possible_name_items
+                                       if not item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW)]
         if len(possible_name_items) > 1:
             raise ValueError('Multiple items found')
         elif not possible_name_items:
@@ -718,7 +762,14 @@ class GroupTab(object):
             item.setData(new_global_name, self.GLOBALS_ROLE_SORT_DATA)
             item.setToolTip(new_global_name)
             self.globals_changed()
-            
+            value_item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_VALUE)
+            value = qvalue_item.text()
+            if not value:
+                # Go into editing the units item automatically:
+                value_item_index = value_item.index()
+                self.ui.treeView_globals.setCurrentIndex(value_item_index)
+                self.ui.treeView_globals.edit(value_item_index)
+                
     def change_global_value(self, global_name, previous_value, new_value):
         logger.info('%s:%s - change global value: %s = %s -> %s'%(self.globals_file, self.group_name, global_name, previous_value, new_value))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
@@ -738,7 +789,7 @@ class GroupTab(object):
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
             units = units_item.text()
-            if not (previous_value or units):
+            if not units:
                 # Go into editing the units item automatically:
                 units_item_index = units_item.index()
                 self.ui.treeView_globals.setCurrentIndex(units_item_index)
@@ -934,7 +985,7 @@ class RunManager(object):
     
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
-        loader.registerCustomWidget(LeftClickTreeView)
+        loader.registerCustomWidget(TreeView)
         self.ui = loader.load('main.ui', RunmanagerMainWindow())
 
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
@@ -1030,8 +1081,9 @@ class RunManager(object):
                     self.ui.setEnabled(True)
                     self.output_box.output('Ready.\n\n')
             
-            # Defer this until the window has shown, so that the GUI pops up faster in the meantime
-            self.ui.firstActivation.connect(load_the_config_file)
+            # Defer this until 50ms after the window has shown,
+            # so that the GUI pops up faster in the meantime
+            self.ui.firstActivation.connect(lambda: QtCore.QTimer.singleShot(50, load_the_config_file))
                   
         self.ui.show()       
         
@@ -1327,7 +1379,10 @@ class RunManager(object):
             mise_host = self.ui.lineEdit_mise_hostname.text()
             logger.info('Parsing globals...')
             active_groups = self.get_active_groups()
-            sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
+            try:
+                sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
+            except Exception as e:
+                raise Exception('Error parsing globals:\n%s\nCompilation aborted.'%str(e))
             if compile:
                 logger.info('Making h5 files')
                 labscript_file, run_files = self.make_h5_files(labscript_file, output_folder, sequenceglobals, shots, shuffle)
@@ -1340,7 +1395,7 @@ class RunManager(object):
             else:
                 raise RuntimeError('neither radiobutton selected') # Sanity check
         except Exception as e:
-            self.output_box.output('%s\n'%str(e), red=True)
+            self.output_box.output('%s\n\n'%str(e), red=True)
         logger.info('end engage')
         
     def on_abort_clicked(self):
@@ -1933,6 +1988,12 @@ class RunManager(object):
             # an error and revert it).
             possible_name_items = [item for item in possible_name_items
                                        if item.data(self.GROUPS_ROLE_PREVIOUS_NAME) == previous_name]
+        elif group_name != self.GROUPS_DUMMY_ROW_TEXT:
+            # Don't return the dummy item unless they asked for it explicitly - if a new group is being
+            # created, its name might be simultaneously present in its own row and the dummy row too.
+            possible_name_items = [item for item in possible_name_items
+                                       if not item.data(self.GROUPS_ROLE_IS_DUMMY_ROW)]
+                                       
         if len(possible_name_items) > 1:
             raise ValueError('Multiple items found')
         elif not possible_name_items:
@@ -2014,19 +2075,16 @@ class RunManager(object):
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable) # Clears the 'selectable' flag
         
         dummy_active_item = QtGui.QStandardItem()
-        dummy_active_item.setEditable(False)
         dummy_active_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
-        dummy_active_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_active_item.setFlags(QtCore.Qt.NoItemFlags)
         
         dummy_delete_item = QtGui.QStandardItem()
-        dummy_delete_item.setEditable(False)
         dummy_delete_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
-        dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_delete_item.setFlags(QtCore.Qt.NoItemFlags)
         
         dummy_open_close_item = QtGui.QStandardItem()
-        dummy_open_close_item.setEditable(False)
         dummy_open_close_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
-        dummy_open_close_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
+        dummy_open_close_item.setFlags(QtCore.Qt.NoItemFlags)
         
         # Not setting anything as the above items' sort role has the effect of ensuring
         # this row is always sorted to the end of the list, without us having to implement
@@ -2107,6 +2165,10 @@ class RunManager(object):
             last_index = item.parent().rowCount()
             # Insert it as the row before the last (dummy) row: 
             item.parent().insertRow(last_index-1, group_row)
+            # Open the group and mark it active:
+            self.open_group(globals_file, group_name)
+            active_item = group_row[self.GROUPS_COL_ACTIVE]
+            active_item.setCheckState(QtCore.Qt.Checked)
             self.globals_changed()
         finally:
             # Set the dummy row's text back ready for another group to be created:
@@ -2355,7 +2417,7 @@ class RunManager(object):
                 run_files = iter(run_files) # Should already be in iterator but just in case
                 while True:
                     if self.compilation_aborted.is_set():
-                        self.output_box.output('Compilation aborted.\n', red=True)
+                        self.output_box.output('Compilation aborted.\n\n', red=True)
                         break
                     try:
                         try:
@@ -2567,7 +2629,7 @@ class RunManager(object):
             else:
                 self.output_box.output('Shot %s sent to runviewer.\n'%os.path.basename(run_file))
         except Exception as e:
-            self.output_box.output('Couldn\'t submit shot to runviewer: %s\n'%str(e),red=True)
+            self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n'%str(e),red=True)
                 
     def mise_submission_loop(self):
         mise_port = int(self.exp_config.get('ports','mise'))
@@ -2581,7 +2643,7 @@ class RunManager(object):
                 try:
                     success, message = zprocess.zmq_get(mise_port, host=mise_host, data=data, timeout=2)
                 except ZMQError as e:
-                    success, message = False, 'Could not send to mise: %s\n'%str(e)
+                    success, message = False, 'Could not send to mise: %s\n\n'%str(e)
                 self.output_box.output(message, red = not success)
                 if success:
                     self.output_box.output('Ready.\n\n')
