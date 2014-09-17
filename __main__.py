@@ -1083,7 +1083,7 @@ class RunManager(object):
             self.output_folder_format = self.exp_config.get('runmanager', 'output_folder_format')
             # Better not start with slashes, irrelevant if it ends with them:
             self.output_folder_format = self.output_folder_format.strip(os.path.sep)
-        except LabConfig.NoOptionError:
+        except (LabConfig.NoOptionError, LabConfig.NoSectionError):
             self.output_folder_format = os.path.join('%Y','%m','%d')
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
@@ -1132,7 +1132,7 @@ class RunManager(object):
         # autoload a config file, if labconfig is set to do so:
         try:
             autoload_config_file = self.exp_config.get('runmanager', 'autoload_config_file')
-        except LabConfig.NoSectionError:
+        except (LabConfig.NoOptionError, LabConfig.NoSectionError):
             self.output_box.output('Ready.\n\n')
         else:
             self.ui.setEnabled(False)
