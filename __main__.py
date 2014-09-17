@@ -218,6 +218,14 @@ class TreeView(QtGui.QTreeView):
         QtGui.QTreeView.__init__(self, *args)
         self._pressed_index = None
         self._double_click = False
+        self._ROLE_IGNORE_TABNEXT = None
+        
+    def setRoleIgnoreTabNext(self, role):
+        """Tell the Treeview what model role it should look in for a boolean
+        saying whether to ignore the MoveNext cursor action. This will cause
+        cells marked as such to simply end editing when tab is pressed, without
+        starting editing on any other call."""
+        self._ROLE_IGNORE_TABNEXT = role
         
     def mousePressEvent(self, event):
         result =  QtGui.QTreeView.mousePressEvent(self, event)
@@ -258,7 +266,7 @@ class TreeView(QtGui.QTreeView):
                 and event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]):
             event.accept()
             item = self.model().itemFromIndex(self.currentIndex())
-            if item.isEditable():
+            if item is not None and item.isEditable():
                 if self.state() != QtGui.QTreeView.EditingState:
                     self.edit(self.currentIndex())
             else:
@@ -290,6 +298,11 @@ class TreeView(QtGui.QTreeView):
         elif cursor_action == QtGui.QTreeView.MovePrevious:
             return current_index.sibling(current_row, current_column - 1)
         elif cursor_action == QtGui.QTreeView.MoveNext:
+            item = self.model().itemFromIndex(self.currentIndex())
+            if (item is not None and self._ROLE_IGNORE_TABNEXT is not None 
+                    and item.data(self._ROLE_IGNORE_TABNEXT)):
+                # A null index means end editing and don't go anywhere:
+                return QtCore.QModelIndex()
             return current_index.sibling(current_row, current_column + 1)
         else:
             return QtGui.QTreeView.moveCursor(self, cursor_action, keyboard_modifiers)
@@ -368,6 +381,7 @@ class GroupTab(object):
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
+    GLOBALS_ROLE_IGNORE_TABNEXT = QtCore.Qt.UserRole + 5
     
     COLOR_ERROR = '#FF9999' # light red
     COLOR_OK = '#AAFFCC' # light green
@@ -400,6 +414,7 @@ class GroupTab(object):
             self.ui.treeView_globals.setItemDelegateForColumn(col, self.item_delegate)
         
         self.ui.treeView_globals.setModel(self.globals_model)
+        self.ui.treeView_globals.setRoleIgnoreTabNext(self.GLOBALS_ROLE_IGNORE_TABNEXT)
         self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_globals.setSortingEnabled(True)
         # Make it so the user can just start typing on an item to edit:
@@ -532,6 +547,9 @@ class GroupTab(object):
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
+        # Treeview.moveCursor will see this and not go to the expansion item
+        # when tab is pressed after editing:
+        units_item.setData(True, self.GLOBALS_ROLE_IGNORE_TABNEXT)
         units_item.setToolTip('')
         
         expansion_item = QtGui.QStandardItem(expansion)
