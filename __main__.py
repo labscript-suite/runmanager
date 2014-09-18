@@ -1325,7 +1325,6 @@ class RunManager(object):
             for (globals_file, group_name), tab in self.currently_open_groups.items():
                 if tab.ui is current_tab_widget:
                     self.close_group(globals_file, group_name)
-            self.ui.pushButton_engage.setDown(True)
         elif modifiers & QtCore.Qt.ControlModifier:
             if key == QtCore.Qt.Key_Tab:
                 change = 1
