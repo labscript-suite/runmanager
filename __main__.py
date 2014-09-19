@@ -13,8 +13,8 @@
 from __future__ import print_function
 
 import os
-import errno
 import sys
+import errno
 import labscript_utils.excepthook
 
 import time
@@ -88,6 +88,15 @@ os.chdir(runmanager_dir)
 
 # Set a meaningful name for zprocess.locking's client id:
 zprocess.locking.set_client_process_name('runmanager')
+
+
+def set_win_appusermodel(window_id):
+    from labscript_utils.winshell import set_appusermodel 
+    appid = runmanager.appid
+    icon_path = os.path.abspath('runmanager.ico')
+    relaunch_command = sys.executable.lower().replace('.exe', 'w.exe') + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
+    relaunch_display_name = runmanager.app_description
+    set_appusermodel(window_id, appid, icon_path, relaunch_command, relaunch_display_name)
 
 
 @inmain_decorator()
@@ -1368,6 +1377,11 @@ class RunManager(object):
         self.groups_model_item_changed_disconnected = DisconnectContextManager(
             self.groups_model.itemChanged, self.on_groups_model_item_changed)
 
+        # Tell Windows how to handle our windows in the the taskbar, making pinning work properly and stuff:
+        if os.name == 'nt':
+            self.ui.newWindow.connect(set_win_appusermodel)
+            self.output_box_window.newWindow.connect(set_win_appusermodel)
+            
     def on_close_event(self):
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:

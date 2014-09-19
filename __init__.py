@@ -28,7 +28,8 @@ import numpy as np
 import zprocess
 
 __version__ = '2.0.1-dev'
-
+appid = 'Monashbec.Labscript.Runmanager'
+app_description = 'runmanager - the labscript suite'
 
 class ExpansionError(Exception):
 
