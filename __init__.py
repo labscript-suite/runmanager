@@ -20,61 +20,63 @@ import subprocess
 import types
 import threading
 import traceback
-import tokenize,token, StringIO
 
-import labscript_utils.h5_lock, h5py
+import labscript_utils.h5_lock
+import h5py
 import numpy as np
 
 import zprocess
-import mise
 
 __version__ = '2.0.1-dev'
 
+
 class ExpansionError(Exception):
+
     """An exception class so that error handling code can tell when a
     parsing exception was caused by a mismatch with the expansion mode"""
     pass
 
-    
+
 class TraceDictionary(dict):
-    def __init__(self,*args,**kwargs):
+
+    def __init__(self, *args, **kwargs):
         self.trace_data = None
-        dict.__init__(self,*args,**kwargs)
-    
+        dict.__init__(self, *args, **kwargs)
+
     def start_trace(self):
         self.trace_data = []
-    
-    def __getitem__(self,key):
+
+    def __getitem__(self, key):
         if self.trace_data is not None:
             if key not in self.trace_data:
                 self.trace_data.append(key)
-        return dict.__getitem__(self,key)
-    
+        return dict.__getitem__(self, key)
+
     def stop_trace(self):
         trace_data = self.trace_data
         self.trace_data = None
         return trace_data
-    
-    
+
+
 def new_globals_file(filename):
-    with h5py.File(filename,'w') as f:
+    with h5py.File(filename, 'w') as f:
         f.create_group('globals')
+
 
 def add_expansion_groups(filename):
     """backward compatability, for globals files which don't have
     expansion groups. Create them if they don't exist. Guess expansion
     settings based on datatypes, if possible."""
-    modified = False
     # Don't open in write mode unless we have to:
-    with h5py.File(filename,'r') as f:
+    with h5py.File(filename, 'r') as f:
         requires_expansion_group = []
         for groupname in f['globals']:
             group = f['globals'][groupname]
             if not 'expansion' in group:
                 requires_expansion_group.append(groupname)
     if requires_expansion_group:
-        group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group] 
-        with h5py.File(filename,'a') as f:
+        group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group]
+        with h5py.File(filename, 'a') as f:
             for groupname, globalslist in zip(requires_expansion_group, group_globalslists):
                 group = f['globals'][groupname]
                 subgroup = group.create_group('expansion')
@@ -89,57 +91,64 @@ def add_expansion_groups(filename):
                 value = evaled_globals[group_name][global_name]
                 expansion = guess_expansion_type(value)
                 set_expansion(filename, group_name, global_name, expansion)
-    
+
+
 def get_grouplist(filename):
     # For backward compatability, add 'expansion' settings to this
     # globals file, if it doesn't contain any.  Guess expansion settings
     # if possible.
     add_expansion_groups(filename)
-    with h5py.File(filename,'r') as f:
+    with h5py.File(filename, 'r') as f:
         grouplist = f['globals']
         # File closes after this function call, so have to
         # convert the grouplist generator to a list of strings
         # before its file gets dereferenced:
         return list(grouplist)
-        
+
+
 def new_group(filename, groupname):
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         if groupname in f['globals']:
             raise Exception('Can\'t create group: target name already exists.')
         group = f['globals'].create_group(groupname)
         group.create_group('units')
         group.create_group('expansion')
-        
+
+
 def rename_group(filename, oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
         # No rename!
         return
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         if newgroupname in f['globals']:
             raise Exception('Can\'t rename group: target name already exists.')
-        f.copy(f['globals'][oldgroupname], '/globals/%s'%newgroupname)
+        f.copy(f['globals'][oldgroupname], '/globals/%s' % newgroupname)
         del f['globals'][oldgroupname]
-    
+
+
 def delete_group(filename, groupname):
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         del f['globals'][groupname]
-    
+
+
 def get_globalslist(filename, groupname):
-    with h5py.File(filename,'r') as f:
+    with h5py.File(filename, 'r') as f:
         group = f['globals'][groupname]
         # File closes after this function call, so have to convert
         # the attrs to a dict before its file gets dereferenced:
         return dict(group.attrs)
-    
+
+
 def new_global(filename, groupname, globalname):
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         if globalname in group.attrs:
             raise Exception('Can\'t create global: target name already exists.')
         group.attrs[globalname] = ''
         f['globals'][groupname]['units'].attrs[globalname] = ''
         f['globals'][groupname]['expansion'].attrs[globalname] = ''
-    
+
+
 def rename_global(filename, groupname, oldglobalname, newglobalname):
     if oldglobalname == newglobalname:
         # No rename!
@@ -147,7 +156,7 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
     value = get_value(filename, groupname, oldglobalname)
     units = get_units(filename, groupname, oldglobalname)
     expansion = get_expansion(filename, groupname, oldglobalname)
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
             raise Exception('Can\'t rename global: target name already exists.')
@@ -157,50 +166,59 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
         del group.attrs[oldglobalname]
         del group['units'].attrs[oldglobalname]
         del group['expansion'].attrs[oldglobalname]
-        
+
+
 def get_value(filename, groupname, globalname):
-    with h5py.File(filename,'r') as f:
+    with h5py.File(filename, 'r') as f:
         value = f['globals'][groupname].attrs[globalname]
         return value
-                
+
+
 def set_value(filename, groupname, globalname, value):
     if not isinstance(value, bytes):
         value = value
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         f['globals'][groupname].attrs[globalname] = value
-    
+
+
 def get_units(filename, groupname, globalname):
-    with h5py.File(filename,'r') as f:
+    with h5py.File(filename, 'r') as f:
         value = f['globals'][groupname]['units'].attrs[globalname]
         return value
+
 
 def set_units(filename, groupname, globalname, units):
     if not isinstance(units, bytes):
         units = units
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         f['globals'][groupname]['units'].attrs[globalname] = units
 
+
 def get_expansion(filename, groupname, globalname):
-    with h5py.File(filename,'r') as f:
+    with h5py.File(filename, 'r') as f:
         value = f['globals'][groupname]['expansion'].attrs[globalname]
         return value
-        
+
+
 def set_expansion(filename, groupname, globalname, expansion):
     if not isinstance(expansion, bytes):
         expansion = expansion
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         f['globals'][groupname]['expansion'].attrs[globalname] = expansion
-                  
+
+
 def delete_global(filename, groupname, globalname):
-    with h5py.File(filename,'a') as f:
+    with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
 
+
 def guess_expansion_type(value):
-    if isinstance(value, np.ndarray) or  isinstance(value, list):
+    if isinstance(value, np.ndarray) or isinstance(value, list):
         return u'outer'
     else:
         return u''
+
 
 def iterator_to_tuple(iterator, max_length=1000000):
     # We want to prevent infinite length tuples, but we cannot know
@@ -211,25 +229,27 @@ def iterator_to_tuple(iterator, max_length=1000000):
         temp_list.append(element)
         if i == max_length:
             raise ValueError('This iterator is very long, possibly infinite. ' +
-                             'Runmanager cannot create an infinite number of shots. ' + 
-                             'If you really want an iterator longer than %d, '%max_length +
+                             'Runmanager cannot create an infinite number of shots. ' +
+                             'If you really want an iterator longer than %d, ' % max_length +
                              'please modify runmanager.iterator_to_tuple and increase max_length.')
     return tuple(temp_list)
-        
+
+
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files,str) or isinstance(h5_files, unicode):
+    if isinstance(h5_files, str) or isinstance(h5_files, unicode):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
         for group_name in get_grouplist(path):
             if group_name in groups:
-                raise ValueError('Error: group %s is defined in both %s and %s. ' %(group_name,groups[group_name],path) +
+                raise ValueError('Error: group %s is defined in both %s and %s. ' % (group_name, groups[group_name], path) +
                                  'Only uniquely named groups can be used together '
                                  'to make a run file.')
             groups[group_name] = path
     return groups
-    
+
+
 def get_globals(groups):
     """Takes a dictionary of group_name: h5_file pairs and pulls the
     globals out of the groups in their files.  The globals are strings
@@ -240,8 +260,8 @@ def get_globals(groups):
     filepaths = set(groups.values())
     sequence_globals = {}
     for filepath in filepaths:
-        groups_from_this_file = [g for g, f in groups.items() if f==filepath] 
-        with h5py.File(filepath,'r') as f:
+        groups_from_this_file = [g for g, f in groups.items() if f == filepath]
+        with h5py.File(filepath, 'r') as f:
             for group_name in groups_from_this_file:
                 sequence_globals[group_name] = {}
                 globals_group = f['globals'][group_name]
@@ -253,14 +273,15 @@ def get_globals(groups):
                     # There is a bug where numpy empty strings can't be pickled.
                     # This is a problem since runmanager pickles these things to
                     # send them to mise:
-                    if isinstance(value,str) and value == '':
+                    if isinstance(value, str) and value == '':
                         value = ''
-                    if isinstance(units,str) and units == '':
+                    if isinstance(units, str) and units == '':
                         units = ''
-                    if isinstance(expansion,str) and expansion == '':
+                    if isinstance(expansion, str) and expansion == '':
                         expansion = ''
                     sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
+
 
 def evaluate_globals(sequence_globals, raise_exceptions=True):
     """Takes a dictionary of globals as returned by get_globals. These
@@ -296,7 +317,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 for other_group_name in sequence_globals:
                     if global_name in sequence_globals[other_group_name]:
                         groups_with_same_global.append(other_group_name)
-                exception = ValueError('Global named \'%s\' is defined in multiple active groups:\n    '%global_name + 
+                exception = ValueError('Global named \'%s\' is defined in multiple active groups:\n    ' % global_name +
                                        '\n    '.join(groups_with_same_global))
                 if raise_exceptions:
                     raise exception
@@ -305,18 +326,18 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 multiply_defined_globals.add(global_name)
             all_globals[global_name], units, expansion = sequence_globals[group_name][global_name]
             expansions[global_name] = expansion
-            
+
     # Do not attempt to evaluate globals which are multiply defined:
     for global_name in multiply_defined_globals:
         del all_globals[global_name]
 
-    #Eval the expressions in the same namespace as each other:
+    # Eval the expressions in the same namespace as each other:
     evaled_globals = {}
     # we use a "TraceDictionary" to track which globals another global depends on
     sandbox = TraceDictionary()
-    exec('from pylab import *',sandbox,sandbox)
-    exec('from runmanager.functions import *',sandbox,sandbox)
-    exec('from mise import MiseParameter',sandbox,sandbox)
+    exec('from pylab import *', sandbox, sandbox)
+    exec('from runmanager.functions import *', sandbox, sandbox)
+    exec('from mise import MiseParameter', sandbox, sandbox)
     globals_to_eval = all_globals.copy()
     previous_errors = -1
     while globals_to_eval:
@@ -325,36 +346,36 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             # start the trace to determine which globals this global depends on
             sandbox.start_trace()
             try:
-                value = eval(expression,sandbox)
+                value = eval(expression, sandbox)
                 # Need to know the length of any generators, convert to tuple:
-                if isinstance(value,types.GeneratorType):
+                if isinstance(value, types.GeneratorType):
                     value = iterator_to_tuple(value)
                 # Make sure if we're zipping or outer-producting this value, that it can
                 # be iterated over:
                 if expansions[global_name] == 'outer':
                     try:
-                        test = iter(value)
+                        iter(value)
                     except Exception as e:
                         raise ExpansionError(str(e))
             except Exception as e:
                 # Don't raise, just append the error to a list, we'll display them all later.
-                errors.append((global_name,e))
+                errors.append((global_name, e))
                 sandbox.stop_trace()
                 continue
             # Put the global into the namespace so other globals can use it:
             sandbox[global_name] = value
             del globals_to_eval[global_name]
             evaled_globals[global_name] = value
-            
+
             # get the results from the global trace
             trace_data = sandbox.stop_trace()
             # Only store names of globals (not other functions)
-            for key in list(trace_data): # copy the list before iterating over it
+            for key in list(trace_data):  # copy the list before iterating over it
                 if key not in all_globals:
-                    trace_data.remove(key)                    
+                    trace_data.remove(key)
             if trace_data:
                 global_hierarchy[global_name] = trace_data
-                
+
         if len(errors) == previous_errors:
             # Since some globals may refer to others, we expect maybe
             # some NameErrors to have occured.  There should be fewer
@@ -365,14 +386,14 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             if raise_exceptions:
                 message = 'Error parsing globals:\n'
                 for global_name, exception in errors:
-                    message += '%s: %s: %s\n'%(global_name,exception.__class__.__name__, exception.message)
+                    message += '%s: %s: %s\n' % (global_name, exception.__class__.__name__, exception.message)
                 raise Exception(message)
             else:
                 for global_name, exception in errors:
                     evaled_globals[global_name] = exception
                 break
         previous_errors = len(errors)
-    
+
     # Assemble results into a dictionary of the same format as sequence_globals:
     for group_name in sequence_globals:
         for global_name in sequence_globals[group_name]:
@@ -382,6 +403,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 results[group_name][global_name] = evaled_globals[global_name]
 
     return results, global_hierarchy, expansions
+
 
 def expand_globals(sequence_globals, evaled_globals):
     """Expands iterable globals according to their expansion
@@ -400,14 +422,14 @@ def expand_globals(sequence_globals, evaled_globals):
             value = evaled_globals[group_name][global_name]
             values[global_name] = value
             expansions[global_name] = expansion
-            
+
     # Get a list of the zip keys in use:
     zip_keys = set(expansions.values())
     try:
         zip_keys.remove('outer')
     except KeyError:
         pass
-    axes = [] 
+    axes = []
     global_names = []
     for zip_key in zip_keys:
         axis = []
@@ -423,7 +445,7 @@ def expand_globals(sequence_globals, evaled_globals):
                 global_names.append(global_name)
         axis = zip(*axis)
         axes.append(axis)
-    
+
     # Give each global being outer-product'ed its own axis. It gets
     # wrapped up in a list and zipped with itself so that it is in the
     # same format as the zipped globals, ready for outer-producting
@@ -442,17 +464,19 @@ def expand_globals(sequence_globals, evaled_globals):
         # the axes. We need to flatten it to get our individual values out
         # for each global, since we no longer care what axis they are on:
         global_values = [value for axis in axis_values for value in axis]
-        shot_globals = dict(zip(global_names,global_values))
+        shot_globals = dict(zip(global_names, global_values))
         shots.append(shot_globals)
     return shots
-    
+
+
 def generate_sequence_id(scriptname):
     """Our convention for generating sequence ids. Just a timestamp and
     the name of the labscript that the run file is to be compiled with."""
-    timestamp = time.strftime('%Y%m%dT%H%M%S',time.localtime())
+    timestamp = time.strftime('%Y%m%dT%H%M%S', time.localtime())
     scriptbase = os.path.basename(scriptname).split('.py')[0]
-    return timestamp + '_' + scriptbase      
-        
+    return timestamp + '_' + scriptbase
+
+
 def make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle=False):
     """Does what it says. sequence_globals and shots are of the datatypes
     returned by get_globals and get_shots, one is a nested dictionary with
@@ -467,16 +491,17 @@ def make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle=
     want all the run files to be created at some point, simply convert
     the returned generator to a list. The filenames the run files are
     given is simply the sequence_id with increasing integers appended."""
-    basename = os.path.join(output_folder,sequence_id)
+    basename = os.path.join(output_folder, sequence_id)
     nruns = len(shots)
     ndigits = int(np.ceil(np.log10(nruns)))
     if shuffle:
         random.shuffle(shots)
     for i, shot_globals in enumerate(shots):
-        runfilename = ('%s_%0'+str(ndigits)+'d.h5')%(basename,i) 
-        make_single_run_file(runfilename,sequence_globals,shot_globals, sequence_id, i, nruns)
+        runfilename = ('%s_%0' + str(ndigits) + 'd.h5') % (basename, i)
+        make_single_run_file(runfilename, sequence_globals, shot_globals, sequence_id, i, nruns)
         yield runfilename
-        
+
+
 def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run_no, n_runs):
     """Does what it says. runglobals is a dict of this run's globals,
     the format being the same as that of one element of the list returned
@@ -488,7 +513,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
     must be provided, if this run file is part of a sequence, then they
     should reflect how many run files are being generated which share
     this sequence_id."""
-    with h5py.File(filename,'w') as f:
+    with h5py.File(filename, 'w') as f:
         f.attrs['sequence_id'] = sequence_id
         f.attrs['run number'] = run_no
         f.attrs['n_runs'] = n_runs
@@ -509,12 +534,13 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
             try:
                 f['globals'].attrs[name] = value
             except Exception as e:
-                message = ('Global %s cannot be saved as an hdf5 attribute. '%name +
+                message = ('Global %s cannot be saved as an hdf5 attribute. ' % name +
                            'Globals can only have relatively simple datatypes, with no nested structures. ' +
                            'Original error was:\n' +
-                           '%s: %s'%(e.__class__.__name__, e.message))
+                           '%s: %s' % (e.__class__.__name__, e.message))
                 raise ValueError(message)
-                
+
+
 def make_run_file_from_globals_files(labscript_file, globals_files, output_path):
     """Creates a run file output_path, using all the globals from
     globals_files. Uses labscript_file only to generate a sequence ID"""
@@ -530,15 +556,17 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path)
         raise ValueError('Cannot compile to a single run file: The following globals are a sequence: ' +
                          ' '.join(scanning_globals))
     sequence_id = generate_sequence_id(labscript_file)
-    make_single_run_file(output_path,sequence_globals,shots[0],sequence_id,1,1)
+    make_single_run_file(output_path, sequence_globals, shots[0], sequence_id, 1, 1)
+
 
 def compile_labscript(labscript_file, run_file):
     """Compiles labscript_file with the run file, returning
     the processes return code, stdout and stderr."""
-    proc = subprocess.Popen([sys.executable, labscript_file, run_file],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen([sys.executable, labscript_file, run_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = proc.communicate()
     return proc.returncode, stdout, stderr
-    
+
+
 def compile_labscript_with_globals_files(labscript_file, globals_files, output_path):
     """Creates a run file output_path, using all the globals from
     globals_files. Compiles labscript_file with the run file, returning
@@ -546,7 +574,8 @@ def compile_labscript_with_globals_files(labscript_file, globals_files, output_p
     make_run_file_from_globals_files(labscript_file, globals_files, output_path)
     returncode, stdout, stderr = compile_labscript(labscript_file, output_path)
     return returncode, stdout, stderr
-    
+
+
 def compile_labscript_async(labscript_file, run_file, stream_port, done_callback):
     """Compiles labscript_file with run_file. This function is designed
     to be called in a thread.  The stdout and stderr from the compilation
@@ -555,18 +584,19 @@ def compile_labscript_async(labscript_file, run_file, stream_port, done_callback
     boolean argument indicating success."""
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = zprocess.subprocess_with_queues(compiler_path, stream_port)
-    to_child.put(['compile',[labscript_file, run_file]])
+    to_child.put(['compile', [labscript_file, run_file]])
     while True:
         signal, data = from_child.get()
         if signal == 'done':
             success = data
-            to_child.put(['quit',None])
-            retcode = child.communicate()
-            done_callback(data)
+            to_child.put(['quit', None])
+            child.communicate()
+            done_callback(success)
             break
         else:
             raise RuntimeError((signal, data))
-            
+
+
 def compile_multishot_async(labscript_file, run_files, stream_port, done_callback):
     """Compiles labscript_file with run_files. This function is designed
     to be called in a thread.  The stdout and stderr from the compilation
@@ -578,7 +608,7 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
     to_child, from_child, child = zprocess.subprocess_with_queues(compiler_path, stream_port)
     try:
         for run_file in run_files:
-            to_child.put(['compile',[labscript_file, run_file]])
+            to_child.put(['compile', [labscript_file, run_file]])
             while True:
                 signal, data = from_child.get()
                 if signal == 'done':
@@ -590,13 +620,14 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
     except Exception:
         error = traceback.format_exc()
         zprocess.zmq_push_multipart(stream_port, data=['stderr', error])
-        to_child.put(['quit',None])
-        retcode = child.communicate()
+        to_child.put(['quit', None])
+        child.communicate()
         raise
-    to_child.put(['quit',None])
-    retcode = child.communicate()
-    
-def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path, stream_port, done_callback):   
+    to_child.put(['quit', None])
+    child.communicate()
+
+
+def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path, stream_port, done_callback):
     """Same as compile_labscript_with_globals_files, except it launches
     a thread to do the work and does not return anything. Instead,
     stderr and stdout will be put to stream_port via zmq push in
@@ -605,15 +636,17 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
     a boolean argument indicating success or failure."""
     try:
         make_run_file_from_globals_files(labscript_file, globals_files, output_path)
-        thread = threading.Thread(target=compile_labscript_async, args=[labscript_file, output_path, stream_port, done_callback])
+        thread = threading.Thread(
+            target=compile_labscript_async, args=[labscript_file, output_path, stream_port, done_callback])
         thread.daemon = True
         thread.start()
     except Exception:
         error = traceback.format_exc()
         zprocess.zmq_push_multipart(stream_port, data=['stderr', error])
-        t = threading.Thread(target=done_callback,args=(False,))
-        t.daemon=True
+        t = threading.Thread(target=done_callback, args=(False,))
+        t.daemon = True
         t.start()
+
 
 def get_shot_globals(filepath):
     """Returns the evaluated globals for a shot, for use by labscript or lyse.
@@ -633,7 +666,8 @@ def get_shot_globals(filepath):
                 value = str(value)
             params[name] = value
     return params
-    
+
+
 def dict_diff(dict1, dict2):
     """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
     Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
@@ -647,17 +681,17 @@ def dict_diff(dict1, dict2):
             if dict1[key] != dict2[key]:
                 diff_keys.append(key)
 
-    dict1_unique = [key for key in dict1.keys() if key not in common_keys]    
+    dict1_unique = [key for key in dict1.keys() if key not in common_keys]
     dict2_unique = [key for key in dict2.keys() if key not in common_keys]
-                
+
     diff = {}
     for key in diff_keys:
         diff[key] = [dict1[key], dict2[key]]
-    
+
     for key in dict1_unique:
         diff[key] = [dict1[key], '-']
-        
-    for key in dict2_unique:
-        diff[key] = ['-', dict2[key]]       
 
-    return diff        
+    for key in dict2_unique:
+        diff[key] = ['-', dict2[key]]
+
+    return diff

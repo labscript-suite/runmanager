@@ -19,7 +19,6 @@ import labscript_utils.excepthook
 
 import time
 import contextlib
-import logging
 import subprocess
 import threading
 import Queue
@@ -81,7 +80,7 @@ import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 from qtutils.outputbox import OutputBox
-import qtutils.icons
+import qtutils.icons # noqa
 
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
@@ -129,7 +128,7 @@ class KeyPressQApplication(QtGui.QApplication):
     keyPress = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
     keyRelease = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
 
-    def notify(self, object_, event):
+    def notify(self, object, event):
         if event.type() == QtCore.QEvent.KeyPress and event.key():
             self.keyPress.emit(event.key(), event.modifiers(), event.isAutoRepeat())
         elif event.type() == QtCore.QEvent.KeyRelease and event.key():
@@ -996,11 +995,8 @@ class GroupTab(object):
         if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
             tab_contains_errors = False
             for global_name, value in evaled_globals[self.group_name].items():
-                name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
                 value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
-                units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
                 expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
-                delete_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_DELETE)
                 ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
                 # Temporarily disconnect the item_changed signal on the model so that we can
                 # set the expansion type without triggering another preparse - the parsing has
@@ -1708,9 +1704,6 @@ class RunManager(object):
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is None]
-        child_name_items = [item.child(i, self.GROUPS_COL_NAME)
-                            for item in name_items
-                            for i in range(item.rowCount())]
         child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE)
                                  for item in name_items
                                  for i in range(item.rowCount())]
@@ -2482,7 +2475,9 @@ class RunManager(object):
                      'submit_to_mise': submit_to_mise,
                      'compile': compile,
                      'send_to_runviewer': send_to_runviewer,
-                     'shuffle': shuffle}
+                     'shuffle': shuffle,
+                     'BLACS_host': BLACS_host,
+                     'mise_host': mise_host}
         return save_data
 
     def save_configuration(self, save_file):
@@ -2597,6 +2592,18 @@ class RunManager(object):
         else:
             if shuffle:
                 self.ui.pushButton_shuffle.setChecked(True)
+        try:
+            BLACS_host = ast.literal_eval(runmanager_config.get('runmanager_state', 'BLACS_host'))
+        except Exception:
+            pass
+        else:
+            self.ui.lineEdit_BLACS_hostname.setText(BLACS_host)
+        try:
+            mise_host = ast.literal_eval(runmanager_config.get('runmanager_state', 'mise_host'))
+        except Exception:
+            pass
+        else:
+            self.ui.lineEdit_mise_hostname.setText(mise_host)
         # Set as self.last_save_data:
         save_data = self.get_save_data()
         self.last_save_data = save_data
@@ -2764,8 +2771,8 @@ class RunManager(object):
             for global_name in evaled_globals[group_name]:
                 if expansions[global_name] and expansions[global_name] != 'outer':
                     try:
-                        test = iter(evaled_globals[group_name][global_name])
-                    except Exception as e:
+                        iter(evaled_globals[group_name][global_name])
+                    except Exception:
                         filename = active_groups[group_name]
                         runmanager.set_expansion(filename, group_name, global_name, '')
                         expansion_types_changed = True
