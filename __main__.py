@@ -1003,10 +1003,13 @@ class GroupTab(object):
 
 
 class RunmanagerMainWindow(QtGui.QMainWindow):
-    firstActivation = Signal()
+    firstPaint = Signal() # A signal to show that the window is shown and painted.
+     # A signal for when the window manager has created a new window for this widget:
+    newWindow = Signal(int)
+    
     def __init__(self, *args, **kwargs):
         QtGui.QMainWindow.__init__(self, *args, **kwargs)
-        self._previously_activated = False
+        self._previously_painted = False
         
     def closeEvent(self, event):
         if app.on_close_event():
@@ -1016,16 +1019,30 @@ class RunmanagerMainWindow(QtGui.QMainWindow):
     
     def event(self, event):
         result = QtGui.QMainWindow.event(self, event)
-        if event.type() == QtCore.QEvent.WindowActivate:
-            if not self._previously_activated:
-                self._previously_activated = True
-                self.firstActivation.emit()
+        if event.type() == QtCore.QEvent.WinIdChange:
+            self.newWindow.emit(self.effectiveWinId())
         return result 
+
+    def paintEvent(self, event):
+        result = QtGui.QMainWindow.paintEvent(self, event)
+        if not self._previously_painted:
+            self._previously_painted = True
+            self.firstPaint.emit()
+        return result
 
        
 class PoppedOutOutputBoxWindow(QtGui.QDialog):
+    # A signal for when the window manager has created a new window for this widget:
+    newWindow = Signal(int)
+    
     def closeEvent(self, event):
         app.on_output_popout_button_clicked()
+        
+    def event(self, event):
+        result = QtGui.QMainWindow.event(self, event)
+        if event.type() == QtCore.QEvent.WinIdChange:
+            self.newWindow.emit(self.effectiveWinId())
+        return result 
        
        
 class RunManager(object):
@@ -1159,7 +1176,7 @@ class RunManager(object):
                     self.ui.setEnabled(True)
             # Defer this until 50ms after the window has shown,
             # so that the GUI pops up faster in the meantime
-            self.ui.firstActivation.connect(lambda: QtCore.QTimer.singleShot(50, load_the_config_file))
+            self.ui.firstPaint.connect(lambda: QtCore.QTimer.singleShot(50, load_the_config_file))
                   
         self.ui.show()       
         
