@@ -28,8 +28,8 @@ import pprint
 
 # Evaluation of globals happens in a thread with the pylab module imported.
 # Although we don't care about plotting, importing pylab makes Qt calls. We
-# can't have that from a non main thread, so we'll just disable matplotlib's GUI
-# integration:
+# can't have that from a non main thread, so we'll just disable matplotlib's
+# GUI integration:
 import matplotlib
 matplotlib.use('Agg')
 
@@ -80,7 +80,7 @@ import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 from qtutils.outputbox import OutputBox
-import qtutils.icons # noqa
+import qtutils.icons  # noqa
 
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
@@ -91,10 +91,11 @@ zprocess.locking.set_client_process_name('runmanager')
 
 
 def set_win_appusermodel(window_id):
-    from labscript_utils.winshell import set_appusermodel 
+    from labscript_utils.winshell import set_appusermodel
     appid = runmanager.appid
     icon_path = os.path.abspath('runmanager.ico')
-    relaunch_command = sys.executable.lower().replace('.exe', 'w.exe') + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
+    relaunch_command = (sys.executable.lower().replace('.exe', 'w.exe') + ' ' +
+                        os.path.abspath(__file__.replace('.pyc', '.py')))
     relaunch_display_name = runmanager.app_description
     set_appusermodel(window_id, appid, icon_path, relaunch_command, relaunch_display_name)
 
@@ -147,9 +148,9 @@ class KeyPressQApplication(QtGui.QApplication):
 
 class FingerTabBarWidget(QtGui.QTabBar):
 
-    """A TabBar with the tabs on the left and the text horizontal.
-    Credit to @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267.
-    We will promote the TabBar from the ui file to one of these."""
+    """A TabBar with the tabs on the left and the text horizontal. Credit to
+    @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267. We will
+    promote the TabBar from the ui file to one of these."""
 
     def __init__(self, parent=None, width=220, height=30, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
@@ -159,7 +160,8 @@ class FingerTabBarWidget(QtGui.QTabBar):
         self.tab_movable = {}
 
     def setMovable(self, movable, index=None):
-        """Set tabs movable on an individual basis, or set for all tabs if no index specified"""
+        """Set tabs movable on an individual basis, or set for all tabs if no
+        index specified"""
         if index is None:
             self._movable = movable
             self.tab_movable = {}
@@ -270,9 +272,9 @@ class FingerTabWidget(QtGui.QTabWidget):
 class TreeView(QtGui.QTreeView):
     leftClicked = Signal(QtCore.QModelIndex)
     doubleLeftClicked = Signal(QtCore.QModelIndex)
-    """A QTreeview that emits a custom signal leftClicked(index)
-    after a left click on a valid index, and doubleLeftClicked(index)
-    (in addition) on double click. Also has modified tab and arrow key behaviour."""
+    """A QTreeview that emits a custom signal leftClicked(index) after a left
+    click on a valid index, and doubleLeftClicked(index) (in addition) on
+    double click. Also has modified tab and arrow key behaviour."""
 
     def __init__(self, *args):
         QtGui.QTreeView.__init__(self, *args)
@@ -283,8 +285,8 @@ class TreeView(QtGui.QTreeView):
     def setRoleIgnoreTabNext(self, role):
         """Tell the Treeview what model role it should look in for a boolean
         saying whether to ignore the MoveNext cursor action. This will cause
-        cells marked as such to simply end editing when tab is pressed, without
-        starting editing on any other call."""
+        cells marked as such to simply end editing when tab is pressed,
+        without starting editing on any other call."""
         self._ROLE_IGNORE_TABNEXT = role
 
     def mousePressEvent(self, event):
@@ -301,8 +303,8 @@ class TreeView(QtGui.QTreeView):
         return result
 
     def mouseDoubleClickEvent(self, event):
-        # Ensure our left click event occurs regardless of whether
-        # it is the second click in a double click or not
+        # Ensure our left click event occurs regardless of whether it is the
+        # second click in a double click or not
         result = QtGui.QTreeView.mouseDoubleClickEvent(self, event)
         index = self.indexAt(event.pos())
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
@@ -372,7 +374,8 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
 
     def __init__(self, treeview):
         QtGui.QStandardItemModel.__init__(self)
-        # How much darker in each channel is the alternate base color compared to the base color?
+        # How much darker in each channel is the alternate base color compared
+        # to the base color?
         palette = treeview.palette()
         normal_color = palette.color(QtGui.QPalette.Base)
         alternate_color = palette.color(QtGui.QPalette.AlternateBase)
@@ -391,8 +394,8 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
        colours for every second row, according to the palette of the treeview.
        This has the effect of making the alternate colours visible even when
        custom colors have been set - the same shading will be applied to the
-       custom colours. Only really looks sensible when the normal and alternate
-       colors are similar."""
+       custom colours. Only really looks sensible when the normal and
+       alternate colors are similar."""
         if role == QtCore.Qt.BackgroundRole and index.row() % 2:
             normal_brush = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
             if normal_brush is not None:
@@ -414,8 +417,8 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
 
 class ItemDelegate(QtGui.QStyledItemDelegate):
 
-    """An item delegate with a fixed height
-    and faint grey vertical lines between columns"""
+    """An item delegate with a fixed height and faint grey vertical lines
+    between columns"""
     HEIGHT = 24
 
     def __init__(self, *args, **kwargs):
@@ -527,8 +530,8 @@ class GroupTab(object):
             self.globals_model.itemChanged, self.on_globals_model_item_changed)
 
     def set_file_and_group_name(self, globals_file, group_name):
-        """Provided as a separate method so the main app can
-        call it if the group gets renamed"""
+        """Provided as a separate method so the main app can call it if the
+        group gets renamed"""
         self.globals_file = globals_file
         self.group_name = group_name
         self.ui.label_globals_file.setText(globals_file)
@@ -559,8 +562,8 @@ class GroupTab(object):
 
         # Add the dummy item at the end:
         dummy_delete_item = QtGui.QStandardItem()
-        # This lets later code know that this row does
-        # not correspond to an actual global:
+        # This lets later code know that this row does not correspond to an
+        # actual global:
         dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_delete_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_delete_item.setToolTip('Click to add global')
@@ -593,9 +596,8 @@ class GroupTab(object):
     def make_global_row(self, name, value='', units='', expansion=''):
         logger.debug('%s:%s - make global row: %s ' % (self.globals_file, self.group_name, name))
         # We just set some data here, other stuff is set in
-        # self.update_parse_indication after runmanager has a chance
-        # to parse everything and get back to us about what that data
-        # should be.
+        # self.update_parse_indication after runmanager has a chance to parse
+        # everything and get back to us about what that data should be.
 
         delete_item = QtGui.QStandardItem()
         delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
@@ -619,8 +621,8 @@ class GroupTab(object):
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
-        # Treeview.moveCursor will see this and not go to the
-        # expansion item when tab is pressed after editing:
+        # Treeview.moveCursor will see this and not go to the expansion item
+        # when tab is pressed after editing:
         units_item.setData(True, self.GLOBALS_ROLE_IGNORE_TABNEXT)
         units_item.setToolTip('')
 
@@ -642,9 +644,8 @@ class GroupTab(object):
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
         if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
-            # They clicked on an 'add new global' row. Enter editing
-            # mode on the name item so they can enter a name for the
-            # new global:
+            # They clicked on an 'add new global' row. Enter editing mode on
+            # the name item so they can enter a name for the new global:
             self.ui.treeView_globals.setCurrentIndex(name_index)
             self.ui.treeView_globals.edit(name_index)
         elif item.data(self.GLOBALS_ROLE_IS_BOOL):
@@ -656,8 +657,8 @@ class GroupTab(object):
                 value_item.setText('True')
             else:
                 raise AssertionError('expected boolean value')
-            # Clear selection, it's hard to see the colours through
-            # the selection:
+            # Clear selection, it's hard to see the colours through the
+            # selection:
             self.ui.treeView_globals.clearSelection()
         elif item.column() == self.GLOBALS_COL_DELETE:
             # They clicked a delete button.
@@ -685,16 +686,16 @@ class GroupTab(object):
         item_text = item.text()
         if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
             if item_text != self.GLOBALS_DUMMY_ROW_TEXT:
-                # The user has made a new global by editing the <click
-                # to add global> item
+                # The user has made a new global by editing the <click to add
+                # global> item
                 global_name = item_text
                 self.new_global(global_name)
         else:
             # User has renamed a global.
             new_global_name = item_text
             previous_global_name = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            # Ensure the name actually changed, rather than something
-            # else about the item:
+            # Ensure the name actually changed, rather than something else
+            # about the item:
             if new_global_name != previous_global_name:
                 self.rename_global(previous_global_name, new_global_name)
 
@@ -705,8 +706,8 @@ class GroupTab(object):
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
-        # Ensure the value actually changed, rather than something
-        # else about the item:
+        # Ensure the value actually changed, rather than something else about
+        # the item:
         if new_value != previous_value:
             self.change_global_value(global_name, previous_value, new_value)
 
@@ -726,8 +727,8 @@ class GroupTab(object):
                 item.setCheckState(QtCore.Qt.Unchecked)
             else:
                 raise AssertionError('expected boolean value')
-        # Ensure the value actually changed, rather than something
-        # else about the item:
+        # Ensure the value actually changed, rather than something else about
+        # the item:
         if new_units != previous_units:
             self.change_global_units(global_name, previous_units, new_units)
 
@@ -738,8 +739,8 @@ class GroupTab(object):
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
-        # Don't want icon changing to recurse - which happens even if
-        # it is the same icon. So disconnect the signal temporarily:
+        # Don't want icon changing to recurse - which happens even if it is
+        # the same icon. So disconnect the signal temporarily:
         with self.globals_model_item_changed_disconnected:
             if new_expansion == 'outer':
                 item.setIcon(QtGui.QIcon(':qtutils/custom/outer'))
@@ -748,12 +749,13 @@ class GroupTab(object):
             elif new_expansion:
                 item.setIcon(QtGui.QIcon(':qtutils/custom/zip'))
                 item.setToolTip('This global will be interpreted as a list of values, and will ' +
-                                'be iterated over in lock-step with other globals in the \'%s\' zip group.' % new_expansion)
+                                'be iterated over in lock-step with other globals in the ' +
+                                '\'%s\' zip group.' % new_expansion)
             else:
                 item.setData(None, QtCore.Qt.DecorationRole)
                 item.setToolTip('This global will be interpreted as a single value and passed to compilation as-is.')
-        # Ensure the value actually changed, rather than something
-        # else about the item:
+        # Ensure the value actually changed, rather than something else about
+        # the item:
         if new_expansion != previous_expansion:
             self.change_global_expansion(global_name, previous_expansion, new_expansion)
 
@@ -768,9 +770,9 @@ class GroupTab(object):
         selected_indexes = self.ui.treeView_globals.selectedIndexes()
         selected_items = (self.globals_model.itemFromIndex(index) for index in selected_indexes)
         name_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_NAME]
-        # If multiple selected, show 'delete n groups?' message.
-        # Otherwise, pass confirm=True to self.delete_global so it can
-        # show the regular message.
+        # If multiple selected, show 'delete n groups?' message. Otherwise,
+        # pass confirm=True to self.delete_global so it can show the regular
+        # message.
         confirm_multiple = (len(name_items) > 1)
         if confirm_multiple:
             if not question_dialog("Delete %d globals?" % len(name_items)):
@@ -789,10 +791,10 @@ class GroupTab(object):
                 value_item.setText(state)
 
     def close(self):
-        # It is up to the main runmanager class to drop references to
-        # this instance before or after calling this method, so that
-        # after the tabWidget no longer owns our widgets, both the
-        # widgets and the instance will be garbage collected.
+        # It is up to the main runmanager class to drop references to this
+        # instance before or after calling this method, so that after the
+        # tabWidget no longer owns our widgets, both the widgets and the
+        # instance will be garbage collected.
         index = self.tabWidget.indexOf(self.ui)
         self.tabWidget.removeTab(index)
 
@@ -801,17 +803,16 @@ class GroupTab(object):
         Which item is returned is set by the column argument."""
         possible_name_items = self.globals_model.findItems(global_name, column=self.GLOBALS_COL_NAME)
         if previous_name is not None:
-            # Filter by previous name, useful for telling rows apart
-            # when a rename is in progress and two rows may
-            # temporarily contain the same name (though the rename
-            # code with throw an error and revert it).
+            # Filter by previous name, useful for telling rows apart when a
+            # rename is in progress and two rows may temporarily contain the
+            # same name (though the rename code with throw an error and revert
+            # it).
             possible_name_items = [item for item in possible_name_items
                                    if item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT) == previous_name]
         elif global_name != self.GLOBALS_DUMMY_ROW_TEXT:
-            # Don't return the dummy item unless they asked for it
-            # explicitly - if a new global is being created, its name
-            # might be simultaneously present in its own row and the
-            # dummy row too.
+            # Don't return the dummy item unless they asked for it explicitly
+            # - if a new global is being created, its name might be
+            # simultaneously present in its own row and the dummy row too.
             possible_name_items = [item for item in possible_name_items
                                    if not item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW)]
         if len(possible_name_items) > 1:
@@ -820,8 +821,7 @@ class GroupTab(object):
             raise ValueError('No item found')
         name_item = possible_name_items[0]
         name_index = name_item.index()
-        # Found the name item, get the sibling item for the column
-        # requested:
+        # Found the name item, get the sibling item for the column requested:
         item_index = name_index.sibling(name_index.row(), column)
         item = self.globals_model.itemFromIndex(item_index)
         return item
@@ -848,8 +848,7 @@ class GroupTab(object):
             self.ui.treeView_globals.edit(value_item_index)
             self.globals_changed()
         finally:
-            # Set the dummy row's text back ready for another group to
-            # be created:
+            # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GLOBALS_DUMMY_ROW_TEXT)
 
     def rename_global(self, previous_global_name, new_global_name):
@@ -861,8 +860,7 @@ class GroupTab(object):
             runmanager.rename_global(self.globals_file, self.group_name, previous_global_name, new_global_name)
         except Exception as e:
             error_dialog(str(e))
-            # Set the item text back to the old name, since the rename
-            # failed:
+            # Set the item text back to the old name, since the rename failed:
             item.setText(previous_global_name)
         else:
             item.setData(new_global_name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -885,8 +883,7 @@ class GroupTab(object):
             runmanager.set_value(self.globals_file, self.group_name, global_name, new_value)
         except Exception as e:
             error_dialog(str(e))
-            # Set the item text back to the old name, since the change
-            # failed:
+            # Set the item text back to the old name, since the change failed:
             item.setText(previous_value)
         else:
             item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -912,8 +909,7 @@ class GroupTab(object):
             runmanager.set_units(self.globals_file, self.group_name, global_name, new_units)
         except Exception as e:
             error_dialog(str(e))
-            # Set the item text back to the old units, since the
-            # change failed:
+            # Set the item text back to the old units, since the change failed:
             item.setText(previous_units)
         else:
             item.setData(new_units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -927,8 +923,7 @@ class GroupTab(object):
             runmanager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
         except Exception as e:
             error_dialog(str(e))
-            # Set the item text back to the old units, since the
-            # change failed:
+            # Set the item text back to the old units, since the change failed:
             item.setText(previous_expansion)
         else:
             item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -936,9 +931,9 @@ class GroupTab(object):
             self.globals_changed()
 
     def check_for_boolean_values(self, item):
-        """Checks if the value is 'True' or 'False'. If either, makes the units
-        cell checkable, uneditable, and coloured to indicate the state. The units cell
-        can then be clicked to toggle the value."""
+        """Checks if the value is 'True' or 'False'. If either, makes the
+        units cell checkable, uneditable, and coloured to indicate the state.
+        The units cell can then be clicked to toggle the value."""
         index = item.index()
         value = item.text()
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
@@ -980,10 +975,10 @@ class GroupTab(object):
 
     def globals_changed(self):
         """Called whenever something about a global has changed. call
-        app.globals_changed to inform the main application that it
-        needs to parse globals again. self.update_parse_indication
-        will be called by the main app when parsing is done, and will
-        set the colours and tooltips appropriately"""
+        app.globals_changed to inform the main application that it needs to
+        parse globals again. self.update_parse_indication will be called by
+        the main app when parsing is done, and will set the colours and
+        tooltips appropriately"""
         # Tell the main app about it:
         app.globals_changed()
 
@@ -1007,17 +1002,20 @@ class GroupTab(object):
                 value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
                 expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
                 ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
-                # Temporarily disconnect the item_changed signal on the model so that we can
-                # set the expansion type without triggering another preparse - the parsing has
-                # already been done with the new expansion type.
+                # Temporarily disconnect the item_changed signal on the model
+                # so that we can set the expansion type without triggering
+                # another preparse - the parsing has already been done with
+                # the new expansion type.
                 with self.globals_model_item_changed_disconnected:
                     expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
                     expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
-                # The next line will now trigger item_changed, but it will not be detected as an
-                # actual change to the expansion type, because previous_text will match text.
-                # So it will not look like a change and will not trigger preparsing. However
-                # It is still important that other triggers be processed, such as setting the
-                # icon in the expansion item, so that will still occur in the callback.
+                # The next line will now trigger item_changed, but it will not
+                # be detected as an actual change to the expansion type,
+                # because previous_text will match text. So it will not look
+                # like a change and will not trigger preparsing. However It is
+                # still important that other triggers be processed, such as
+                # setting the icon in the expansion item, so that will still
+                # occur in the callback.
                 expansion_item.setText(expansion)
                 if isinstance(value, Exception):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR)))
@@ -1046,8 +1044,9 @@ class GroupTab(object):
 
 
 class RunmanagerMainWindow(QtGui.QMainWindow):
-    firstPaint = Signal()  # A signal to show that the window is shown and painted.
-     # A signal for when the window manager has created a new window for this widget:
+    # A signal to show that the window is shown and painted.
+    firstPaint = Signal()
+    # A signal for when the window manager has created a new window for this widget:
     newWindow = Signal(int)
 
     def __init__(self, *args, **kwargs):
@@ -1137,19 +1136,23 @@ class RunManager(object):
         self.setup_groups_tab()
         self.connect_signals()
 
-        # The last location from which a labscript file was selected, defaults to labscriptlib:
+        # The last location from which a labscript file was selected, defaults
+        # to labscriptlib:
         self.last_opened_labscript_folder = self.exp_config.get('paths', 'labscriptlib')
-        # The last location from which a globals file was selected, defaults to experiment_shot_storage:
+        # The last location from which a globals file was selected, defaults
+        # to experiment_shot_storage:
         self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         # The last file to which the user saved or loaded a configuration,
         # defaults to experiment_shot_storage/runmanager.ini:
         self.last_save_config_file = os.path.join(
             self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
-        # The last manually selected shot output folder, defaults to experiment_shot_storage:
+        # The last manually selected shot output folder, defaults to
+        # experiment_shot_storage:
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         self.experiment_shot_storage = self.exp_config.get('paths', 'experiment_shot_storage')
-        # What the automatically created output folders should be, as an argument to time.strftime():
+        # What the automatically created output folders should be, as an
+        # argument to time.strftime():
         try:
             self.output_folder_format = self.exp_config.get('runmanager', 'output_folder_format')
             # Better not start with slashes, irrelevant if it ends with them:
@@ -1159,20 +1162,20 @@ class RunManager(object):
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
 
-        # A thread that will evaluate globals when they change, allowing us to show
-        # their values and any errors in the tabs they came from.
+        # A thread that will evaluate globals when they change, allowing us to
+        # show their values and any errors in the tabs they came from.
         self.preparse_globals_thread = threading.Thread(target=self.preparse_globals)
         self.preparse_globals_thread.daemon = True
-        # A threading.Event to inform the preparser thread when globals have changed,
-        # and thus need parsing again:
+        # A threading.Event to inform the preparser thread when globals have
+        # changed, and thus need parsing again:
         self.preparse_globals_required = threading.Event()
         self.preparse_globals_thread.start()
 
         # A flag telling the compilation thread to abort:
         self.compilation_aborted = threading.Event()
 
-        # A few attributes for self.guess_expansion_modes() to keep track of its state,
-        # and thus detect changes:
+        # A few attributes for self.guess_expansion_modes() to keep track of
+        # its state, and thus detect changes:
         self.previous_evaled_globals = {}
         self.previous_global_hierarchy = {}
         self.previous_expansion_types = {}
@@ -1194,11 +1197,13 @@ class RunManager(object):
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues(
             'batch_compiler.py', self.output_box.port)
 
-        # Start a thread to monitor the time of day and create new shot output folders for each day:
+        # Start a thread to monitor the time of day and create new shot output
+        # folders for each day:
         self.output_folder_update_required = threading.Event()
         inthread(self.rollover_shot_output_folder)
 
-        # The data from the last time we saved the configuration, so we can know if something's changed:
+        # The data from the last time we saved the configuration, so we can
+        # know if something's changed:
         self.last_save_data = None
 
         # autoload a config file, if labconfig is set to do so:
@@ -1311,9 +1316,10 @@ class RunManager(object):
         self.action_groups_close_selected_files = QtGui.QAction(
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected file(s)', self.ui)
 
-        # A counter for keeping track of the recursion depth of self._groups_model_active_changed().
-        # This is used so that some actions can be taken in response to initial data changes, but
-        # not to flow-on changes made by the method itself:
+        # A counter for keeping track of the recursion depth of
+        # self._groups_model_active_changed(). This is used so that some
+        # actions can be taken in response to initial data changes, but not to
+        # flow-on changes made by the method itself:
         self.on_groups_model_active_changed_recursion_depth = 0
 
     def connect_signals(self):
@@ -1381,11 +1387,12 @@ class RunManager(object):
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
             self.output_box_window.newWindow.connect(set_win_appusermodel)
-            
+
     def on_close_event(self):
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:
-            message = 'Current configuration (which groups are active/open and other GUI state) has changed: save config file \'%s\'?' % self.last_save_config_file
+            message = ('Current configuration (which groups are active/open and other GUI state) '
+                       'has changed: save config file \'%s\'?' % self.last_save_config_file)
             reply = QtGui.QMessageBox.question(self.ui, 'Quit runmanager', message,
                                                QtGui.QMessageBox.Yes | QtGui.QMessageBox.No | QtGui.QMessageBox.Cancel)
             if reply == QtGui.QMessageBox.Cancel:
@@ -1489,9 +1496,10 @@ class RunManager(object):
         self.last_selected_shot_output_folder = os.path.dirname(shot_output_folder)
         # Write the file to the lineEdit:
         self.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
-        # Tell the output folder rollover thread to run an iteration,
-        # so that it notices this change (even though it won't do anything now - this is so
-        # it can respond correctly if anything else interesting happens within the next second):
+        # Tell the output folder rollover thread to run an iteration, so that
+        # it notices this change (even though it won't do anything now - this
+        # is so it can respond correctly if anything else interesting happens
+        # within the next second):
         self.output_folder_update_required.set()
 
     def on_reset_shot_output_folder_clicked(self, checked):
@@ -1499,22 +1507,25 @@ class RunManager(object):
         if current_default_output_folder is None:
             return
         self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
-        # Tell the output folder rollover thread to run an iteration,
-        # so that it notices this change (even though it won't do anything now - this is so
-        # it can respond correctly if anything else interesting happens within the next second):
+        # Tell the output folder rollover thread to run an iteration, so that
+        # it notices this change (even though it won't do anything now - this
+        # is so it can respond correctly if anything else interesting happens
+        # within the next second):
         self.output_folder_update_required.set()
 
     def on_labscript_file_text_changed(self, text):
-        # Blank out the 'edit labscript file' button if no labscript file is selected
+        # Blank out the 'edit labscript file' button if no labscript file is
+        # selected
         enabled = bool(text)
         self.ui.toolButton_edit_labscript_file.setEnabled(enabled)
-        # Blank out the 'select shot output folder' button if no labscript file is selected:
+        # Blank out the 'select shot output folder' button if no labscript
+        # file is selected:
         self.ui.toolButton_select_shot_output_folder.setEnabled(enabled)
         self.ui.lineEdit_labscript_file.setToolTip(text)
 
     def on_shot_output_folder_text_changed(self, text):
-        # Blank out the 'reset default output folder' button
-        # if the user is already using the default output folder
+        # Blank out the 'reset default output folder' button if the user is
+        # already using the default output folder
         if text == self.get_default_output_folder():
             enabled = False
         else:
@@ -1669,8 +1680,9 @@ class RunManager(object):
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is not None]
-        # If multiple selected, show 'delete n groups?' message.
-        # Otherwise, pass confirm=True to self.delete_group so it can show the regular message.
+        # If multiple selected, show 'delete n groups?' message. Otherwise,
+        # pass confirm=True to self.delete_group so it can show the regular
+        # message.
         confirm_multiple = (len(name_items) > 1)
         if confirm_multiple:
             if not question_dialog("Delete %d groups?" % len(name_items)):
@@ -1686,9 +1698,9 @@ class RunManager(object):
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is not None]
-        # Make things a bit faster by acquiring network only locks on
-        # all the files we're dealing with.  That way all the open and
-        # close operations will be faster.
+        # Make things a bit faster by acquiring network only locks on all the
+        # files we're dealing with.  That way all the open and close
+        # operations will be faster.
         filenames = set(item.parent().text() for item in name_items)
         file_locks = [labscript_utils.h5_lock.NetworkOnlyLock(filename) for filename in filenames]
         with nested(*file_locks):
@@ -1757,7 +1769,8 @@ class RunManager(object):
         if not globals_file:
             # User cancelled
             return
-        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        # Convert to standard platform specific path, otherwise Qt likes
+        # forward slashes:
         globals_file = os.path.abspath(globals_file)
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_globals_folder = os.path.dirname(globals_file)
@@ -1778,9 +1791,10 @@ class RunManager(object):
         globals_file = os.path.abspath(globals_file)
 
         def remove_comments_and_tokenify(line):
-            """Removed EOL comments from a line, leaving it otherwise intact, and returns it.
-            Also returns the raw tokens for the line, allowing comparisons between lines
-            to be made without being sensitive to whitespace."""
+            """Removed EOL comments from a line, leaving it otherwise intact,
+            and returns it. Also returns the raw tokens for the line, allowing
+            comparisons between lines to be made without being sensitive to
+            whitespace."""
             import tokenize
             import StringIO
             result_expression = ''
@@ -1805,7 +1819,8 @@ class RunManager(object):
 
         def flatten_globals(sequence_globals, evaluated=False):
             """Flattens the data structure of the globals. If evaluated=False,
-            saves only the value expression string of the global, not the units or expansion."""
+            saves only the value expression string of the global, not the
+            units or expansion."""
             flattened_sequence_globals = {}
             for globals_group in sequence_globals.values():
                 for name, value in globals_group.items():
@@ -1844,10 +1859,11 @@ class RunManager(object):
         # Display the output tab so the user can see the output:
         self.ui.tabWidget.setCurrentWidget(self.ui.tab_output)
 
-        # We are interested only in displaying globals where *both* the evaluated global
-        # *and* its unevaluated expression (ignoring comments and whitespace) differ. This
-        # will minimise false positives where a slight change in an expression still leads to
-        # the same value, or where an object has a poorly defined equality operator that returns
+        # We are interested only in displaying globals where *both* the
+        # evaluated global *and* its unevaluated expression (ignoring comments
+        # and whitespace) differ. This will minimise false positives where a
+        # slight change in an expression still leads to the same value, or
+        # where an object has a poorly defined equality operator that returns
         # False even when the two objects are identical.
         filtered_differences = {}
         for name, (other_value, our_value) in sorted(value_differences.items()):
@@ -1871,12 +1887,15 @@ class RunManager(object):
 
     def on_treeView_groups_leftClicked(self, index):
         """Here we respond to user clicks on the treeview. We do the following:
-        - If the user clicks on the <click to add group> dummy row, we go into edit mode on it
-          so they can enter the name of the new group they want.
-        - If the user clicks on the icon to open or close a globals file or a group, we call the appropriate
-          open and close methods and update the open/close data role on the model.
-        - If the user clicks delete on a globals group, we call a delete method, which deletes it after
-          confirmation, and closes it if it was open.
+        - If the user clicks on the <click to add group> dummy row, we go into
+          edit mode on it so they can enter the name of the new group they
+          want.
+        - If the user clicks on the icon to open or close a globals file or a
+          group, we call the appropriate open and close methods and update the
+          open/close data role on the model.
+        - If the user clicks delete on a globals group, we call a delete
+          method, which deletes it after confirmation, and closes it if it was
+          open.
           """
         item = self.groups_model.itemFromIndex(index)
         # The 'name' item in the same row:
@@ -1935,18 +1954,21 @@ class RunManager(object):
                     break
 
     def on_groups_model_item_changed(self, item):
-        """This function is for responding to data changes in the model. The methods for responding to
-        changes different columns do different things. Mostly they make other data changes
-        for model consistency, but also group creation and renaming is handled in response to changes to
-        the 'name' column.
-        When we change things elsewhere, we prefer to only change one thing,
-        and the rest of the changes are triggered here. So here we do the following:
+        """This function is for responding to data changes in the model. The
+        methods for responding to changes different columns do different
+        things. Mostly they make other data changes for model consistency, but
+        also group creation and renaming is handled in response to changes to
+        the 'name' column. When we change things elsewhere, we prefer to only
+        change one thing, and the rest of the changes are triggered here. So
+        here we do the following:
 
-        Be careful not to recurse unsafely into this method - changing something that itself triggers
-        further changes is fine so long as they peter out and don't get stuck in a loop. If recursion needs
-        to be stopped, one can disconnect the signal temporarily with the context manager
-        self.groups_model_item_changed_disconnected. But use this sparingly, otherwise there's the risk
-        that some required data updates will be forgotten about and won't happen.
+        Be careful not to recurse unsafely into this method - changing
+        something that itself triggers further changes is fine so long as they
+        peter out and don't get stuck in a loop. If recursion needs to be
+        stopped, one can disconnect the signal temporarily with the context
+        manager self.groups_model_item_changed_disconnected. But use this
+        sparingly, otherwise there's the risk that some required data updates
+        will be forgotten about and won't happen.
         """
         if item.column() == self.GROUPS_COL_NAME:
             self.on_groups_model_name_changed(item)
@@ -1959,12 +1981,14 @@ class RunManager(object):
         """Handles group renaming and creation of new groups due to the user
         editing the <click to add group> item"""
         parent_item = item.parent()
-        # File rows are supposed to be uneditable, but just to be sure we have a group row:
+        # File rows are supposed to be uneditable, but just to be sure we have
+        # a group row:
         assert parent_item is not None
         if item.data(self.GROUPS_ROLE_IS_DUMMY_ROW):
             item_text = item.text()
             if item_text != self.GROUPS_DUMMY_ROW_TEXT:
-                # The user has made a new globals group by editing the <click to add group> item.
+                # The user has made a new globals group by editing the <click
+                # to add group> item.
                 globals_file = parent_item.text()
                 group_name = item_text
                 self.new_group(globals_file, group_name)
@@ -1972,22 +1996,25 @@ class RunManager(object):
             # User has renamed a globals group.
             new_group_name = item.text()
             previous_group_name = item.data(self.GROUPS_ROLE_PREVIOUS_NAME)
-            # Ensure it truly is a name change, and not something else about the item changing:
+            # Ensure it truly is a name change, and not something else about
+            # the item changing:
             if new_group_name != previous_group_name:
                 globals_file = parent_item.text()
                 self.rename_group(globals_file, previous_group_name, new_group_name)
 
     def on_groups_model_active_changed(self, item):
-        """Sets the sort data for the item in response to its check state changing.
-        Also, if this is the first time this function has been called on the stack,
-        that is, the change was initiated externally instead of via recursion from
-        this function itself, then set the check state of other items for consistency.
-        This entails checking/unchecking all group rows in response to the file row's
-        check state changing, or changing the file row's check state to reflect the check
-        state of the child group rows. That's why we need to keep track of the recursion
-        depth - so that those changes we make don't in turn cause further changes. But we don't
-        disconnect the on_changed signal altogether, because we still want to do the update
-        of the sort data, and anything else that might be added in future."""
+        """Sets the sort data for the item in response to its check state
+        changing. Also, if this is the first time this function has been
+        called on the stack, that is, the change was initiated externally
+        instead of via recursion from this function itself, then set the check
+        state of other items for consistency. This entails checking/unchecking
+        all group rows in response to the file row's check state changing, or
+        changing the file row's check state to reflect the check state of the
+        child group rows. That's why we need to keep track of the recursion
+        depth - so that those changes we make don't in turn cause further
+        changes. But we don't disconnect the on_changed signal altogether,
+        because we still want to do the update of the sort data, and anything
+        else that might be added in future."""
         self.on_groups_model_active_changed_recursion_depth += 1
         try:
             check_state = item.checkState()
@@ -2034,16 +2061,17 @@ class RunManager(object):
         """Sets item sort data and icon in response to the open/close state of a group
         changing."""
         parent_item = item.parent()
-        # The open/close state of a globals group changed. It is definitely a group,
-        # not a file, as the open/close state of a file shouldn't be changing.
+        # The open/close state of a globals group changed. It is definitely a
+        # group, not a file, as the open/close state of a file shouldn't be
+        # changing.
         assert parent_item is not None  # Just to be sure.
         # Ensure the sort data matches the open/close state:
         group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
         item.setData(group_is_open, self.GROUPS_ROLE_SORT_DATA)
-        # Set the appropriate icon and tooltip. Changing the icon causes itemChanged
-        # to be emitted, even if it the same icon, and even if we were to use the same
-        # QIcon instance. So to avoid infinite recursion we temporarily disconnect
-        # the signal whilst we set the icons.
+        # Set the appropriate icon and tooltip. Changing the icon causes
+        # itemChanged to be emitted, even if it the same icon, and even if we
+        # were to use the same QIcon instance. So to avoid infinite recursion
+        # we temporarily disconnect the signal whilst we set the icons.
         with self.groups_model_item_changed_disconnected:
             if group_is_open:
                 item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
@@ -2054,10 +2082,10 @@ class RunManager(object):
 
     @inmain_decorator()
     def get_default_output_folder(self):
-        """Returns what the default output folder would be right now,
-        based on the current date and selected labscript file.
-        Returns empty string if no labscript file is selected. Does not create
-        the default output folder, does not check if it exists."""
+        """Returns what the default output folder would be right now, based on
+        the current date and selected labscript file. Returns empty string if
+        no labscript file is selected. Does not create the default output
+        folder, does not check if it exists."""
         current_day_folder_suffix = time.strftime(self.output_folder_format)
         current_labscript_file = self.ui.lineEdit_labscript_file.text()
         if not current_labscript_file:
@@ -2070,10 +2098,10 @@ class RunManager(object):
 
     def rollover_shot_output_folder(self):
         """Runs in a thread, checking once a second if it is a new day or the
-        labscript file has changed. If it is or has, sets the default folder in
-        which compiled shots will be put. Does not create the folder if it does
-        not already exists, this will be done at compile-time.
-        Will run immediately without waiting a full second if the threading.Event
+        labscript file has changed. If it is or has, sets the default folder
+        in which compiled shots will be put. Does not create the folder if it
+        does not already exists, this will be done at compile-time. Will run
+        immediately without waiting a full second if the threading.Event
         self.output_folder_update_required is set() from anywhere."""
         previous_default_output_folder = self.get_default_output_folder()
         while True:
@@ -2084,9 +2112,9 @@ class RunManager(object):
 
     @inmain_decorator()
     def check_output_folder_update(self, previous_default_output_folder):
-        """Do a single check of whether the output folder needs updating.
-        This is implemented as a separate function to the above loop so that
-        the whole check happens at once in the Qt main thread and hence is atomic
+        """Do a single check of whether the output folder needs updating. This
+        is implemented as a separate function to the above loop so that the
+        whole check happens at once in the Qt main thread and hence is atomic
         and can't be interfered with by other Qt calls in the program."""
         current_default_output_folder = self.get_default_output_folder()
         if current_default_output_folder is None:
@@ -2104,8 +2132,9 @@ class RunManager(object):
 
     @inmain_decorator()
     def globals_changed(self):
-        """Called from either self or a GroupTab to inform runmanager that something
-        about globals has changed, and that they need parsing again"""
+        """Called from either self or a GroupTab to inform runmanager that
+        something about globals has changed, and that they need parsing
+        again"""
         self.ui.pushButton_engage.setEnabled(False)
         self.preparse_globals_required.set()
 
@@ -2116,10 +2145,10 @@ class RunManager(object):
         self.ui.pushButton_engage.setEnabled(True)
 
     def preparse_globals(self):
-        """Runs in a thread, waiting on a threading.Event that tell
-        s us when some globals
-        have changed, and calls parse_globals to evaluate them all before feeding
-        the results back to the relevant tabs to be displayed."""
+        """Runs in a thread, waiting on a threading.Event that tell s us when
+        some globals have changed, and calls parse_globals to evaluate them
+        all before feeding the results back to the relevant tabs to be
+        displayed."""
         while True:
             try:
                 # Wait until we're needed:
@@ -2128,10 +2157,12 @@ class RunManager(object):
                 # Do some work:
                 active_groups = self.get_active_groups()
                 if active_groups is None:
-                    # There was an error, get_active_groups has already shown it to the user.
+                    # There was an error, get_active_groups has already shown
+                    # it to the user.
                     continue
-                # Expansion mode is automatically updated when the global's type changes. If this occurs,
-                # we will have to parse again to include the change:
+                # Expansion mode is automatically updated when the global's
+                # type changes. If this occurs, we will have to parse again to
+                # include the change:
                 while True:
                     results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False)
                     sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
@@ -2141,29 +2172,32 @@ class RunManager(object):
                         break
                 self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals)
             except Exception:
-                # Raise the error, but keep going so we don't take
-                # down the whole thread if there is a bug.
+                # Raise the error, but keep going so we don't take down the
+                # whole thread if there is a bug.
                 exc_info = sys.exc_info()
                 zprocess.raise_exception_in_thread(exc_info)
                 continue
 
     def get_group_item_by_name(self, globals_file, group_name, column, previous_name=None):
-        """Returns an item from the row representing a globals group in the groups model.
-        Which item is returned is set by the column argument."""
+        """Returns an item from the row representing a globals group in the
+        groups model. Which item is returned is set by the column argument."""
         parent_item = self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME)[0]
         possible_name_items = self.groups_model.findItems(group_name, QtCore.Qt.MatchRecursive,
                                                           column=self.GROUPS_COL_NAME)
-        # Don't accidentally match on other groups or files with the same name as this group:
+        # Don't accidentally match on other groups or files with the same name
+        # as this group:
         possible_name_items = [item for item in possible_name_items if item.parent() == parent_item]
         if previous_name is not None:
-            # Also filter by previous name, useful for telling rows apart when a rename is in progress
-            # and two rows may temporarily contain the same name (though the rename code with throw
-            # an error and revert it).
+            # Also filter by previous name, useful for telling rows apart when
+            # a rename is in progress and two rows may temporarily contain the
+            # same name (though the rename code with throw an error and revert
+            # it).
             possible_name_items = [item for item in possible_name_items
                                    if item.data(self.GROUPS_ROLE_PREVIOUS_NAME) == previous_name]
         elif group_name != self.GROUPS_DUMMY_ROW_TEXT:
-            # Don't return the dummy item unless they asked for it explicitly - if a new group is being
-            # created, its name might be simultaneously present in its own row and the dummy row too.
+            # Don't return the dummy item unless they asked for it explicitly
+            # - if a new group is being created, its name might be
+            # simultaneously present in its own row and the dummy row too.
             possible_name_items = [item for item in possible_name_items
                                    if not item.data(self.GROUPS_ROLE_IS_DUMMY_ROW)]
 
@@ -2181,9 +2215,9 @@ class RunManager(object):
     @inmain_decorator()  # Can be called from a non-main thread
     def get_active_groups(self):
         """Returns active groups in the format {group_name: globals_file}.
-        Displays an error dialog and returns None if multiple groups of
-        the same name are selected, this is invalid - selected groups must
-        be uniquely named."""
+        Displays an error dialog and returns None if multiple groups of the
+        same name are selected, this is invalid - selected groups must be
+        uniquely named."""
         active_groups = {}
         for i in range(self.groups_model.rowCount()):
             file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
@@ -2194,8 +2228,8 @@ class RunManager(object):
                     group_name = group_name_item.text()
                     globals_file = file_name_item.text()
                     if group_name in active_groups:
-                        error_dialog(
-                            'There are two active groups named %s. Active groups must have unique names to be used together.' % group_name)
+                        error_dialog('There are two active groups named %s. ' +
+                                     'Active groups must have unique names to be used together.' % group_name)
                         return
                     active_groups[group_name] = globals_file
         return active_groups
@@ -2260,9 +2294,10 @@ class RunManager(object):
         dummy_open_close_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
         dummy_open_close_item.setFlags(QtCore.Qt.NoItemFlags)
 
-        # Not setting anything as the above items' sort role has the effect of ensuring
-        # this row is always sorted to the end of the list, without us having to implement
-        # any custom sorting methods or subclassing anything, yay.
+        # Not setting anything as the above items' sort role has the effect of
+        # ensuring this row is always sorted to the end of the list, without
+        # us having to implement any custom sorting methods or subclassing
+        # anything, yay.
 
         file_name_item.appendRow([dummy_name_item, dummy_active_item, dummy_delete_item, dummy_open_close_item])
         # Expand the child items to be visible:
@@ -2281,7 +2316,8 @@ class RunManager(object):
         group_active_item = QtGui.QStandardItem()
         group_active_item.setCheckable(True)
         group_active_item.setCheckState(QtCore.Qt.Unchecked)
-        # Sort column by CheckState - must keep this updated whenever the checkstate changes:
+        # Sort column by CheckState - must keep this updated whenever the
+        # checkstate changes:
         group_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
         group_active_item.setEditable(False)
         group_active_item.setToolTip(
@@ -2297,7 +2333,8 @@ class RunManager(object):
         group_open_close_item = QtGui.QStandardItem()
         group_open_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
         group_open_close_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
-        # Sort column by whether group is open - must keep this manually updated when the state changes:
+        # Sort column by whether group is open - must keep this manually
+        # updated when the state changes:
         group_open_close_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
         group_open_close_item.setEditable(False)
         group_open_close_item.setToolTip('Load globals group into runmananger.')
@@ -2334,8 +2371,8 @@ class RunManager(object):
         except Exception as e:
             error_dialog(str(e))
         else:
-            # Insert the newly created globals group into the model,
-            # as a child row of the globals file it belong to.
+            # Insert the newly created globals group into the model, as a
+            # child row of the globals file it belong to.
             group_row = self.make_group_row(group_name)
             last_index = item.parent().rowCount()
             # Insert it as the row before the last (dummy) row:
@@ -2354,14 +2391,15 @@ class RunManager(object):
         group_tab = GroupTab(self.ui.tabWidget, globals_file, group_name)
         self.currently_open_groups[globals_file, group_name] = group_tab
 
-        # Set the open/close state in the groups_model. itemChanged will be emitted and
-        # self.on_groups_model_item_changed will handle updating the
-        # other data roles, icons etc:
+        # Set the open/close state in the groups_model. itemChanged will be
+        # emitted and self.on_groups_model_item_changed will handle updating
+        # the other data roles, icons etc:
         openclose_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_OPENCLOSE)
         openclose_item.setData(True, self.GROUPS_ROLE_GROUP_IS_OPEN)
-        # Trigger a preparse to occur in light of this.
-        # Calling code can disable this so that multiple groups can be opened at once without
-        # triggering a preparse. If they do so, they should call self.globals_changed() themselves.
+        # Trigger a preparse to occur in light of this. Calling code can
+        # disable this so that multiple groups can be opened at once without
+        # triggering a preparse. If they do so, they should call
+        # self.globals_changed() themselves.
         if trigger_preparse:
             self.globals_changed()
 
@@ -2434,7 +2472,8 @@ class RunManager(object):
         if not save_file:
             # User cancelled
             return
-        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        # Convert to standard platform specific path, otherwise Qt likes
+        # forward slashes:
         save_file = os.path.abspath(save_file)
         self.save_configuration(save_file)
 
@@ -2460,12 +2499,14 @@ class RunManager(object):
                 if group_tab.ui is tab_page:
                     groups_open.append((globals_file_name, group_name))
                     break
-        # Get the labscript file, output folder, and whether the output folder is default:
+        # Get the labscript file, output folder, and whether the output folder
+        # is default:
         current_labscript_file = self.ui.lineEdit_labscript_file.text()
         shot_output_folder = self.ui.lineEdit_shot_output_folder.text()
         is_using_default_shot_output_folder = (shot_output_folder == self.get_default_output_folder())
-        # Only save the shot output folder if not using the default, that way the folder updating
-        # as the day rolls over will not be detected as a change to the save data:
+        # Only save the shot output folder if not using the default, that way
+        # the folder updating as the day rolls over will not be detected as a
+        # change to the save data:
         if is_using_default_shot_output_folder:
             shot_output_folder = ''
 
@@ -2505,7 +2546,8 @@ class RunManager(object):
     def on_load_configuration_triggered(self):
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:
-            message = 'Current configuration (which groups are active/open and other GUI state) has changed: save config file \'%s\'?' % self.last_save_config_file
+            message = ('Current configuration (which groups are active/open and other GUI state) '
+                       'has changed: save config file \'%s\'?' % self.last_save_config_file)
             reply = QtGui.QMessageBox.question(self.ui, 'Load configuration', message,
                                                QtGui.QMessageBox.Yes | QtGui.QMessageBox.No | QtGui.QMessageBox.Cancel)
             if reply == QtGui.QMessageBox.Cancel:
@@ -2520,7 +2562,8 @@ class RunManager(object):
         if not file:
             # User cancelled
             return
-        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        # Convert to standard platform specific path, otherwise Qt likes
+        # forward slashes:
         file = os.path.abspath(file)
         self.load_configuration(file)
 
@@ -2635,8 +2678,9 @@ class RunManager(object):
                         break
                     try:
                         try:
-                            # We do .next() instead of looping over run_files so that if compilation is aborted we
-                            # won't create an extra file unnecessarily.
+                            # We do .next() instead of looping over run_files
+                            # so that if compilation is aborted we won't
+                            # create an extra file unnecessarily.
                             run_file = run_files.next()
                         except StopIteration:
                             self.output_box.output('Ready.\n\n')
@@ -2658,7 +2702,8 @@ class RunManager(object):
                 inmain(self.ui.pushButton_abort.setEnabled, False)
                 self.compilation_aborted.clear()
             except Exception:
-                # Raise it so whatever bug it is gets seen, but keep going so the thread keeps functioning:
+                # Raise it so whatever bug it is gets seen, but keep going so
+                # the thread keeps functioning:
                 exc_info = sys.exc_info()
                 zprocess.raise_exception_in_thread(exc_info)
                 continue
@@ -2673,18 +2718,22 @@ class RunManager(object):
         return sequence_globals, shots, evaled_globals, global_hierarchy, expansions
 
     def guess_expansion_modes(self, active_groups, evaled_globals, global_hierarchy, expansions):
-        """This function is designed to be called iteratively. It changes the expansion type of globals
-        that reference other globals - such that globals referencing an iterable global will be zipped
-        with it, rather than outer producted. Each time this method is called, self.parse_globals should also be
-        called, so that the globals are evaluated with their new expansion modes, if they changed.
-        This should be performed repeatedly until there are no more changes. Note that this method does
-        not return what expansion types it thinks globals should have - it *actually writes them to the
-        globals HDF5 file*. So it is up to later code to ensure it re-reads the expansion mode from the
-        HDF5 file before proceeding. At present this method is only called from self.preparse_globals(),
-        so see there to see how it fits in with everything else. This method uses four instance attributes
-        to store state: self.previous_evaled_globals, self.previous_global_hierarchy,
-        self.previous_expansion_types and self.previous_expansions. This is neccesary so that it can
-        detect changes."""
+        """This function is designed to be called iteratively. It changes the
+        expansion type of globals that reference other globals - such that
+        globals referencing an iterable global will be zipped with it, rather
+        than outer producted. Each time this method is called,
+        self.parse_globals should also be called, so that the globals are
+        evaluated with their new expansion modes, if they changed. This should
+        be performed repeatedly until there are no more changes. Note that
+        this method does not return what expansion types it thinks globals
+        should have - it *actually writes them to the globals HDF5 file*. So
+        it is up to later code to ensure it re-reads the expansion mode from
+        the HDF5 file before proceeding. At present this method is only called
+        from self.preparse_globals(), so see there to see how it fits in with
+        everything else. This method uses four instance attributes to store
+        state: self.previous_evaled_globals, self.previous_global_hierarchy,
+        self.previous_expansion_types and self.previous_expansions. This is
+        neccesary so that it can detect changes."""
 
         # Do nothing if there were exceptions:
         for group_name in evaled_globals:
@@ -2706,10 +2755,12 @@ class RunManager(object):
                 try:
                     previous_value = self.previous_evaled_globals[group_name][global_name]
                 except KeyError:
-                    # This variable is only used to guess the expansion type so we can set it to
-                    # '0' which will result in an expansion type guess of '' (emptys string)
-                    # This will either result in nothing being done to the expansion type or the expansion
-                    # type being found to be 'outer', which will then make it go through the machinery below
+                    # This variable is only used to guess the expansion type
+                    # so we can set it to '0' which will result in an
+                    # expansion type guess of '' (emptys string) This will
+                    # either result in nothing being done to the expansion
+                    # type or the expansion type being found to be 'outer',
+                    # which will then make it go through the machinery below
                     previous_value = 0
 
                 new_guess = runmanager.guess_expansion_type(new_value)
@@ -2745,12 +2796,13 @@ class RunManager(object):
                         return True
 
         for global_name in sorted(expansion_types):
-            # we have a global that does not depend on anything that has an expansion type of 'outer'
+            # we have a global that does not depend on anything that has an
+            # expansion type of 'outer'
             if (not global_depends_on_global_with_outer_product(global_name, global_hierarchy, expansions)
                     and not isinstance(expansion_types[global_name]['value'], runmanager.ExpansionError)):
                 current_dependencies = find_dependencies(global_name, global_hierarchy)
-                # if this global has other globals that use it, then add them all to a zip
-                # group with the name of this global
+                # if this global has other globals that use it, then add them
+                # all to a zip group with the name of this global
                 if current_dependencies:
                     for dependency in current_dependencies:
                         expansion_types[dependency]['new_guess'] = str(global_name)
@@ -2759,11 +2811,12 @@ class RunManager(object):
                     expansions[global_name] = str(global_name)
 
         for global_name in sorted(self.previous_expansion_types):
-            if (not global_depends_on_global_with_outer_product(global_name, self.previous_global_hierarchy, self.previous_expansions)
+            if (not global_depends_on_global_with_outer_product(
+                global_name, self.previous_global_hierarchy, self.previous_expansions)
                     and not isinstance(self.previous_expansion_types[global_name]['value'], runmanager.ExpansionError)):
                 old_dependencies = find_dependencies(global_name, self.previous_global_hierarchy)
-                # if this global has other globals that use it, then add them all to a zip
-                # group with the name of this global
+                # if this global has other globals that use it, then add them
+                # all to a zip group with the name of this global
                 if old_dependencies:
                     for dependency in old_dependencies:
                         if dependency in expansion_types:
@@ -2779,8 +2832,8 @@ class RunManager(object):
                 expansions[global_name] = guesses['new_guess']
                 expansion_types_changed = True
 
-        # Now check everything that has an expansion type not equal to outer. If it has one, but is
-        # not iteratble, remove it from teh zip group
+        # Now check everything that has an expansion type not equal to outer.
+        # If it has one, but is not iteratble, remove it from teh zip group
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
                 if expansions[global_name] and expansions[global_name] != 'outer':
@@ -2853,7 +2906,8 @@ class RunManager(object):
         BLACS_port = int(self.exp_config.get('ports', 'BLACS'))
         while True:
             try:
-                mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder = self.mise_submission_queue.get()
+                mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder = \
+                    self.mise_submission_queue.get()
                 self.output_box.output('submitting labscript and parameter space to mise\n')
                 data = ('from runmanager', labscript_file, sequenceglobals, shots,
                         output_folder, shuffle, BLACS_host, BLACS_port, self.shared_drive_prefix)
