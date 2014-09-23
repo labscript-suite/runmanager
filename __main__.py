@@ -91,12 +91,12 @@ zprocess.locking.set_client_process_name('runmanager')
 
 
 def set_win_appusermodel(window_id):
-    from labscript_utils.winshell import set_appusermodel 
+    from labscript_utils.winshell import set_appusermodel, appid, app_description
     appid = runmanager.appid
     icon_path = os.path.abspath('runmanager.ico')
     relaunch_command = sys.executable.lower().replace('.exe', 'w.exe') + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
-    relaunch_display_name = runmanager.app_description
-    set_appusermodel(window_id, appid, icon_path, relaunch_command, relaunch_display_name)
+    relaunch_display_name = app_description['runmanager']
+    set_appusermodel(window_id, appid['runmanager'], icon_path, relaunch_command, relaunch_display_name)
 
 
 @inmain_decorator()
