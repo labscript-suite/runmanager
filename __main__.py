@@ -67,7 +67,7 @@ def check_version(module_name, at_least, less_than, version=None):
             '{module_name} {version} found. {at_least} <= {module_name} < {less_than} required.'.format(**locals()))
 
 check_version('labscript_utils', '1.1', '2')
-check_version('qtutils', '1.1', '2')
+check_version('qtutils', '1.5.1', '2')
 check_version('zprocess', '1.1.2', '2')
 
 import zprocess.locking
@@ -80,7 +80,7 @@ import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 from qtutils.outputbox import OutputBox
-import qtutils.icons  # noqa
+import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
@@ -91,13 +91,14 @@ zprocess.locking.set_client_process_name('runmanager')
 
 
 def set_win_appusermodel(window_id):
-    from labscript_utils.winshell import set_appusermodel
-    appid = runmanager.appid
+    from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
     icon_path = os.path.abspath('runmanager.ico')
-    relaunch_command = (sys.executable.lower().replace('.exe', 'w.exe') + ' ' +
-                        os.path.abspath(__file__.replace('.pyc', '.py')))
-    relaunch_display_name = runmanager.app_description
-    set_appusermodel(window_id, appid, icon_path, relaunch_command, relaunch_display_name)
+    executable = sys.executable.lower()
+    if not executable.endswith('w.exe'):
+        executable = executable.replace('.exe', 'w.exe')
+    relaunch_command = executable + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
+    relaunch_display_name = app_descriptions['runmanager']
+    set_appusermodel(window_id, appids['runmanager'], icon_path, relaunch_command, relaunch_display_name)
 
 
 @inmain_decorator()
@@ -2580,11 +2581,15 @@ class RunManager(object):
             pass
         else:
             for globals_file in h5_files_open:
-                try:
-                    self.open_globals_file(globals_file)
-                except Exception:
-                    zprocess.raise_exception_in_thread(sys.exc_info())
-                    continue
+                if os.path.exists(globals_file):
+                    try:
+                        self.open_globals_file(globals_file)
+                        self.last_opened_globals_folder = os.path.dirname(globals_file)
+                    except Exception:
+                        zprocess.raise_exception_in_thread(sys.exc_info())
+                        continue
+                else:
+                    self.output_box.output('\nWarning: globals file %s no longer exists\n' % globals_file, red=True)
         try:
             active_groups = ast.literal_eval(runmanager_config.get('runmanager_state', 'active_groups'))
         except Exception:
@@ -2606,13 +2611,18 @@ class RunManager(object):
         except Exception:
             pass
         else:
-            self.ui.lineEdit_labscript_file.setText(current_labscript_file)
+            if os.path.exists(current_labscript_file):
+                self.ui.lineEdit_labscript_file.setText(current_labscript_file)
+                self.last_opened_labscript_folder = os.path.dirname(current_labscript_file)
+            else:
+                self.output_box.output('\nWarning: labscript file %s no longer exists\n' % current_labscript_file, red=True)
         try:
             shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'shot_output_folder'))
         except Exception:
             pass
         else:
             self.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
+            self.last_selected_shot_output_folder = os.path.dirname(shot_output_folder)
         try:
             is_using_default_shot_output_folder = ast.literal_eval(
                 runmanager_config.get('runmanager_state', 'is_using_default_shot_output_folder'))
@@ -2620,7 +2630,9 @@ class RunManager(object):
             pass
         else:
             if is_using_default_shot_output_folder:
-                self.ui.lineEdit_shot_output_folder.setText(self.get_default_output_folder())
+                default_output_folder = self.get_default_output_folder()
+                self.ui.lineEdit_shot_output_folder.setText(default_output_folder)
+                self.last_selected_shot_output_folder = os.path.dirname(default_output_folder)
         try:
             submit_to_mise = ast.literal_eval(runmanager_config.get('runmanager_state', 'submit_to_mise'))
         except Exception:
