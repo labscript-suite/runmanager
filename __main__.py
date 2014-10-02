@@ -551,9 +551,7 @@ class GroupTab(object):
 
     def populate_model(self):
         globals = runmanager.get_globals({self.group_name: self.globals_file})[self.group_name]
-        globals_items = list(globals.items())
-        globals_items.sort()  # Ensure globals ordered alphabetically at load time
-        for name, (value, units, expansion) in globals_items:
+        for name, (value, units, expansion) in globals.items():
             row = self.make_global_row(name, value, units, expansion)
             self.globals_model.appendRow(row)
             value_item = row[self.GLOBALS_COL_VALUE]
@@ -593,6 +591,9 @@ class GroupTab(object):
 
         self.globals_model.appendRow(
             [dummy_delete_item, dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
+
+        # Sort by name:
+        self.ui.treeView_globals.sortByColumn(self.GLOBALS_COL_NAME, QtCore.Qt.AscendingOrder)
 
     def make_global_row(self, name, value='', units='', expansion=''):
         logger.debug('%s:%s - make global row: %s ' % (self.globals_file, self.group_name, name))
@@ -2615,7 +2616,8 @@ class RunManager(object):
                 self.ui.lineEdit_labscript_file.setText(current_labscript_file)
                 self.last_opened_labscript_folder = os.path.dirname(current_labscript_file)
             else:
-                self.output_box.output('\nWarning: labscript file %s no longer exists\n' % current_labscript_file, red=True)
+                self.output_box.output('\nWarning: labscript file %s no longer exists\n' % current_labscript_file,
+                                       red=True)
         try:
             shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'shot_output_folder'))
         except Exception:
