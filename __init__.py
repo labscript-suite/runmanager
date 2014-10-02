@@ -24,6 +24,7 @@ import tokenize,token, StringIO
 
 import labscript_utils.h5_lock, h5py
 import pylab
+import numpy as np
 
 import zprocess
 import mise
