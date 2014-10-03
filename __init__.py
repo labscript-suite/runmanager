@@ -29,14 +29,19 @@ import zprocess
 
 __version__ = '2.0.1-dev'
 
+
 def is_valid_python_identifier(name):
     import tokenize
     import StringIO
-    tokens = list(tokenize.generate_tokens(StringIO.StringIO(name).readline))
+    try:
+        tokens = list(tokenize.generate_tokens(StringIO.StringIO(name).readline))
+    except tokenize.TokenError:
+        return False
     if len(tokens) == 2:
         (token_type, _, _, _, _), _ = tokens
         return token_type == tokenize.NAME
     return False
+
 
 class ExpansionError(Exception):
 

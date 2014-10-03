@@ -1836,6 +1836,8 @@ class RunManager(object):
             result_expression = ''
             result_tokens = []
             error_encountered = False
+            # This never fails because it produces a generator, syntax errors
+            # come out when looping over it:
             tokens = tokenize.generate_tokens(StringIO.StringIO(line).readline)
             try:
                 for token_type, token_value, (_, start), (_, end), _ in tokens:
@@ -1902,7 +1904,7 @@ class RunManager(object):
         # where an object has a poorly defined equality operator that returns
         # False even when the two objects are identical.
         filtered_differences = {}
-        for name, (other_value, our_value) in sorted(value_differences.items()):
+        for name, (other_value, our_value) in value_differences.items():
             our_expression = our_globals.get(name, '-')
             other_expression = other_globals.get(name, '-')
             # Strip comments, get tokens so we can diff without being sensitive to comments or whitespace:
@@ -1913,6 +1915,7 @@ class RunManager(object):
         if filtered_differences:
             import pandas as pd
             df = pd.DataFrame.from_dict(filtered_differences, 'index')
+            df = df.sort()
             df.columns = ['Prev (Eval)', 'Current (Eval)', 'Prev (Raw)', 'Current (Raw)']
             self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
             df_string = df.to_string(max_cols=1000)
@@ -2296,8 +2299,8 @@ class RunManager(object):
                     group_name = group_name_item.text()
                     globals_file = file_name_item.text()
                     if group_name in active_groups:
-                        error_dialog('There are two active groups named %s. ' +
-                                     'Active groups must have unique names to be used together.' % group_name)
+                        error_dialog('There are two active groups named %s. ' % group_name +
+                                     'Active groups must have unique names to be used together.')
                         return
                     active_groups[group_name] = globals_file
         return active_groups
