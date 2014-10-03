@@ -29,6 +29,15 @@ import zprocess
 
 __version__ = '2.0.1-dev'
 
+def is_valid_python_identifier(name):
+    import tokenize
+    import StringIO
+    tokens = list(tokenize.generate_tokens(StringIO.StringIO(name).readline))
+    if len(tokens) == 2:
+        (token_type, _, _, _, _), _ = tokens
+        return token_type == tokenize.NAME
+    return False
+
 class ExpansionError(Exception):
 
     """An exception class so that error handling code can tell when a
@@ -139,6 +148,8 @@ def get_globalslist(filename, groupname):
 
 
 def new_global(filename, groupname, globalname):
+    if not is_valid_python_identifier(globalname):
+        raise ValueError('%s is not a valid Python variable name'%globalname)
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         if globalname in group.attrs:
@@ -152,6 +163,8 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
     if oldglobalname == newglobalname:
         # No rename!
         return
+    if not is_valid_python_identifier(newglobalname):
+        raise ValueError('%s is not a valid Python variable name'%newglobalname)
     value = get_value(filename, groupname, oldglobalname)
     units = get_units(filename, groupname, oldglobalname)
     expansion = get_expansion(filename, groupname, oldglobalname)
