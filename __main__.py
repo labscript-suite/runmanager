@@ -659,9 +659,6 @@ class GroupTab(object):
                 value_item.setText('True')
             else:
                 raise AssertionError('expected boolean value')
-            # Clear selection, it's hard to see the colours through the
-            # selection:
-            self.ui.treeView_globals.clearSelection()
         elif item.column() == self.GLOBALS_COL_DELETE:
             # They clicked a delete button.
             self.delete_global(global_name)
@@ -828,6 +825,12 @@ class GroupTab(object):
         item = self.globals_model.itemFromIndex(item_index)
         return item
 
+    def do_model_sort(self):
+        header = self.ui.treeView_globals.header()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        self.ui.treeView_globals.sortByColumn(sort_column, sort_order)
+
     def new_global(self, global_name):
         logger.info('%s:%s - new global: %s', self.globals_file, self.group_name, global_name)
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME,
@@ -842,6 +845,7 @@ class GroupTab(object):
             last_index = self.globals_model.rowCount()
             # Insert it as the row before the last (dummy) row:
             self.globals_model.insertRow(last_index - 1, global_row)
+            self.do_model_sort()
             # Go into edit mode on the 'value' item:
             value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE,
                                                       previous_name=global_name)
@@ -867,6 +871,7 @@ class GroupTab(object):
         else:
             item.setData(new_global_name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_global_name, self.GLOBALS_ROLE_SORT_DATA)
+            self.do_model_sort()
             item.setToolTip(new_global_name)
             self.globals_changed()
             value_item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_VALUE)
@@ -876,6 +881,9 @@ class GroupTab(object):
                 value_item_index = value_item.index()
                 self.ui.treeView_globals.setCurrentIndex(value_item_index)
                 self.ui.treeView_globals.edit(value_item_index)
+            else:
+                # If this changed the sort order, ensure the item is still visible:
+                self.ui.treeView_globals.scrollTo(item.index())
 
     def change_global_value(self, global_name, previous_value, new_value):
         logger.info('%s:%s - change global value: %s = %s -> %s' %
@@ -891,6 +899,7 @@ class GroupTab(object):
             item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
             self.check_for_boolean_values(item)
+            self.do_model_sort()
             item.setData(None, QtCore.Qt.BackgroundRole)
             item.setIcon(QtGui.QIcon(':qtutils/fugue/hourglass'))
             item.setToolTip('Evaluating...')
@@ -902,6 +911,9 @@ class GroupTab(object):
                 units_item_index = units_item.index()
                 self.ui.treeView_globals.setCurrentIndex(units_item_index)
                 self.ui.treeView_globals.edit(units_item_index)
+            else:
+                # If this changed the sort order, ensure the item is still visible:
+                self.ui.treeView_globals.scrollTo(item.index())
 
     def change_global_units(self, global_name, previous_units, new_units):
         logger.info('%s:%s - change units: %s = %s -> %s' %
@@ -916,6 +928,9 @@ class GroupTab(object):
         else:
             item.setData(new_units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_units, self.GLOBALS_ROLE_SORT_DATA)
+            self.do_model_sort()
+            # If this changed the sort order, ensure the item is still visible:
+            self.ui.treeView_globals.scrollTo(item.index())
 
     def change_global_expansion(self, global_name, previous_expansion, new_expansion):
         logger.info('%s:%s - change expansion: %s = %s -> %s' %
@@ -930,7 +945,10 @@ class GroupTab(object):
         else:
             item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_expansion, self.GLOBALS_ROLE_SORT_DATA)
+            self.do_model_sort()
             self.globals_changed()
+            # If this changed the sort order, ensure the item is still visible:
+            self.ui.treeView_globals.scrollTo(item.index())
 
     def check_for_boolean_values(self, item):
         """Checks if the value is 'True' or 'False'. If either, makes the
@@ -948,22 +966,21 @@ class GroupTab(object):
         if value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
+            units_item.setData('!1', self.GLOBALS_ROLE_SORT_DATA)
             units_item.setEditable(False)
-            units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Checked)
             units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_ON)))
         elif value == 'False':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
+            units_item.setData('!0', self.GLOBALS_ROLE_SORT_DATA)
             units_item.setEditable(False)
-            units_item.setCheckable(True)
             units_item.setCheckState(QtCore.Qt.Unchecked)
             units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_BOOL_OFF)))
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL)
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setEditable(True)
-            units_item.setCheckable(False)
             # Checkbox still visible unless we do the following:
             units_item.setData(None, QtCore.Qt.CheckStateRole)
             units_item.setData(None, QtCore.Qt.BackgroundRole)
@@ -1287,6 +1304,7 @@ class RunManager(object):
         self.ui.treeView_groups.setAnimated(True)  # Pretty
         self.ui.treeView_groups.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
+        self.ui.treeView_groups.sortByColumn(self.GROUPS_COL_NAME, QtCore.Qt.AscendingOrder)
         # Set column widths:
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
         # Make it so the user can just start typing on an item to edit:
@@ -1899,6 +1917,9 @@ class RunManager(object):
           method, which deletes it after confirmation, and closes it if it was
           open.
           """
+        if qapplication.keyboardModifiers() != QtCore.Qt.NoModifier:
+            # Only handle mouseclicks with no keyboard modifiers.
+            return
         item = self.groups_model.itemFromIndex(index)
         # The 'name' item in the same row:
         name_index = index.sibling(index.row(), self.GROUPS_COL_NAME)
@@ -1913,6 +1934,25 @@ class RunManager(object):
             # the new group:
             self.ui.treeView_groups.setCurrentIndex(name_index)
             self.ui.treeView_groups.edit(name_index)
+        if item.column() == self.GROUPS_COL_ACTIVE:
+            # They clicked on the active column. Toggle the checkbox. We do
+            # this manually because setting the item checkable means the model
+            # changes before we catch the mouse click. This is a pain because
+            # we want the ensuing sorting (if the user is sorting by the
+            # enabled column) to keep the the selection. If the user only
+            # selected the column by clicking on it, then the sort happens
+            # before they selected it, and the resort happens without a visual
+            # indication of where the item went, because it never got
+            # selected.
+            state = item.checkState()
+            if state in (QtCore.Qt.Unchecked, QtCore.Qt.PartiallyChecked):
+                item.setCheckState(QtCore.Qt.Checked)
+            elif state == QtCore.Qt.Checked:
+                item.setCheckState(QtCore.Qt.Unchecked)
+            else:
+                raise AssertionError('Invalid Check state')
+            # If this changed the sort order, ensure the item is still visible:
+            self.ui.treeView_groups.scrollTo(item.index())
         elif parent_item is None:
             # They clicked on a globals file row.
             globals_file = name_item.text()
@@ -2056,6 +2096,7 @@ class RunManager(object):
         finally:
             self.on_groups_model_active_changed_recursion_depth -= 1
             if self.on_groups_model_active_changed_recursion_depth == 0:
+                self.do_model_sort()
                 # Trigger a preparse to occur:
                 self.globals_changed()
 
@@ -2081,6 +2122,9 @@ class RunManager(object):
             else:
                 item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
                 item.setToolTip('Load globals group into runmanager.')
+            self.do_model_sort()
+            # If this changed the sort order, ensure the item is still visible:
+            self.ui.treeView_groups.scrollTo(item.index())
 
     @inmain_decorator()
     def get_default_output_folder(self):
@@ -2214,6 +2258,12 @@ class RunManager(object):
         item = self.groups_model.itemFromIndex(item_index)
         return item
 
+    def do_model_sort(self):
+        header = self.ui.treeView_groups.header()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        self.ui.treeView_groups.sortByColumn(sort_column, sort_order)
+
     @inmain_decorator()  # Can be called from a non-main thread
     def get_active_groups(self):
         """Returns active groups in the format {group_name: globals_file}.
@@ -2251,7 +2301,6 @@ class RunManager(object):
         file_name_item.setData(globals_file, self.GROUPS_ROLE_SORT_DATA)
 
         file_active_item = QtGui.QStandardItem()
-        file_active_item.setCheckable(True)
         file_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated when checkstate changes:
         file_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
@@ -2305,6 +2354,9 @@ class RunManager(object):
         # Expand the child items to be visible:
         self.ui.treeView_groups.setExpanded(file_name_item.index(), True)
         self.globals_changed()
+        self.do_model_sort()
+        # If this changed the sort order, ensure the file item is visible:
+        self.ui.treeView_groups.scrollTo(file_name_item.index())
 
     def make_group_row(self, group_name):
         """Returns a new row representing one group in the groups tab, ready to be
@@ -2316,7 +2368,6 @@ class RunManager(object):
         group_name_item.setData(group_name, self.GROUPS_ROLE_SORT_DATA)
 
         group_active_item = QtGui.QStandardItem()
-        group_active_item.setCheckable(True)
         group_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated whenever the
         # checkstate changes:
@@ -2379,11 +2430,16 @@ class RunManager(object):
             last_index = item.parent().rowCount()
             # Insert it as the row before the last (dummy) row:
             item.parent().insertRow(last_index - 1, group_row)
+            self.do_model_sort()
             # Open the group and mark it active:
             self.open_group(globals_file, group_name)
             active_item = group_row[self.GROUPS_COL_ACTIVE]
+            name_item = group_row[self.GROUPS_COL_NAME]
             active_item.setCheckState(QtCore.Qt.Checked)
             self.globals_changed()
+            self.ui.treeView_groups.setCurrentIndex(name_item.index());
+            # If this changed the sort order, ensure the group item is still visible:
+            self.ui.treeView_groups.scrollTo(name_item.index())
         finally:
             # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GROUPS_DUMMY_ROW_TEXT)
@@ -2417,6 +2473,9 @@ class RunManager(object):
         else:
             item.setData(new_group_name, self.GROUPS_ROLE_PREVIOUS_NAME)
             item.setData(new_group_name, self.GROUPS_ROLE_SORT_DATA)
+            self.do_model_sort()
+            # If this changed the sort order, ensure the group item is still visible:
+            self.ui.treeView_groups.scrollTo(item.index())
             group_tab = self.currently_open_groups.pop((globals_file, previous_group_name), None)
             if group_tab is not None:
                 # Change labels and tooltips appropriately if the group is open:
