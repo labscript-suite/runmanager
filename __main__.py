@@ -282,6 +282,7 @@ class TreeView(QtGui.QTreeView):
         self._pressed_index = None
         self._double_click = False
         self._ROLE_IGNORE_TABNEXT = None
+        self.setAutoScroll(False)
 
     def setRoleIgnoreTabNext(self, role):
         """Tell the Treeview what model role it should look in for a boolean
