@@ -142,7 +142,7 @@ def scroll_treeview_to_row_if_current(treeview, item):
     horizontal_scrollbar = treeview.horizontalScrollBar()
     existing_horizontal_position = horizontal_scrollbar.value()
     index = item.index()
-    current_row  = treeview.currentIndex().row()
+    current_row = treeview.currentIndex().row()
     if index.row() == current_row:
         treeview.scrollTo(index)
         horizontal_scrollbar.setValue(existing_horizontal_position)
@@ -2453,7 +2453,7 @@ class RunManager(object):
             name_item = group_row[self.GROUPS_COL_NAME]
             active_item.setCheckState(QtCore.Qt.Checked)
             self.globals_changed()
-            self.ui.treeView_groups.setCurrentIndex(name_item.index());
+            self.ui.treeView_groups.setCurrentIndex(name_item.index())
             # If this changed the sort order, ensure the group item is still visible:
             scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)
         finally:
@@ -2650,6 +2650,9 @@ class RunManager(object):
         save_data = self.get_save_data()
         for globals_file in save_data['h5_files_open']:
             self.close_globals_file(globals_file, confirm=False)
+        # Ensure folder exists, if this was opened programmatically we are
+        # creating the file, so the directory had better exist!
+        mkdir_p(os.path.dirname(filename))
         runmanager_config = LabConfig(filename)
         try:
             h5_files_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'h5_files_open'))
