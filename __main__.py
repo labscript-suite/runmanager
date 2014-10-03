@@ -133,6 +133,21 @@ def nested(*contextmanagers):
         yield
 
 
+def scroll_treeview_to_row_if_current(treeview, item):
+    """Checks to see if the item is in the row of the current item.
+    If it is, scrolls vertically to ensure that row is visible.
+    This is done by recording the horizontal scroll position,
+    then using QTreeView.scrollTo(), and then restoring the horizontal
+    position"""
+    horizontal_scrollbar = treeview.horizontalScrollBar()
+    existing_horizontal_position = horizontal_scrollbar.value()
+    index = item.index()
+    current_row  = treeview.currentIndex().row()
+    if index.row() == current_row:
+        treeview.scrollTo(index)
+        horizontal_scrollbar.setValue(existing_horizontal_position)
+
+
 class KeyPressQApplication(QtGui.QApplication):
 
     """A Qapplication that emits a signal keyPress(key) on keypresses"""
@@ -884,7 +899,7 @@ class GroupTab(object):
                 self.ui.treeView_globals.edit(value_item_index)
             else:
                 # If this changed the sort order, ensure the item is still visible:
-                self.ui.treeView_globals.scrollTo(item.index())
+                scroll_treeview_to_row_if_current(self.ui.treeView_globals, item)
 
     def change_global_value(self, global_name, previous_value, new_value):
         logger.info('%s:%s - change global value: %s = %s -> %s' %
@@ -914,7 +929,7 @@ class GroupTab(object):
                 self.ui.treeView_globals.edit(units_item_index)
             else:
                 # If this changed the sort order, ensure the item is still visible:
-                self.ui.treeView_globals.scrollTo(item.index())
+                scroll_treeview_to_row_if_current(self.ui.treeView_globals, item)
 
     def change_global_units(self, global_name, previous_units, new_units):
         logger.info('%s:%s - change units: %s = %s -> %s' %
@@ -931,7 +946,7 @@ class GroupTab(object):
             item.setData(new_units, self.GLOBALS_ROLE_SORT_DATA)
             self.do_model_sort()
             # If this changed the sort order, ensure the item is still visible:
-            self.ui.treeView_globals.scrollTo(item.index())
+            scroll_treeview_to_row_if_current(self.ui.treeView_globals, item)
 
     def change_global_expansion(self, global_name, previous_expansion, new_expansion):
         logger.info('%s:%s - change expansion: %s = %s -> %s' %
@@ -949,7 +964,7 @@ class GroupTab(object):
             self.do_model_sort()
             self.globals_changed()
             # If this changed the sort order, ensure the item is still visible:
-            self.ui.treeView_globals.scrollTo(item.index())
+            scroll_treeview_to_row_if_current(self.ui.treeView_globals, item)
 
     def check_for_boolean_values(self, item):
         """Checks if the value is 'True' or 'False'. If either, makes the
@@ -1953,7 +1968,7 @@ class RunManager(object):
             else:
                 raise AssertionError('Invalid Check state')
             # If this changed the sort order, ensure the item is still visible:
-            self.ui.treeView_groups.scrollTo(item.index())
+            scroll_treeview_to_row_if_current(self.ui.treeView_groups, item)
         elif parent_item is None:
             # They clicked on a globals file row.
             globals_file = name_item.text()
@@ -2125,7 +2140,7 @@ class RunManager(object):
                 item.setToolTip('Load globals group into runmanager.')
             self.do_model_sort()
             # If this changed the sort order, ensure the item is still visible:
-            self.ui.treeView_groups.scrollTo(item.index())
+            scroll_treeview_to_row_if_current(self.ui.treeView_groups, item)
 
     @inmain_decorator()
     def get_default_output_folder(self):
@@ -2357,7 +2372,7 @@ class RunManager(object):
         self.globals_changed()
         self.do_model_sort()
         # If this changed the sort order, ensure the file item is visible:
-        self.ui.treeView_groups.scrollTo(file_name_item.index())
+        scroll_treeview_to_row_if_current(self.ui.treeView_groups, file_name_item)
 
     def make_group_row(self, group_name):
         """Returns a new row representing one group in the groups tab, ready to be
@@ -2440,7 +2455,7 @@ class RunManager(object):
             self.globals_changed()
             self.ui.treeView_groups.setCurrentIndex(name_item.index());
             # If this changed the sort order, ensure the group item is still visible:
-            self.ui.treeView_groups.scrollTo(name_item.index())
+            scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)
         finally:
             # Set the dummy row's text back ready for another group to be created:
             item.setText(self.GROUPS_DUMMY_ROW_TEXT)
@@ -2476,7 +2491,7 @@ class RunManager(object):
             item.setData(new_group_name, self.GROUPS_ROLE_SORT_DATA)
             self.do_model_sort()
             # If this changed the sort order, ensure the group item is still visible:
-            self.ui.treeView_groups.scrollTo(item.index())
+            scroll_treeview_to_row_if_current(self.ui.treeView_groups, item)
             group_tab = self.currently_open_groups.pop((globals_file, previous_group_name), None)
             if group_tab is not None:
                 # Change labels and tooltips appropriately if the group is open:
