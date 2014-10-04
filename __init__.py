@@ -29,6 +29,8 @@ import zprocess
 
 __version__ = '2.0.1-dev'
 
+if sys.version < '3':
+    unicode = str
 
 def is_valid_python_identifier(name):
     import tokenize
@@ -80,6 +82,7 @@ def add_expansion_groups(filename):
     """backward compatability, for globals files which don't have
     expansion groups. Create them if they don't exist. Guess expansion
     settings based on datatypes, if possible."""
+    # DEPRECATED
     # Don't open in write mode unless we have to:
     with h5py.File(filename, 'r') as f:
         requires_expansion_group = []
@@ -110,6 +113,7 @@ def get_grouplist(filename):
     # For backward compatability, add 'expansion' settings to this
     # globals file, if it doesn't contain any.  Guess expansion settings
     # if possible.
+    # DEPRECATED
     add_expansion_groups(filename)
     with h5py.File(filename, 'r') as f:
         grouplist = f['globals']
@@ -188,6 +192,9 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
 def get_value(filename, groupname, globalname):
     with h5py.File(filename, 'r') as f:
         value = f['globals'][groupname].attrs[globalname]
+        # Replace numpy strings with python unicode strings.
+        # DEPRECATED, for backward compat with old files
+        value = unicode(value)
         return value
 
 
@@ -201,6 +208,9 @@ def set_value(filename, groupname, globalname, value):
 def get_units(filename, groupname, globalname):
     with h5py.File(filename, 'r') as f:
         value = f['globals'][groupname]['units'].attrs[globalname]
+        # Replace numpy strings with python unicode strings.
+        # DEPRECATED, for backward compat with old files
+        value = unicode(value)
         return value
 
 
@@ -214,6 +224,9 @@ def set_units(filename, groupname, globalname, units):
 def get_expansion(filename, groupname, globalname):
     with h5py.File(filename, 'r') as f:
         value = f['globals'][groupname]['expansion'].attrs[globalname]
+        # Replace numpy strings with python unicode strings.
+        # DEPRECATED, for backward compat with old files
+        value = unicode(value)
         return value
 
 
@@ -286,16 +299,11 @@ def get_globals(groups):
                     value = globals_group.attrs[global_name]
                     units = globals_group['units'].attrs[global_name]
                     expansion = globals_group['expansion'].attrs[global_name]
-                    # Replace numpy empty strings with python empty strings.
-                    # There is a bug where numpy empty strings can't be pickled.
-                    # This is a problem since runmanager pickles these things to
-                    # send them to mise:
-                    if isinstance(value, str) and value == '':
-                        value = ''
-                    if isinstance(units, str) and units == '':
-                        units = ''
-                    if isinstance(expansion, str) and expansion == '':
-                        expansion = ''
+                    # Replace numpy strings with python unicode strings.
+                    # DEPRECATED, for backward compat with old files
+                    value = unicode(value)
+                    units = unicode(units)
+                    expansion = unicode(expansion)
                     sequence_globals[group_name][global_name] = value, units, expansion
     return sequence_globals
 
@@ -678,7 +686,8 @@ def get_shot_globals(filepath):
             # Convert null HDF references to None:
             if isinstance(value, h5py.Reference) and not value:
                 value = None
-            # Convert numpy strings to Python ones:
+            # Convert numpy strings to Python ones.
+            # DEPRECATED, for backward compat with old files.
             if isinstance(value, np.str_):
                 value = str(value)
             params[name] = value
