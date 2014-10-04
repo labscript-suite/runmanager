@@ -13,13 +13,15 @@
 
 import sys
 import traceback
+from zprocess import setup_connection_with_parent
+to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True)
 
 # Supress labscript's automatic initialisation (labscript looks in the __main__ module for this):
 labscript_auto_init = False
 import labscript
     
 import labscript_utils.excepthook
-from zprocess import setup_connection_with_parent
+
 from labscript_utils.modulewatcher import ModuleWatcher
 
 class BatchProcessor(object):
@@ -43,9 +45,9 @@ class BatchProcessor(object):
     def compile(self,labscript_file, run_file):
         # The namespace the labscript will run in:
         sandbox = {'__name__':'__main__'}
-        labscript.labscript_init(run_file, labscript_file=labscript_file)
         try:
             with kill_lock:
+                labscript.labscript_init(run_file, labscript_file=labscript_file)
                 execfile(labscript_file,sandbox,sandbox)
             return True
         except:
@@ -58,7 +60,5 @@ class BatchProcessor(object):
             labscript.labscript_cleanup()
                    
 if __name__ == '__main__':
-    to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True)
-    
     module_watcher = ModuleWatcher() # Make sure modified modules are reloaded
     batch_processor = BatchProcessor(to_parent,from_parent,kill_lock)
