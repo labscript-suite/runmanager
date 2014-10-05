@@ -2599,6 +2599,7 @@ class RunManager(object):
         submit_to_mise = self.ui.radioButton_send_to_mise.isChecked()
         compile = self.ui.checkBox_run_shots.isChecked()
         send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
+        send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
         shuffle = self.ui.pushButton_shuffle.isChecked()
 
         save_data = {'h5_files_open': h5_files_open,
@@ -2610,6 +2611,7 @@ class RunManager(object):
                      'submit_to_mise': submit_to_mise,
                      'compile': compile,
                      'send_to_runviewer': send_to_runviewer,
+                     'send_to_BLACS': send_to_BLACS,
                      'shuffle': shuffle,
                      'BLACS_host': BLACS_host,
                      'mise_host': mise_host}
@@ -2735,8 +2737,13 @@ class RunManager(object):
         except Exception:
             pass
         else:
-            if send_to_runviewer:
-                self.ui.checkBox_view_shots.setChecked(True)
+            self.ui.checkBox_view_shots.setChecked(send_to_runviewer)
+        try:
+            send_to_BLACS = ast.literal_eval(runmanager_config.get('runmanager_state', 'send_to_BLACS'))
+        except Exception:
+            pass
+        else:
+            self.ui.checkBox_run_shots.setChecked(send_to_BLACS)
         try:
             shuffle = ast.literal_eval(runmanager_config.get('runmanager_state', 'shuffle'))
         except Exception:
@@ -2978,14 +2985,21 @@ class RunManager(object):
             logger.info('runviewer not running, attempting to start...')
             # Runviewer not running, start it:
             if os.name == 'nt':
-                # Keeps it running after runmanager stops:
                 creationflags = 0x00000008  # DETACHED_PROCESS from the win32 API
+                subprocess.Popen([sys.executable, '-m', 'runviewer'],
+                                 creationflags=creationflags, stdout=None, stderr=None,
+                                 close_fds=True)
             else:
-                creationflags = None
-            subprocess.Popen([sys.executable, '-m', 'runviewer'],
-                             creationflags=creationflags,
-                             stdout=None, stderr=None, close_fds=True)
-            time.sleep(3)
+                devnull = open(os.devnull, 'w')
+                if not os.fork():
+                    os.setsid()
+                    subprocess.Popen([sys.executable, '-m', 'runviewer'],
+                                     stdin=devnull, stdout=devnull, stderr=devnull, close_fds=True)
+                    os._exit(0)
+            try:
+                zprocess.zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
+            except Exception as e:
+                self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n' % str(e), red=True)
 
         try:
             response = zprocess.zmq_get(runviewer_port, 'localhost', data=agnostic_path, timeout=0.5)
