@@ -1186,10 +1186,8 @@ class RunManager(object):
         # The last location from which a globals file was selected, defaults
         # to experiment_shot_storage:
         self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
-        # The last file to which the user saved or loaded a configuration,
-        # defaults to experiment_shot_storage/runmanager.ini:
-        self.last_save_config_file = os.path.join(
-            self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
+        # The last file to which the user saved or loaded a configuration:
+        self.last_save_config_file = None
         # The last manually selected shot output folder, defaults to
         # experiment_shot_storage:
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
@@ -2554,9 +2552,13 @@ class RunManager(object):
             error_dialog('no changes to revert')
 
     def on_save_configuration_as_triggered(self):
+        if self.last_save_config_file is not None:
+            default = self.last_save_config_file
+        else:
+            default = os.path.join(self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
         save_file = QtGui.QFileDialog.getSaveFileName(self.ui,
                                                       'Select  file to save current runmanager configuration',
-                                                      self.last_save_config_file,
+                                                      default,
                                                       "config files (*.ini)")
         if not save_file:
             # User cancelled
@@ -2646,9 +2648,14 @@ class RunManager(object):
             if reply == QtGui.QMessageBox.Yes:
                 self.save_configuration(self.last_save_config_file)
 
+        if self.last_save_config_file is not None:
+            default = self.last_save_config_file
+        else:
+            default = os.path.join(self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
+
         file = QtGui.QFileDialog.getOpenFileName(self.ui,
                                                  'Select runmanager configuration file to load',
-                                                 self.last_save_config_file,
+                                                 default,
                                                  "config files (*.ini)")
         if not file:
             # User cancelled
@@ -2660,6 +2667,7 @@ class RunManager(object):
 
     def load_configuration(self, filename):
         self.last_save_config_file = filename
+        self.ui.actionSave_configuration.setText('Save configuration %s'%filename)
         # Close all files:
         save_data = self.get_save_data()
         for globals_file in save_data['h5_files_open']:
