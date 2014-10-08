@@ -168,9 +168,10 @@ class FingerTabBarWidget(QtGui.QTabBar):
     @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267. We will
     promote the TabBar from the ui file to one of these."""
 
-    def __init__(self, parent=None, width=220, height=30, **kwargs):
+    def __init__(self, parent=None, minwidth=180, minheight=30, **kwargs):
         QtGui.QTabBar.__init__(self, parent, **kwargs)
-        self.tabSize = QtCore.QSize(width, height)
+        self.minwidth = minwidth
+        self.minheight = minheight
         self.iconPosition = kwargs.pop('iconPosition', QtGui.QTabWidget.West)
         self._movable = None
         self.tab_movable = {}
@@ -226,7 +227,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
                 right_button.move(right_button_x, right_button_y)
             self.initStyleOption(option, index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
-            if self.tabIcon(index) is not None:
+            if not self.tabIcon(index).isNull():
                 icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 tabRect.moveLeft(10)
@@ -238,7 +239,12 @@ class FingerTabBarWidget(QtGui.QTabBar):
         painter.end()
 
     def tabSizeHint(self, index):
-        return self.tabSize
+        fontmetrics = QtGui.QFontMetrics(self.font())
+        text_width = fontmetrics.width(self.tabText(index))
+        text_height = fontmetrics.height()
+        height = text_height + 15
+        width = text_width + 45
+        return QtCore.QSize(max(self.minwidth, width), max(self.minheight, height))
 
 
 class FingerTabWidget(QtGui.QTabWidget):
@@ -436,17 +442,20 @@ class ItemDelegate(QtGui.QStyledItemDelegate):
 
     """An item delegate with a fixed height and faint grey vertical lines
     between columns"""
-    HEIGHT = 24
+    EXTRA_ROW_HEIGHT = 7
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, treeview, *args, **kwargs):
         QtGui.QStyledItemDelegate.__init__(self, *args, **kwargs)
         self._pen = QtGui.QPen()
         self._pen.setWidth(1)
         self._pen.setColor(QtGui.QColor.fromRgb(128, 128, 128, 64))
+        fontmetrics = QtGui.QFontMetrics(treeview.font())
+        text_height = fontmetrics.height()
+        self.height = text_height + self.EXTRA_ROW_HEIGHT
 
     def sizeHint(self, *args):
         size = QtGui.QStyledItemDelegate.sizeHint(self, *args)
-        return QtCore.QSize(size.width(), self.HEIGHT)
+        return QtCore.QSize(size.width(), self.height)
 
     def paint(self, painter, option, index):
         QtGui.QStyledItemDelegate.paint(self, painter, option, index)
@@ -493,7 +502,7 @@ class GroupTab(object):
         self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name', 'Value', 'Units', 'Expansion'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
 
-        self.item_delegate = ItemDelegate()
+        self.item_delegate = ItemDelegate(self.ui.treeView_globals)
         for col in range(self.globals_model.columnCount()):
             self.ui.treeView_globals.setItemDelegateForColumn(col, self.item_delegate)
 
@@ -1313,7 +1322,7 @@ class RunManager(object):
         self.groups_model = QtGui.QStandardItemModel()
         self.groups_model.setHorizontalHeaderLabels(['File/group name', 'Active', 'Delete', 'Open/Close'])
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
-        self.item_delegate = ItemDelegate()
+        self.item_delegate = ItemDelegate(self.ui.treeView_groups)
         self.ui.treeView_groups.setModel(self.groups_model)
         for col in range(self.groups_model.columnCount()):
             self.ui.treeView_groups.setItemDelegateForColumn(col, self.item_delegate)
