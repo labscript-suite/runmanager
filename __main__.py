@@ -175,6 +175,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
         self.iconPosition = kwargs.pop('iconPosition', QtGui.QTabWidget.West)
         self._movable = None
         self.tab_movable = {}
+        self.paint_clip = None
 
     def setMovable(self, movable, index=None):
         """Set tabs movable on an individual basis, or set for all tabs if no
@@ -210,21 +211,27 @@ class FingerTabBarWidget(QtGui.QTabBar):
             QtGui.QTabBar.setMovable(self, True)
         return QtGui.QTabBar.mouseReleaseEvent(self, event)
 
+    def tabLayoutChange(self):
+        total_height = 0
+        for index in range(self.count()):
+            tabRect = self.tabRect(index)
+            total_height += tabRect.height()
+        if total_height > self.parent().height():
+            # Don't paint over the top of the scroll buttons:
+            scroll_buttons_area_height = 2*max(self.style().pixelMetric(QtGui.QStyle.PM_TabBarScrollButtonWidth),
+                                               qapplication.globalStrut().width())
+            self.paint_clip = self.width(), self.parent().height() - scroll_buttons_area_height
+        else:
+            self.paint_clip = None
+
     def paintEvent(self, event):
         painter = QtGui.QStylePainter(self)
+        if self.paint_clip is not None:
+            painter.setClipRect(0, 0, *self.paint_clip)
+
         option = QtGui.QStyleOptionTab()
         for index in range(self.count()):
             tabRect = self.tabRect(index)
-            tab_x, tab_y, tab_width, tab_height = tabRect.x(), tabRect.y(), tabRect.width(), tabRect.height()
-            right_button = self.tabButton(index, QtGui.QTabBar.RightSide)
-            if right_button:
-                right_button_size = right_button.sizeHint()
-                right_button_width = right_button_size.width()
-                right_button_height = right_button_size.height()
-                padding = int((tab_height - right_button_height) / 2)
-                right_button_x = tab_x + tab_width - right_button_width - padding
-                right_button_y = tab_y + padding
-                right_button.move(right_button_x, right_button_y)
             self.initStyleOption(option, index)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
             if not self.tabIcon(index).isNull():
@@ -236,15 +243,82 @@ class FingerTabBarWidget(QtGui.QTabBar):
             else:
                 tabRect.moveLeft(10)
             painter.drawText(tabRect, QtCore.Qt.AlignVCenter, self.tabText(index))
+        if self.paint_clip is not None:
+            x_clip, y_clip = self.paint_clip
+            painter.setClipping(False)
+            palette = self.palette()
+            mid_color = palette.color(QtGui.QPalette.Mid)
+            painter.setPen(mid_color)
+            painter.drawLine(0, y_clip, x_clip, y_clip)
         painter.end()
+
 
     def tabSizeHint(self, index):
         fontmetrics = QtGui.QFontMetrics(self.font())
         text_width = fontmetrics.width(self.tabText(index))
         text_height = fontmetrics.height()
         height = text_height + 15
-        width = text_width + 45
-        return QtCore.QSize(max(self.minwidth, width), max(self.minheight, height))
+        height = max(self.minheight, height)
+        width = text_width + 15
+
+        button = self.tabButton(index, QtGui.QTabBar.RightSide)
+        if button is not None:
+            height = max(height, button.height() + 7)
+            # Same amount of space around the button horizontally as it has vertically:
+            width += button.width() + height - button.height()
+        width = max(self.minwidth, width)
+        return QtCore.QSize(width, height)
+
+    def setTabButton(self, index, geometry, button):
+        if not isinstance(button, TabToolButton):
+            raise TypeError('Not a TabToolButton, won\'t paint correctly. Use a TabToolButton')
+        result = QtGui.QTabBar.setTabButton(self, index, geometry, button)
+        button.move(*button.get_correct_position())
+        return result
+
+
+class TabToolButton(QtGui.QToolButton):
+    def __init__(self, *args, **kwargs):
+        QtGui.QToolButton.__init__(self, *args, **kwargs)
+
+    def paintEvent(self, event):
+        painter = QtGui.QStylePainter(self)
+        paint_clip = self.parent().paint_clip
+        if paint_clip is not None:
+            point = QtCore.QPoint(*paint_clip)
+            global_point = self.parent().mapToGlobal(point)
+            local_point = self.mapFromGlobal(global_point)
+            painter.setClipRect(0, 0, local_point.x(), local_point.y())
+        option = QtGui.QStyleOptionToolButton()
+        self.initStyleOption(option)
+        painter.drawComplexControl(QtGui.QStyle.CC_ToolButton, option)
+
+    def get_correct_position(self):
+        parent = self.parent()
+        for index in range(parent.count()):
+            if parent.tabButton(index, QtGui.QTabBar.RightSide) is self:
+                break
+        else:
+            raise LookupError('Tab not found')
+        tabRect = parent.tabRect(index)
+        tab_x, tab_y, tab_width, tab_height = tabRect.x(), tabRect.y(), tabRect.width(), tabRect.height()
+        size = self.sizeHint()
+        width = size.width()
+        height = size.height()
+        padding = int((tab_height - height) / 2)
+        correct_x = tab_x + tab_width - width - padding
+        correct_y = tab_y + padding
+        return correct_x, correct_y
+
+    def moveEvent(self, event):
+        try:
+            correct_x, correct_y = self.get_correct_position()
+        except LookupError:
+            return # Things aren't initialised yet
+        if self.x() != correct_x or self.y() != correct_y:
+            # Move back! I shall not be moved!
+            self.move(correct_x, correct_y)
+        return QtGui.QToolButton.moveEvent(self, event)
 
 
 class FingerTabWidget(QtGui.QTabWidget):
@@ -275,7 +349,7 @@ class FingerTabWidget(QtGui.QTabWidget):
         if closable:
             if not right_button:
                 # Make one:
-                close_button = QtGui.QToolButton(self.parent())
+                close_button = TabToolButton(self.parent())
                 close_button.setIcon(QtGui.QIcon(':/qtutils/fugue/cross'))
                 self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, close_button)
                 close_button.clicked.connect(lambda: self._on_close_button_clicked(close_button))
@@ -1160,7 +1234,7 @@ class RunManager(object):
 
         # Add a 'pop-out' button to the output tab:
         output_tab_index = self.ui.tabWidget.indexOf(self.ui.tab_output)
-        self.output_popout_button = QtGui.QToolButton(self.ui.tabWidget.parent())
+        self.output_popout_button = TabToolButton(self.ui.tabWidget.parent())
         self.output_popout_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-out'))
         self.output_popout_button.setToolTip('Toggle whether the output box is in a separate window')
         self.ui.tabWidget.tabBar().setTabButton(output_tab_index, QtGui.QTabBar.RightSide, self.output_popout_button)
@@ -2733,7 +2807,7 @@ class RunManager(object):
             if os.path.exists(current_labscript_file):
                 self.ui.lineEdit_labscript_file.setText(current_labscript_file)
                 self.last_opened_labscript_folder = os.path.dirname(current_labscript_file)
-            else:
+            elif current_labscript_file:
                 warning('previously selected labscript file %s no longer exists' % current_labscript_file)
         try:
             shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'shot_output_folder'))
