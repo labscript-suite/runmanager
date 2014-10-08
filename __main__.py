@@ -831,9 +831,9 @@ class GroupTab(object):
             possible_name_items = [item for item in possible_name_items
                                    if not item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW)]
         if len(possible_name_items) > 1:
-            raise ValueError('Multiple items found')
+            raise LookupError('Multiple items found')
         elif not possible_name_items:
-            raise ValueError('No item found')
+            raise LookupError('No item found')
         name_item = possible_name_items[0]
         name_index = name_item.index()
         # Found the name item, get the sibling item for the column requested:
@@ -2267,9 +2267,9 @@ class RunManager(object):
                                    if not item.data(self.GROUPS_ROLE_IS_DUMMY_ROW)]
 
         if len(possible_name_items) > 1:
-            raise ValueError('Multiple items found')
+            raise LookupError('Multiple items found')
         elif not possible_name_items:
-            raise ValueError('No item found')
+            raise LookupError('No item found')
         name_item = possible_name_items[0]
         name_index = name_item.index()
         # Found the name item, get the sibling item for the column requested:
@@ -2659,6 +2659,14 @@ class RunManager(object):
         # creating the file, so the directory had better exist!
         mkdir_p(os.path.dirname(filename))
         runmanager_config = LabConfig(filename)
+
+        has_been_a_warning = [False]
+        def warning(message):
+            if not has_been_a_warning[0]:
+                has_been_a_warning[0] = True
+                self.output_box.output('\n')
+            self.output_box.output('Warning: %s\n' % message, red=True)
+
         try:
             h5_files_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'h5_files_open'))
         except Exception:
@@ -2680,15 +2688,25 @@ class RunManager(object):
             pass
         else:
             for globals_file, group_name in active_groups:
-                group_active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
-                group_active_item.setCheckState(QtCore.Qt.Checked)
+                try:
+                    group_active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
+                    group_active_item.setCheckState(QtCore.Qt.Checked)
+                except LookupError:
+                    warning("previously active group '%s' in %s no longer exists" % (group_name, globals_file))
         try:
             groups_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'groups_open'))
         except Exception:
             pass
         else:
             for globals_file, group_name in groups_open:
-                self.open_group(globals_file, group_name)
+                # First check if it exists:
+                try:
+                    self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
+                except LookupError:
+                    warning("previously open group '%s' in %s no longer exists" % (group_name, globals_file))
+                else:
+                    self.open_group(globals_file, group_name)
+
         try:
             current_labscript_file = ast.literal_eval(
                 runmanager_config.get('runmanager_state', 'current_labscript_file'))
@@ -2699,8 +2717,7 @@ class RunManager(object):
                 self.ui.lineEdit_labscript_file.setText(current_labscript_file)
                 self.last_opened_labscript_folder = os.path.dirname(current_labscript_file)
             else:
-                self.output_box.output('\nWarning: labscript file %s no longer exists\n' % current_labscript_file,
-                                       red=True)
+                warning('previously selected labscript file %s no longer exists' % current_labscript_file)
         try:
             shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'shot_output_folder'))
         except Exception:
