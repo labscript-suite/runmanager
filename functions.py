@@ -14,6 +14,15 @@
 from __future__ import division
 from pylab import *
 
+ns = 1e-9
+us = 1e-6
+ms = 1e-3
+s = 1
+Hz = 1
+kHz = 1e3
+MHz = 1e6
+GHz = 1e9
+
 def quadspace(t_min, t_max, n_points, randomise=False, repeats=1):
     times = sqrt(linspace(t_min**2, t_max**2, n_points))
     times = repeat(times, repeats)
