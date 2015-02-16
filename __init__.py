@@ -28,9 +28,9 @@ import numpy as np
 
 import zprocess
 
-__version__ = '2.0.3'
+__version__ = '2.0.4-dev'
 
-if sys.version < '3':
+if not sys.version < '3':
     unicode = str
 
 def is_valid_python_identifier(name):
