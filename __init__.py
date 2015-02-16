@@ -200,8 +200,6 @@ def get_value(filename, groupname, globalname):
 
 
 def set_value(filename, groupname, globalname, value):
-    if not isinstance(value, bytes):
-        value = value
     with h5py.File(filename, 'a') as f:
         f['globals'][groupname].attrs[globalname] = value
 
@@ -216,8 +214,6 @@ def get_units(filename, groupname, globalname):
 
 
 def set_units(filename, groupname, globalname, units):
-    if not isinstance(units, bytes):
-        units = units
     with h5py.File(filename, 'a') as f:
         f['globals'][groupname]['units'].attrs[globalname] = units
 
@@ -232,8 +228,6 @@ def get_expansion(filename, groupname, globalname):
 
 
 def set_expansion(filename, groupname, globalname, expansion):
-    if not isinstance(expansion, bytes):
-        expansion = expansion
     with h5py.File(filename, 'a') as f:
         f['globals'][groupname]['expansion'].attrs[globalname] = expansion
 
