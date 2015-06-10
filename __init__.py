@@ -357,7 +357,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     sandbox = TraceDictionary()
     exec('from pylab import *', sandbox, sandbox)
     exec('from runmanager.functions import *', sandbox, sandbox)
-    exec('from mise import MiseParameter', sandbox, sandbox)
+    exec('try: from mise import MiseParameter\nexcept: pass', sandbox, sandbox)
     globals_to_eval = all_globals.copy()
     previous_errors = -1
     while globals_to_eval:
