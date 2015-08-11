@@ -28,7 +28,7 @@ import numpy as np
 
 import zprocess
 
-__version__ = '2.0.4'
+__version__ = '2.0.5-dev'
 
 if not sys.version < '3':
     unicode = str
