@@ -290,16 +290,18 @@ def get_globals(groups):
             for group_name in groups_from_this_file:
                 sequence_globals[group_name] = {}
                 globals_group = f['globals'][group_name]
-                for global_name in globals_group.attrs:
-                    value = globals_group.attrs[global_name]
-                    units = globals_group['units'].attrs[global_name]
-                    expansion = globals_group['expansion'].attrs[global_name]
+                values = dict(globals_group.attrs)
+                units = dict(globals_group['units'].attrs)
+                expansions = dict(globals_group['expansion'].attrs)
+                for global_name, value in values.items():
+                    unit = units[global_name]
+                    expansion = expansions[global_name]
                     # Replace numpy strings with python unicode strings.
                     # DEPRECATED, for backward compat with old files
                     value = unicode(value)
-                    units = unicode(units)
+                    unit = unicode(unit)
                     expansion = unicode(expansion)
-                    sequence_globals[group_name][global_name] = value, units, expansion
+                    sequence_globals[group_name][global_name] = value, unit, expansion
     return sequence_globals
 
 

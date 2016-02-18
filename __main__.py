@@ -633,7 +633,9 @@ class GroupTab(object):
             icon = QtGui.QIcon(icon_string)
         else:
             icon = QtGui.QIcon()
-        self.tabWidget.setTabIcon(index, icon)
+        if self.tabWidget.tabIcon(index).cacheKey() != icon.cacheKey():
+            logger.info('setting tab icon')
+            self.tabWidget.setTabIcon(index, icon)
 
     def populate_model(self):
         globals = runmanager.get_globals({self.group_name: self.globals_file})[self.group_name]
@@ -975,19 +977,30 @@ class GroupTab(object):
         logger.info('%s:%s - change global value: %s = %s -> %s' %
                     (self.globals_file, self.group_name, global_name, previous_value, new_value))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+        previous_background = item.background()
+        previous_icon = item.icon()
+        item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
+        item.setData(None, QtCore.Qt.BackgroundRole)
+        item.setIcon(QtGui.QIcon(':qtutils/fugue/hourglass'))
+        args = global_name, previous_value, new_value, item, previous_background, previous_icon
+        QtCore.QTimer.singleShot(1, lambda: self.complete_change_global_value(*args))
+        
+    def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon):
         try:
             runmanager.set_value(self.globals_file, self.group_name, global_name, new_value)
         except Exception as e:
             error_dialog(str(e))
             # Set the item text back to the old name, since the change failed:
-            item.setText(previous_value)
+            with self.globals_model_item_changed_disconnected:
+                item.setText(previous_value)
+                item.setData(previous_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+                item.setData(previous_value, self.GLOBALS_ROLE_SORT_DATA)
+                item.setData(previous_background, QtCore.Qt.BackgroundRole)
+                item.setIcon(previous_icon)
         else:
-            item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
             self.check_for_boolean_values(item)
             self.do_model_sort()
-            item.setData(None, QtCore.Qt.BackgroundRole)
-            item.setIcon(QtGui.QIcon(':qtutils/fugue/hourglass'))
             item.setToolTip('Evaluating...')
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
@@ -1103,17 +1116,30 @@ class GroupTab(object):
         # Check that we are an active group:
         if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
             tab_contains_errors = False
-            for global_name, value in evaled_globals[self.group_name].items():
-                value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
-                expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
+            # for global_name, value in evaled_globals[self.group_name].items():
+            for i in range(self.globals_model.rowCount()):
+                name_item = self.globals_model.item(i, self.GLOBALS_COL_NAME)
+                if name_item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
+                    continue
+                value_item = self.globals_model.item(i, self.GLOBALS_COL_VALUE)
+                expansion_item = self.globals_model.item(i, self.GLOBALS_COL_EXPANSION)
+                # value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+                # expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
+                global_name = name_item.text()
+                value = evaled_globals[self.group_name][global_name]
+                
                 ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
                 # Temporarily disconnect the item_changed signal on the model
                 # so that we can set the expansion type without triggering
                 # another preparse - the parsing has already been done with
                 # the new expansion type.
                 with self.globals_model_item_changed_disconnected:
-                    expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-                    expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
+                    if expansion_item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT) != expansion:
+                        # logger.info('expansion previous text set')
+                        expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)                    
+                    if expansion_item.data(self.GLOBALS_ROLE_SORT_DATA) != expansion:
+                        # logger.info('sort data role set')
+                        expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
                 # The next line will now trigger item_changed, but it will not
                 # be detected as an actual change to the expansion type,
                 # because previous_text will match text. So it will not look
@@ -1128,10 +1154,15 @@ class GroupTab(object):
                     tooltip = '%s: %s' % (value.__class__.__name__, value.message)
                     tab_contains_errors = True
                 else:
-                    value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_OK)))
-                    value_item.setData(None, QtCore.Qt.DecorationRole)
+                    if value_item.background().color().name().lower() != self.COLOR_OK.lower():
+                        value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_OK)))
+                    if not value_item.icon().isNull():
+                        # logger.info('clearing icon')
+                        value_item.setData(None, QtCore.Qt.DecorationRole)
                     tooltip = repr(value)
-                value_item.setToolTip(tooltip)
+                if value_item.toolTip() != tooltip:
+                    # logger.info('tooltip_changed')
+                    value_item.setToolTip(tooltip)
             if tab_contains_errors:
                 self.set_tab_icon(':qtutils/fugue/exclamation')
             else:
@@ -1267,7 +1298,7 @@ class RunManager(object):
 
         # A thread that will evaluate globals when they change, allowing us to
         # show their values and any errors in the tabs they came from.
-        self.preparse_globals_thread = threading.Thread(target=self.preparse_globals)
+        self.preparse_globals_thread = threading.Thread(target=self.preparse_globals_loop)
         self.preparse_globals_thread.daemon = True
         # A threading.Event to inform the preparser thread when globals have
         # changed, and thus need parsing again:
@@ -2269,7 +2300,7 @@ class RunManager(object):
         something about globals has changed, and that they need parsing
         again"""
         self.ui.pushButton_engage.setEnabled(False)
-        self.preparse_globals_required.set()
+        QtCore.QTimer.singleShot(1,self.preparse_globals_required.set)
 
     @inmain_decorator()  # Is called by preparser thread
     def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals, n_shots):
@@ -2283,6 +2314,26 @@ class RunManager(object):
         self.ui.pushButton_engage.setText('Engage {}'.format(n_shots_string))
 
     def preparse_globals(self):
+        active_groups = self.get_active_groups()
+        if active_groups is None:
+            # There was an error, get_active_groups has already shown
+            # it to the user.
+            return
+        # Expansion mode is automatically updated when the global's
+        # type changes. If this occurs, we will have to parse again to
+        # include the change:
+        while True:
+            results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True)
+            sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
+            n_shots = len(shots)
+            expansions_changed = self.guess_expansion_modes(
+                active_groups, evaled_globals, global_hierarchy, expansions)
+            if not expansions_changed:
+                break
+        self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, n_shots)
+
+    
+    def preparse_globals_loop(self):
         """Runs in a thread, waiting on a threading.Event that tells us when
         some globals have changed, and calls parse_globals to evaluate them
         all before feeding the results back to the relevant tabs to be
@@ -2293,23 +2344,7 @@ class RunManager(object):
                 self.preparse_globals_required.wait()
                 self.preparse_globals_required.clear()
                 # Do some work:
-                active_groups = self.get_active_groups()
-                if active_groups is None:
-                    # There was an error, get_active_groups has already shown
-                    # it to the user.
-                    continue
-                # Expansion mode is automatically updated when the global's
-                # type changes. If this occurs, we will have to parse again to
-                # include the change:
-                while True:
-                    results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True)
-                    sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
-                    n_shots = len(shots)
-                    expansions_changed = self.guess_expansion_modes(
-                        active_groups, evaled_globals, global_hierarchy, expansions)
-                    if not expansions_changed:
-                        break
-                self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, n_shots)
+                self.preparse_globals()
             except Exception:
                 # Raise the error, but keep going so we don't take down the
                 # whole thread if there is a bug.
@@ -2913,11 +2948,14 @@ class RunManager(object):
 
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True):
         sequence_globals = runmanager.get_globals(active_groups)
+        #logger.info('got sequence globals')
         evaled_globals, global_hierarchy, expansions = runmanager.evaluate_globals(sequence_globals, raise_exceptions)
+        #logger.info('evaluated sequence globals')
         if expand_globals:
             shots = runmanager.expand_globals(sequence_globals, evaled_globals)
         else:
             shots = []
+        #logger.info('expanded sequence globals')
         return sequence_globals, shots, evaled_globals, global_hierarchy, expansions
 
     def guess_expansion_modes(self, active_groups, evaled_globals, global_hierarchy, expansions):
