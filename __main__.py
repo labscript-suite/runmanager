@@ -2272,10 +2272,11 @@ class RunManager(object):
         self.preparse_globals_required.set()
 
     @inmain_decorator()  # Is called by preparser thread
-    def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals):
+    def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals, n_shots):
         for group_tab in self.currently_open_groups.values():
             group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals)
         self.ui.pushButton_engage.setEnabled(True)
+        self.ui.pushButton_engage.setText('Engage ({} shots)'.format(n_shots))
 
     def preparse_globals(self):
         """Runs in a thread, waiting on a threading.Event that tells us when
@@ -2297,13 +2298,14 @@ class RunManager(object):
                 # type changes. If this occurs, we will have to parse again to
                 # include the change:
                 while True:
-                    results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False)
+                    results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True)
                     sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
+                    n_shots = len(shots)
                     expansions_changed = self.guess_expansion_modes(
                         active_groups, evaled_globals, global_hierarchy, expansions)
                     if not expansions_changed:
                         break
-                self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals)
+                self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, n_shots)
             except Exception:
                 # Raise the error, but keep going so we don't take down the
                 # whole thread if there is a bug.
