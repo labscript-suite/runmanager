@@ -2276,7 +2276,11 @@ class RunManager(object):
         for group_tab in self.currently_open_groups.values():
             group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals)
         self.ui.pushButton_engage.setEnabled(True)
-        self.ui.pushButton_engage.setText('Engage ({} shots)'.format(n_shots))
+        if n_shots == 1:
+            n_shots_string = '(1 shot)'
+        else:
+            n_shots_string = '({} shots)'.format(n_shots)
+        self.ui.pushButton_engage.setText('Engage {}'.format(n_shots_string))
 
     def preparse_globals(self):
         """Runs in a thread, waiting on a threading.Event that tells us when
