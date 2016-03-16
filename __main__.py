@@ -2323,12 +2323,18 @@ class RunManager(object):
         # type changes. If this occurs, we will have to parse again to
         # include the change:
         while True:
-            results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True)
+            results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False)
             sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
             n_shots = len(shots)
             expansions_changed = self.guess_expansion_modes(
                 active_groups, evaled_globals, global_hierarchy, expansions)
             if not expansions_changed:
+                # Now expand globals while parsing to calculate the number of shots.
+                # this must only be done after the expansion type guessing has been updated to avoid exceptions
+                # when changing a zip group from a list to a single value
+                results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True)
+                sequence_globals, shots, evaled_globals, global_hierarchy, expansions = results
+                n_shots = len(shots)
                 break
         self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, n_shots)
 
