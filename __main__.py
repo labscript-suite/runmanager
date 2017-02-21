@@ -54,7 +54,7 @@ except ImportError:
     
 check_version('labscript_utils', '2', '3')
 check_version('qtutils', '1.5.3', '2')
-check_version('zprocess', '1.1.5', '2')
+check_version('zprocess', '1.1.5', '3.0')
 check_version('pandas', '0.13', '2')
 
 import zprocess.locking
