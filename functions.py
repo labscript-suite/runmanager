@@ -35,19 +35,6 @@ def quadspace(t_min, t_max, n_points, randomise=False, repeats=1):
 # For backward compatibility:
 drop_times = quadspace
 
-def sineramp_invert(y, y_i, y_f):
-    """Finds the fractional duration of the sineramp (from y_i to y_f) at which the value y occurs.
-    This can then be used as the truncation argument to AnalogQuantity.sineramp, for example.
-    """
-    if not (y <<)
-    if y_i > y_f:
-        y_min, y_max = y_f, y_i
-    elif y_i < y_f:
-        y_min, y_max = y_i, y_f
-    else:
-        raise LabscriptError('The initial value y_i and final value y_f of the sineramp must be distinct.')
-    return 2*arcsin(sqrt(y_max-y)/(sqrt(y_max-y_min)))/pi
-
 def first():
     """Infinite iterator. Its first return value is true, subsequent
     return values are False"""
