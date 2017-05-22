@@ -1925,102 +1925,22 @@ class RunManager(object):
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = os.path.abspath(globals_file)
 
-        def remove_comments_and_tokenify(line):
-            """Removed EOL comments from a line, leaving it otherwise intact,
-            and returns it. Also returns the raw tokens for the line, allowing
-            comparisons between lines to be made without being sensitive to
-            whitespace."""
-            import tokenize
-            import StringIO
-            result_expression = ''
-            result_tokens = []
-            error_encountered = False
-            # This never fails because it produces a generator, syntax errors
-            # come out when looping over it:
-            tokens = tokenize.generate_tokens(StringIO.StringIO(line).readline)
-            try:
-                for token_type, token_value, (_, start), (_, end), _ in tokens:
-                    if token_type == tokenize.COMMENT and not error_encountered:
-                        break
-                    if token_type == tokenize.ERRORTOKEN:
-                        error_encountered = True
-                    result_expression = result_expression.ljust(start)
-                    result_expression += token_value
-                    if token_value:
-                        result_tokens.append(token_value)
-            except tokenize.TokenError:
-                # Means EOF was reached without closing brackets or something.
-                # We don't care, return what we've got.
-                pass
-            return result_expression, result_tokens
-
-        def flatten_globals(sequence_globals, evaluated=False):
-            """Flattens the data structure of the globals. If evaluated=False,
-            saves only the value expression string of the global, not the
-            units or expansion."""
-            flattened_sequence_globals = {}
-            for globals_group in sequence_globals.values():
-                for name, value in globals_group.items():
-                    if evaluated:
-                        flattened_sequence_globals[name] = value
-                    else:
-                        value_expression, units, expansion = value
-                        flattened_sequence_globals[name] = value_expression
-            return flattened_sequence_globals
-
         # Get runmanager's globals
         active_groups = self.get_active_groups()
         if active_groups is None:
             # Invalid group selection
             return
-        our_sequence_globals = runmanager.get_globals(active_groups)
 
-        # Get file's globals
+        # Get file's globals groups
         other_groups = runmanager.get_all_groups(globals_file)
-        other_sequence_globals = runmanager.get_globals(other_groups)
-
-        # evaluate globals
-        our_evaluated_sequence_globals, _, _ = runmanager.evaluate_globals(our_sequence_globals, raise_exceptions=False)
-        other_evaluated_sequence_globals, _, _ = runmanager.evaluate_globals(
-            other_sequence_globals, raise_exceptions=False)
-
-        # flatten globals dictionaries
-        our_globals = flatten_globals(our_sequence_globals, evaluated=False)
-        other_globals = flatten_globals(other_sequence_globals, evaluated=False)
-        our_evaluated_globals = flatten_globals(our_evaluated_sequence_globals, evaluated=True)
-        other_evaluated_globals = flatten_globals(other_evaluated_sequence_globals, evaluated=True)
-
-        # diff the *evaluated* globals
-        value_differences = runmanager.dict_diff(other_evaluated_globals, our_evaluated_globals)
 
         # Display the output tab so the user can see the output:
         self.ui.tabWidget.setCurrentWidget(self.ui.tab_output)
+        self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
 
-        # We are interested only in displaying globals where *both* the
-        # evaluated global *and* its unevaluated expression (ignoring comments
-        # and whitespace) differ. This will minimise false positives where a
-        # slight change in an expression still leads to the same value, or
-        # where an object has a poorly defined equality operator that returns
-        # False even when the two objects are identical.
-        filtered_differences = {}
-        for name, (other_value, our_value) in value_differences.items():
-            our_expression = our_globals.get(name, '-')
-            other_expression = other_globals.get(name, '-')
-            # Strip comments, get tokens so we can diff without being sensitive to comments or whitespace:
-            our_expression, our_tokens = remove_comments_and_tokenify(our_expression)
-            other_expression, other_tokens = remove_comments_and_tokenify(other_expression)
-            if our_tokens != other_tokens:
-                filtered_differences[name] = [repr(other_value), repr(our_value), other_expression, our_expression]
-        if filtered_differences:
-            import pandas as pd
-            df = pd.DataFrame.from_dict(filtered_differences, 'index')
-            df = df.sort()
-            df.columns = ['Prev (Eval)', 'Current (Eval)', 'Prev (Raw)', 'Current (Raw)']
-            self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
-            df_string = df.to_string(max_cols=1000)
-            self.output_box.output(df_string + '\n\n')
-        else:
-            self.output_box.output('Evaluated globals are identical to those of:\n%s\n' % globals_file)
+        # Do the globals diff
+        globals_diff_table = runmanager.globals_diff_groups(active_groups, other_groups)
+        self.output.box.output(globals_diff_table)
         self.output_box.output('Ready.\n\n')
 
     def on_treeView_groups_leftClicked(self, index):
