@@ -2946,12 +2946,12 @@ class RunManager(object):
                     expansion_types_changed = True
 
         # recursively find dependencies and add them to a zip group!
-        def find_dependencies(global_name, global_hierarchy):
+        def find_dependencies(global_name, global_hierarchy, expansion_types):
             results = set()
             for name, dependencies in global_hierarchy.items():
-                if global_name in dependencies:
+                if name in expansion_types and global_name in dependencies:
                     results.add(name)
-                    results = results.union(find_dependencies(name, global_hierarchy))
+                    results = results.union(find_dependencies(name, global_hierarchy, expansion_types))
             return results
 
         def global_depends_on_global_with_outer_product(global_name, global_hierarchy, expansions):
@@ -2967,7 +2967,8 @@ class RunManager(object):
             # expansion type of 'outer'
             if (not global_depends_on_global_with_outer_product(global_name, global_hierarchy, expansions)
                     and not isinstance(expansion_types[global_name]['value'], runmanager.ExpansionError)):
-                current_dependencies = find_dependencies(global_name, global_hierarchy)
+                current_dependencies = find_dependencies(global_name, global_hierarchy, expansion_types)
+                
                 # if this global has other globals that use it, then add them
                 # all to a zip group with the name of this global
                 if current_dependencies:
@@ -2981,7 +2982,7 @@ class RunManager(object):
             if (not global_depends_on_global_with_outer_product(
                 global_name, self.previous_global_hierarchy, self.previous_expansions)
                     and not isinstance(self.previous_expansion_types[global_name]['value'], runmanager.ExpansionError)):
-                old_dependencies = find_dependencies(global_name, self.previous_global_hierarchy)
+                old_dependencies = find_dependencies(global_name, self.previous_global_hierarchy, self.previous_expansion_types)
                 # if this global has other globals that use it, then add them
                 # all to a zip group with the name of this global
                 if old_dependencies:
