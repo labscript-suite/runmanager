@@ -1940,7 +1940,7 @@ class RunManager(object):
 
         # Do the globals diff
         globals_diff_table = runmanager.globals_diff_groups(active_groups, other_groups)
-        self.output.box.output(globals_diff_table)
+        self.output_box.output(globals_diff_table)
         self.output_box.output('Ready.\n\n')
 
     def on_treeView_groups_leftClicked(self, index):
