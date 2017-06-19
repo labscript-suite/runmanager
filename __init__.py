@@ -802,7 +802,7 @@ def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_strin
     if filtered_differences:
         import pandas as pd
         df = pd.DataFrame.from_dict(filtered_differences, 'index')
-        df = df.sort()
+        df = df.sort_index()
         df.columns = ['Prev (Eval)', 'Current (Eval)', 'Prev (Raw)', 'Current (Raw)']
         df_string = df.to_string(max_cols=max_cols)
         payload = df_string + '\n\n'
