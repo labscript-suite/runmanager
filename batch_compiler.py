@@ -42,7 +42,8 @@ class BatchProcessor(object):
         # The namespace the labscript will run in:
         sandbox = {'__name__':'__main__'}
         try:
-            with kill_lock:
+            # Do not let the modulewatcher unload any modules whilst we're working:
+            with kill_lock, module_watcher.lock:
                 labscript.labscript_init(run_file, labscript_file=labscript_file)
                 execfile(labscript_file,sandbox,sandbox)
             return True
