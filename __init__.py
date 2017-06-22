@@ -675,7 +675,7 @@ def get_shot_globals(filepath):
     Simple dictionary access as in dict(h5py.File(filepath).attrs) would be fine
     except we want to apply some hacks, so it's best to do that in one place."""
     params = {}
-    with h5py.File(filepath) as f:
+    with h5py.File(filepath, 'r') as f:
         for name, value in f['globals'].attrs.items():
             # Convert numpy bools to normal bools:
             if isinstance(value, np.bool_):
