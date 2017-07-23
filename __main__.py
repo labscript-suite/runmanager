@@ -40,8 +40,8 @@ API_VERSION = 2
 for name in API_NAMES:
     sip.setapi(name, API_VERSION)
 
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import pyqtSignal as Signal
+from qtutils.qt import QtCore, QtGui, QtWidgets
+from qtutils.qt.QtCore import pyqtSignal as Signal
 
 import signal
 # Quit on ctrl-c
@@ -51,7 +51,7 @@ try:
     from labscript_utils import check_version
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
-    
+
 check_version('labscript_utils', '2', '3')
 check_version('qtutils', '1.5.3', '2')
 check_version('zprocess', '1.1.5', '3.0')
@@ -90,14 +90,14 @@ def set_win_appusermodel(window_id):
 
 @inmain_decorator()
 def error_dialog(message):
-    QtGui.QMessageBox.warning(app.ui, 'runmanager', message)
+    QtWidgets.QMessageBox.warning(app.ui, 'runmanager', message)
 
 
 @inmain_decorator()
 def question_dialog(message):
-    reply = QtGui.QMessageBox.question(app.ui, 'runmanager', message,
-                                       QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-    return (reply == QtGui.QMessageBox.Yes)
+    reply = QtWidgets.QMessageBox.question(app.ui, 'runmanager', message,
+                                       QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+    return (reply == QtWidgets.QMessageBox.Yes)
 
 
 def mkdir_p(path):
@@ -135,7 +135,7 @@ def scroll_treeview_to_row_if_current(treeview, item):
         horizontal_scrollbar.setValue(existing_horizontal_position)
 
 
-class KeyPressQApplication(QtGui.QApplication):
+class KeyPressQApplication(QtWidgets.QApplication):
 
     """A Qapplication that emits a signal keyPress(key) on keypresses"""
     keyPress = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
@@ -146,20 +146,20 @@ class KeyPressQApplication(QtGui.QApplication):
             self.keyPress.emit(event.key(), event.modifiers(), event.isAutoRepeat())
         elif event.type() == QtCore.QEvent.KeyRelease and event.key():
             self.keyRelease.emit(event.key(), event.modifiers(), event.isAutoRepeat())
-        return QtGui.QApplication.notify(self, object, event)
+        return QtWidgets.QApplication.notify(self, object, event)
 
 
-class FingerTabBarWidget(QtGui.QTabBar):
+class FingerTabBarWidget(QtWidgets.QTabBar):
 
     """A TabBar with the tabs on the left and the text horizontal. Credit to
     @LegoStormtroopr, https://gist.github.com/LegoStormtroopr/5075267. We will
     promote the TabBar from the ui file to one of these."""
 
     def __init__(self, parent=None, minwidth=180, minheight=30, **kwargs):
-        QtGui.QTabBar.__init__(self, parent, **kwargs)
+        QtWidgets.QTabBar.__init__(self, parent, **kwargs)
         self.minwidth = minwidth
         self.minheight = minheight
-        self.iconPosition = kwargs.pop('iconPosition', QtGui.QTabWidget.West)
+        self.iconPosition = kwargs.pop('iconPosition', QtWidgets.QTabWidget.West)
         self._movable = None
         self.tab_movable = {}
         self.paint_clip = None
@@ -170,14 +170,14 @@ class FingerTabBarWidget(QtGui.QTabBar):
         if index is None:
             self._movable = movable
             self.tab_movable = {}
-            QtGui.QTabBar.setMovable(self, movable)
+            QtWidgets.QTabBar.setMovable(self, movable)
         else:
             self.tab_movable[int(index)] = bool(movable)
 
     def isMovable(self, index=None):
         if index is None:
             if self._movable is None:
-                self._movable = QtGui.QTabBar.isMovable(self)
+                self._movable = QtWidgets.QTabBar.isMovable(self)
             return self._movable
         return self.tab_movable.get(index, self._movable)
 
@@ -189,14 +189,14 @@ class FingerTabBarWidget(QtGui.QTabBar):
     def mousePressEvent(self, event):
         index = self.indexAtPos(event.pos())
         if not self.tab_movable.get(index, self.isMovable()):
-            QtGui.QTabBar.setMovable(self, False)  # disable dragging until they release the mouse
-        return QtGui.QTabBar.mousePressEvent(self, event)
+            QtWidgets.QTabBar.setMovable(self, False)  # disable dragging until they release the mouse
+        return QtWidgets.QTabBar.mousePressEvent(self, event)
 
     def mouseReleaseEvent(self, event):
         if self.isMovable():
             # Restore this in case it was temporarily disabled by mousePressEvent
-            QtGui.QTabBar.setMovable(self, True)
-        return QtGui.QTabBar.mouseReleaseEvent(self, event)
+            QtWidgets.QTabBar.setMovable(self, True)
+        return QtWidgets.QTabBar.mouseReleaseEvent(self, event)
 
     def tabLayoutChange(self):
         total_height = 0
@@ -205,22 +205,22 @@ class FingerTabBarWidget(QtGui.QTabBar):
             total_height += tabRect.height()
         if total_height > self.parent().height():
             # Don't paint over the top of the scroll buttons:
-            scroll_buttons_area_height = 2*max(self.style().pixelMetric(QtGui.QStyle.PM_TabBarScrollButtonWidth),
+            scroll_buttons_area_height = 2*max(self.style().pixelMetric(QtWidgets.QStyle.PM_TabBarScrollButtonWidth),
                                                qapplication.globalStrut().width())
             self.paint_clip = self.width(), self.parent().height() - scroll_buttons_area_height
         else:
             self.paint_clip = None
 
     def paintEvent(self, event):
-        painter = QtGui.QStylePainter(self)
+        painter = QtWidgets.QStylePainter(self)
         if self.paint_clip is not None:
             painter.setClipRect(0, 0, *self.paint_clip)
 
-        option = QtGui.QStyleOptionTab()
+        option = QtWidgets.QStyleOptionTab()
         for index in range(self.count()):
             tabRect = self.tabRect(index)
             self.initStyleOption(option, index)
-            painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
+            painter.drawControl(QtWidgets.QStyle.CE_TabBarTabShape, option)
             if not self.tabIcon(index).isNull():
                 icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
@@ -248,7 +248,7 @@ class FingerTabBarWidget(QtGui.QTabBar):
         height = max(self.minheight, height)
         width = text_width + 15
 
-        button = self.tabButton(index, QtGui.QTabBar.RightSide)
+        button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
         if button is not None:
             height = max(height, button.height() + 7)
             # Same amount of space around the button horizontally as it has vertically:
@@ -259,31 +259,31 @@ class FingerTabBarWidget(QtGui.QTabBar):
     def setTabButton(self, index, geometry, button):
         if not isinstance(button, TabToolButton):
             raise TypeError('Not a TabToolButton, won\'t paint correctly. Use a TabToolButton')
-        result = QtGui.QTabBar.setTabButton(self, index, geometry, button)
+        result = QtWidgets.QTabBar.setTabButton(self, index, geometry, button)
         button.move(*button.get_correct_position())
         return result
 
 
-class TabToolButton(QtGui.QToolButton):
+class TabToolButton(QtWidgets.QToolButton):
     def __init__(self, *args, **kwargs):
-        QtGui.QToolButton.__init__(self, *args, **kwargs)
+        QtWidgets.QToolButton.__init__(self, *args, **kwargs)
 
     def paintEvent(self, event):
-        painter = QtGui.QStylePainter(self)
+        painter = QtWidgets.QStylePainter(self)
         paint_clip = self.parent().paint_clip
         if paint_clip is not None:
             point = QtCore.QPoint(*paint_clip)
             global_point = self.parent().mapToGlobal(point)
             local_point = self.mapFromGlobal(global_point)
             painter.setClipRect(0, 0, local_point.x(), local_point.y())
-        option = QtGui.QStyleOptionToolButton()
+        option = QtWidgets.QStyleOptionToolButton()
         self.initStyleOption(option)
-        painter.drawComplexControl(QtGui.QStyle.CC_ToolButton, option)
+        painter.drawComplexControl(QtWidgets.QStyle.CC_ToolButton, option)
 
     def get_correct_position(self):
         parent = self.parent()
         for index in range(parent.count()):
-            if parent.tabButton(index, QtGui.QTabBar.RightSide) is self:
+            if parent.tabButton(index, QtWidgets.QTabBar.RightSide) is self:
                 break
         else:
             raise LookupError('Tab not found')
@@ -305,15 +305,15 @@ class TabToolButton(QtGui.QToolButton):
         if self.x() != correct_x or self.y() != correct_y:
             # Move back! I shall not be moved!
             self.move(correct_x, correct_y)
-        return QtGui.QToolButton.moveEvent(self, event)
+        return QtWidgets.QToolButton.moveEvent(self, event)
 
 
-class FingerTabWidget(QtGui.QTabWidget):
+class FingerTabWidget(QtWidgets.QTabWidget):
 
     """A QTabWidget equivalent which uses our FingerTabBarWidget"""
 
     def __init__(self, parent, *args):
-        QtGui.QTabWidget.__init__(self, parent, *args)
+        QtWidgets.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
 
     def keyPressEvent(self, event):
@@ -323,36 +323,36 @@ class FingerTabWidget(QtGui.QTabWidget):
                 # application, so ignore them here so as not to double up.
                 event.ignore()
                 return
-        return QtGui.QTabWidget.keyPressEvent(self, event)
+        return QtWidgets.QTabWidget.keyPressEvent(self, event)
 
     def addTab(self, *args, **kwargs):
         closeable = kwargs.pop('closable', False)
-        index = QtGui.QTabWidget.addTab(self, *args, **kwargs)
+        index = QtWidgets.QTabWidget.addTab(self, *args, **kwargs)
         self.setTabClosable(index, closeable)
         return index
 
     def setTabClosable(self, index, closable):
-        right_button = self.tabBar().tabButton(index, QtGui.QTabBar.RightSide)
+        right_button = self.tabBar().tabButton(index, QtWidgets.QTabBar.RightSide)
         if closable:
             if not right_button:
                 # Make one:
                 close_button = TabToolButton(self.parent())
                 close_button.setIcon(QtGui.QIcon(':/qtutils/fugue/cross'))
-                self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, close_button)
+                self.tabBar().setTabButton(index, QtWidgets.QTabBar.RightSide, close_button)
                 close_button.clicked.connect(lambda: self._on_close_button_clicked(close_button))
         else:
             if right_button:
                 # Get rid of it:
-                self.tabBar().setTabButton(index, QtGui.QTabBar.RightSide, None)
+                self.tabBar().setTabButton(index, QtWidgets.QTabBar.RightSide, None)
 
     def _on_close_button_clicked(self, button):
         for index in range(self.tabBar().count()):
-            if self.tabBar().tabButton(index, QtGui.QTabBar.RightSide) is button:
+            if self.tabBar().tabButton(index, QtWidgets.QTabBar.RightSide) is button:
                 self.tabCloseRequested.emit(index)
                 break
 
 
-class TreeView(QtGui.QTreeView):
+class TreeView(QtWidgets.QTreeView):
     leftClicked = Signal(QtCore.QModelIndex)
     doubleLeftClicked = Signal(QtCore.QModelIndex)
     """A QTreeview that emits a custom signal leftClicked(index) after a left
@@ -360,7 +360,7 @@ class TreeView(QtGui.QTreeView):
     double click. Also has modified tab and arrow key behaviour."""
 
     def __init__(self, *args):
-        QtGui.QTreeView.__init__(self, *args)
+        QtWidgets.QTreeView.__init__(self, *args)
         self._pressed_index = None
         self._double_click = False
         self._ROLE_IGNORE_TABNEXT = None
@@ -374,14 +374,14 @@ class TreeView(QtGui.QTreeView):
         self._ROLE_IGNORE_TABNEXT = role
 
     def mousePressEvent(self, event):
-        result = QtGui.QTreeView.mousePressEvent(self, event)
+        result = QtWidgets.QTreeView.mousePressEvent(self, event)
         index = self.indexAt(event.pos())
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
             self._pressed_index = self.indexAt(event.pos())
         return result
 
     def leaveEvent(self, event):
-        result = QtGui.QTreeView.leaveEvent(self, event)
+        result = QtWidgets.QTreeView.leaveEvent(self, event)
         self._pressed_index = None
         self._double_click = False
         return result
@@ -389,7 +389,7 @@ class TreeView(QtGui.QTreeView):
     def mouseDoubleClickEvent(self, event):
         # Ensure our left click event occurs regardless of whether it is the
         # second click in a double click or not
-        result = QtGui.QTreeView.mouseDoubleClickEvent(self, event)
+        result = QtWidgets.QTreeView.mouseDoubleClickEvent(self, event)
         index = self.indexAt(event.pos())
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
             self._pressed_index = self.indexAt(event.pos())
@@ -397,7 +397,7 @@ class TreeView(QtGui.QTreeView):
         return result
 
     def mouseReleaseEvent(self, event):
-        result = QtGui.QTreeView.mouseReleaseEvent(self, event)
+        result = QtWidgets.QTreeView.mouseReleaseEvent(self, event)
         index = self.indexAt(event.pos())
         if event.button() == QtCore.Qt.LeftButton and index.isValid() and index == self._pressed_index:
             self.leftClicked.emit(index)
@@ -413,14 +413,14 @@ class TreeView(QtGui.QTreeView):
             event.accept()
             item = self.model().itemFromIndex(self.currentIndex())
             if item is not None and item.isEditable():
-                if self.state() != QtGui.QTreeView.EditingState:
+                if self.state() != QtWidgets.QTreeView.EditingState:
                     self.edit(self.currentIndex())
             else:
                 # Enter on non-editable items simulates a left click:
                 self.leftClicked.emit(self.currentIndex())
             return True
         else:
-            return QtGui.QTreeView.event(self, event)
+            return QtWidgets.QTreeView.event(self, event)
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Space:
@@ -428,22 +428,22 @@ class TreeView(QtGui.QTreeView):
             if not item.isEditable():
                 # Space on non-editable items simulates a left click:
                 self.leftClicked.emit(self.currentIndex())
-        return QtGui.QTreeView.keyPressEvent(self, event)
+        return QtWidgets.QTreeView.keyPressEvent(self, event)
 
     def moveCursor(self, cursor_action, keyboard_modifiers):
         current_index = self.currentIndex()
         current_row, current_column = current_index.row(), current_index.column()
-        if cursor_action == QtGui.QTreeView.MoveUp:
+        if cursor_action == QtWidgets.QTreeView.MoveUp:
             return current_index.sibling(current_row - 1, current_column)
-        elif cursor_action == QtGui.QTreeView.MoveDown:
+        elif cursor_action == QtWidgets.QTreeView.MoveDown:
             return current_index.sibling(current_row + 1, current_column)
-        elif cursor_action == QtGui.QTreeView.MoveLeft:
+        elif cursor_action == QtWidgets.QTreeView.MoveLeft:
             return current_index.sibling(current_row, current_column - 1)
-        elif cursor_action == QtGui.QTreeView.MoveRight:
+        elif cursor_action == QtWidgets.QTreeView.MoveRight:
             return current_index.sibling(current_row, current_column + 1)
-        elif cursor_action == QtGui.QTreeView.MovePrevious:
+        elif cursor_action == QtWidgets.QTreeView.MovePrevious:
             return current_index.sibling(current_row, current_column - 1)
-        elif cursor_action == QtGui.QTreeView.MoveNext:
+        elif cursor_action == QtWidgets.QTreeView.MoveNext:
             item = self.model().itemFromIndex(self.currentIndex())
             if (item is not None and self._ROLE_IGNORE_TABNEXT is not None
                     and item.data(self._ROLE_IGNORE_TABNEXT)):
@@ -451,7 +451,7 @@ class TreeView(QtGui.QTreeView):
                 return QtCore.QModelIndex()
             return current_index.sibling(current_row, current_column + 1)
         else:
-            return QtGui.QTreeView.moveCursor(self, cursor_action, keyboard_modifiers)
+            return QtWidgets.QTreeView.moveCursor(self, cursor_action, keyboard_modifiers)
 
 
 class AlternatingColorModel(QtGui.QStandardItemModel):
@@ -499,14 +499,14 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
         return QtGui.QStandardItemModel.data(self, index, role)
 
 
-class ItemDelegate(QtGui.QStyledItemDelegate):
+class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
     """An item delegate with a fixed height and faint grey vertical lines
     between columns"""
     EXTRA_ROW_HEIGHT = 7
 
     def __init__(self, treeview, *args, **kwargs):
-        QtGui.QStyledItemDelegate.__init__(self, *args, **kwargs)
+        QtWidgets.QStyledItemDelegate.__init__(self, *args, **kwargs)
         self._pen = QtGui.QPen()
         self._pen.setWidth(1)
         self._pen.setColor(QtGui.QColor.fromRgb(128, 128, 128, 64))
@@ -515,11 +515,11 @@ class ItemDelegate(QtGui.QStyledItemDelegate):
         self.height = text_height + self.EXTRA_ROW_HEIGHT
 
     def sizeHint(self, *args):
-        size = QtGui.QStyledItemDelegate.sizeHint(self, *args)
+        size = QtWidgets.QStyledItemDelegate.sizeHint(self, *args)
         return QtCore.QSize(size.width(), self.height)
 
     def paint(self, painter, option, index):
-        QtGui.QStyledItemDelegate.paint(self, painter, option, index)
+        QtWidgets.QStyledItemDelegate.paint(self, painter, option, index)
         if index.column() > 0:
             painter.setPen(self._pen)
             painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
@@ -569,21 +569,21 @@ class GroupTab(object):
 
         self.ui.treeView_globals.setModel(self.globals_model)
         self.ui.treeView_globals.setRoleIgnoreTabNext(self.GLOBALS_ROLE_IGNORE_TABNEXT)
-        self.ui.treeView_globals.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
+        self.ui.treeView_globals.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
         self.ui.treeView_globals.setSortingEnabled(True)
         # Make it so the user can just start typing on an item to edit:
-        self.ui.treeView_globals.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
-                                                 QtGui.QTreeView.EditKeyPressed)
+        self.ui.treeView_globals.setEditTriggers(QtWidgets.QTreeView.AnyKeyPressed |
+                                                 QtWidgets.QTreeView.EditKeyPressed)
         # Ensure the clickable region of the delete button doesn't extend forever:
         self.ui.treeView_globals.header().setStretchLastSection(False)
         # Setup stuff for a custom context menu:
         self.ui.treeView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         # Make the actions for the context menu:
-        self.action_globals_delete_selected = QtGui.QAction(
+        self.action_globals_delete_selected = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected global(s)',  self.ui)
-        self.action_globals_set_selected_true = QtGui.QAction(
+        self.action_globals_set_selected_true = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected Booleans True',  self.ui)
-        self.action_globals_set_selected_false = QtGui.QAction(
+        self.action_globals_set_selected_false = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected Booleans False',  self.ui)
 
         self.connect_signals()
@@ -753,7 +753,7 @@ class GroupTab(object):
         elif not item.data(self.GLOBALS_ROLE_IS_BOOL):
             # Edit whatever it is:
             if (self.ui.treeView_globals.currentIndex() != index
-                    or self.ui.treeView_globals.state() != QtGui.QTreeView.EditingState):
+                    or self.ui.treeView_globals.state() != QtWidgets.QTreeView.EditingState):
                 self.ui.treeView_globals.setCurrentIndex(index)
                 self.ui.treeView_globals.edit(index)
 
@@ -847,7 +847,7 @@ class GroupTab(object):
             self.change_global_expansion(global_name, previous_expansion, new_expansion)
 
     def on_treeView_globals_context_menu_requested(self, point):
-        menu = QtGui.QMenu(self.ui)
+        menu = QtWidgets.QMenu(self.ui)
         menu.addAction(self.action_globals_set_selected_true)
         menu.addAction(self.action_globals_set_selected_false)
         menu.addAction(self.action_globals_delete_selected)
@@ -985,7 +985,7 @@ class GroupTab(object):
         item.setIcon(QtGui.QIcon(':qtutils/fugue/hourglass'))
         args = global_name, previous_value, new_value, item, previous_background, previous_icon
         QtCore.QTimer.singleShot(1, lambda: self.complete_change_global_value(*args))
-        
+
     def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon):
         try:
             runmanager.set_value(self.globals_file, self.group_name, global_name, new_value)
@@ -1127,7 +1127,7 @@ class GroupTab(object):
                 # expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
                 global_name = name_item.text()
                 value = evaled_globals[self.group_name][global_name]
-                
+
                 ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
                 # Temporarily disconnect the item_changed signal on the model
                 # so that we can set the expansion type without triggering
@@ -1136,7 +1136,7 @@ class GroupTab(object):
                 with self.globals_model_item_changed_disconnected:
                     if expansion_item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT) != expansion:
                         # logger.info('expansion previous text set')
-                        expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)                    
+                        expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
                     if expansion_item.data(self.GLOBALS_ROLE_SORT_DATA) != expansion:
                         # logger.info('sort data role set')
                         expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
@@ -1179,37 +1179,37 @@ class GroupTab(object):
                 item.setData(None, QtCore.Qt.BackgroundRole)
 
 
-class RunmanagerMainWindow(QtGui.QMainWindow):
+class RunmanagerMainWindow(QtWidgets.QMainWindow):
     # A signal to show that the window is shown and painted.
     firstPaint = Signal()
     # A signal for when the window manager has created a new window for this widget:
     newWindow = Signal(int)
 
     def __init__(self, *args, **kwargs):
-        QtGui.QMainWindow.__init__(self, *args, **kwargs)
+        QtWidgets.QMainWindow.__init__(self, *args, **kwargs)
         self._previously_painted = False
 
     def closeEvent(self, event):
         if app.on_close_event():
-            return QtGui.QMainWindow.closeEvent(self, event)
+            return QtWidgets.QMainWindow.closeEvent(self, event)
         else:
             event.ignore()
 
     def event(self, event):
-        result = QtGui.QMainWindow.event(self, event)
+        result = QtWidgets.QMainWindow.event(self, event)
         if event.type() == QtCore.QEvent.WinIdChange:
             self.newWindow.emit(self.effectiveWinId())
         return result
 
     def paintEvent(self, event):
-        result = QtGui.QMainWindow.paintEvent(self, event)
+        result = QtWidgets.QMainWindow.paintEvent(self, event)
         if not self._previously_painted:
             self._previously_painted = True
             self.firstPaint.emit()
         return result
 
 
-class PoppedOutOutputBoxWindow(QtGui.QDialog):
+class PoppedOutOutputBoxWindow(QtWidgets.QDialog):
     # A signal for when the window manager has created a new window for this widget:
     newWindow = Signal(int)
 
@@ -1217,7 +1217,7 @@ class PoppedOutOutputBoxWindow(QtGui.QDialog):
         app.on_output_popout_button_clicked()
 
     def event(self, event):
-        result = QtGui.QDialog.event(self, event)
+        result = QtWidgets.QDialog.event(self, event)
         if event.type() == QtCore.QEvent.WinIdChange:
             self.newWindow.emit(self.effectiveWinId())
         return result
@@ -1255,7 +1255,7 @@ class RunManager(object):
         self.output_popout_button = TabToolButton(self.ui.tabWidget.parent())
         self.output_popout_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-out'))
         self.output_popout_button.setToolTip('Toggle whether the output box is in a separate window')
-        self.ui.tabWidget.tabBar().setTabButton(output_tab_index, QtGui.QTabBar.RightSide, self.output_popout_button)
+        self.ui.tabWidget.tabBar().setTabButton(output_tab_index, QtWidgets.QTabBar.RightSide, self.output_popout_button)
         # Fix the first three tabs in place:
         for index in range(3):
             self.ui.tabWidget.tabBar().setMovable(False, index=index)
@@ -1263,7 +1263,7 @@ class RunManager(object):
         self.output_box_is_popped_out = False
         # The window it will be moved to when popped out:
         self.output_box_window = PoppedOutOutputBoxWindow(self.ui, QtCore.Qt.WindowSystemMenuHint)
-        self.output_box_window_verticalLayout = QtGui.QVBoxLayout(self.output_box_window)
+        self.output_box_window_verticalLayout = QtWidgets.QVBoxLayout(self.output_box_window)
         self.output_box_window_verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.output_box_window.setWindowTitle('runmanager output')
         self.output_box_window.resize(800, 1000)
@@ -1403,9 +1403,9 @@ class RunManager(object):
         self.ui.treeView_axes.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
         # Make the actions for the context menu:
-        self.action_axes_check_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'),
+        self.action_axes_check_selected = QtWidgets.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box'),
                                                         'Check selected', self.ui)
-        self.action_axes_uncheck_selected = QtGui.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'),
+        self.action_axes_uncheck_selected = QtWidgets.QAction(QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'),
                                                           'Uncheck selected', self.ui)
 
     def setup_groups_tab(self):
@@ -1417,15 +1417,15 @@ class RunManager(object):
         for col in range(self.groups_model.columnCount()):
             self.ui.treeView_groups.setItemDelegateForColumn(col, self.item_delegate)
         self.ui.treeView_groups.setAnimated(True)  # Pretty
-        self.ui.treeView_groups.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
+        self.ui.treeView_groups.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
         self.ui.treeView_groups.sortByColumn(self.GROUPS_COL_NAME, QtCore.Qt.AscendingOrder)
         # Set column widths:
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
         # Make it so the user can just start typing on an item to edit:
-        self.ui.treeView_groups.setEditTriggers(QtGui.QTreeView.AnyKeyPressed |
-                                                QtGui.QTreeView.EditKeyPressed |
-                                                QtGui.QTreeView.SelectedClicked)
+        self.ui.treeView_groups.setEditTriggers(QtWidgets.QTreeView.AnyKeyPressed |
+                                                QtWidgets.QTreeView.EditKeyPressed |
+                                                QtWidgets.QTreeView.SelectedClicked)
         # Ensure the clickable region of the open/close button doesn't extend forever:
         self.ui.treeView_groups.header().setStretchLastSection(False)
         # Shrink columns other than the 'name' column to the size of their headers:
@@ -1438,17 +1438,17 @@ class RunManager(object):
         self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
         # Make the actions for the context menu:
-        self.action_groups_set_selection_active = QtGui.QAction(
+        self.action_groups_set_selection_active = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected group(s) active', self.ui)
-        self.action_groups_set_selection_inactive = QtGui.QAction(
+        self.action_groups_set_selection_inactive = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected group(s) inactive', self.ui)
-        self.action_groups_delete_selected = QtGui.QAction(
+        self.action_groups_delete_selected = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected group(s)', self.ui)
-        self.action_groups_open_selected = QtGui.QAction(
+        self.action_groups_open_selected = QtWidgets.QAction(
             QtGui.QIcon(':/qtutils/fugue/plus'), 'Open selected group(s)', self.ui)
-        self.action_groups_close_selected_groups = QtGui.QAction(
+        self.action_groups_close_selected_groups = QtWidgets.QAction(
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
-        self.action_groups_close_selected_files = QtGui.QAction(
+        self.action_groups_close_selected_files = QtWidgets.QAction(
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected file(s)', self.ui)
 
         # A counter for keeping track of the recursion depth of
@@ -1528,11 +1528,11 @@ class RunManager(object):
         if self.last_save_data is not None and save_data != self.last_save_data:
             message = ('Current configuration (which groups are active/open and other GUI state) '
                        'has changed: save config file \'%s\'?' % self.last_save_config_file)
-            reply = QtGui.QMessageBox.question(self.ui, 'Quit runmanager', message,
-                                               QtGui.QMessageBox.Yes | QtGui.QMessageBox.No | QtGui.QMessageBox.Cancel)
-            if reply == QtGui.QMessageBox.Cancel:
+            reply = QtWidgets.QMessageBox.question(self.ui, 'Quit runmanager', message,
+                                               QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+            if reply == QtWidgets.QMessageBox.Cancel:
                 return False
-            if reply == QtGui.QMessageBox.Yes:
+            if reply == QtWidgets.QMessageBox.Yes:
                 self.save_configuration(self.last_save_config_file)
         self.to_child.put(['quit', None])
         return True
@@ -1576,13 +1576,15 @@ class RunManager(object):
         self.output_box_is_popped_out = not self.output_box_is_popped_out
 
     def on_select_labscript_file_clicked(self, checked):
-        labscript_file = QtGui.QFileDialog.getOpenFileName(self.ui,
+        labscript_file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
                                                            'Select labscript file',
                                                            self.last_opened_labscript_folder,
                                                            "Python files (*.py)")
         if not labscript_file:
             # User cancelled selection
             return
+        if type(labscript_file) is tuple:
+            labscript_file, _ = labscript_file
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         labscript_file = os.path.abspath(labscript_file)
         if not os.path.isfile(labscript_file):
@@ -1619,12 +1621,14 @@ class RunManager(object):
                          (self.exp_config.config_path, str(e)))
 
     def on_select_shot_output_folder_clicked(self, checked):
-        shot_output_folder = QtGui.QFileDialog.getExistingDirectory(self.ui,
+        shot_output_folder = QtWidgets.QFileDialog.getExistingDirectory(self.ui,
                                                                     'Select shot output folder',
                                                                     self.last_selected_shot_output_folder)
         if not shot_output_folder:
             # User cancelled selection
             return
+        if type(shot_output_folder) is tuple:
+            shot_output_folder, _ = shot_output_folder
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         shot_output_folder = os.path.abspath(shot_output_folder)
         # Save the containing folder for use next time we open the dialog box:
@@ -1765,7 +1769,7 @@ class RunManager(object):
 
     def on_treeView_axes_context_menu_requested(self, point):
         raise NotImplementedError
-        # menu = QtGui.QMenu(self.ui)
+        # menu = QtWidgets.QMenu(self.ui)
         # menu.addAction(self.action_axes_check_selected)
         # menu.addAction(self.action_axes_uncheck_selected)
         # menu.exec_(QtGui.QCursor.pos())
@@ -1790,7 +1794,7 @@ class RunManager(object):
         raise NotImplementedError
 
     def on_treeView_groups_context_menu_requested(self, point):
-        menu = QtGui.QMenu(self.ui)
+        menu = QtWidgets.QMenu(self.ui)
         menu.addAction(self.action_groups_set_selection_active)
         menu.addAction(self.action_groups_set_selection_inactive)
         menu.addAction(self.action_groups_delete_selected)
@@ -1879,13 +1883,15 @@ class RunManager(object):
             self.close_globals_file(globals_file, confirm=False)
 
     def on_open_globals_file_clicked(self):
-        globals_file = QtGui.QFileDialog.getOpenFileName(self.ui,
+        globals_file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
                                                          'Select globals file',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
         if not globals_file:
             # User cancelled selection
             return
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = os.path.abspath(globals_file)
         if not os.path.isfile(globals_file):
@@ -1897,13 +1903,15 @@ class RunManager(object):
         self.open_globals_file(globals_file)
 
     def on_new_globals_file_clicked(self):
-        globals_file = QtGui.QFileDialog.getSaveFileName(self.ui,
+        globals_file = QtWidgets.QFileDialog.getSaveFileName(self.ui,
                                                          'Create new globals file',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
         if not globals_file:
             # User cancelled
             return
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         globals_file = os.path.abspath(globals_file)
@@ -1914,13 +1922,15 @@ class RunManager(object):
         self.open_globals_file(globals_file)
 
     def on_diff_globals_file_clicked(self):
-        globals_file = QtGui.QFileDialog.getOpenFileName(self.ui,
+        globals_file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
                                                          'Select globals file to compare',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
         if not globals_file:
             # User cancelled
             return
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
 
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = os.path.abspath(globals_file)
@@ -2258,7 +2268,7 @@ class RunManager(object):
                 break
         self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, n_shots)
 
-    
+
     def preparse_globals_loop(self):
         """Runs in a thread, waiting on a threading.Event that tells us when
         some globals have changed, and calls parse_globals to evaluate them
@@ -2570,11 +2580,11 @@ class RunManager(object):
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:
             message = 'Revert configuration to the last saved state in \'%s\'?' % self.last_save_config_file
-            reply = QtGui.QMessageBox.question(self.ui, 'Load configuration', message,
-                                               QtGui.QMessageBox.Yes | QtGui.QMessageBox.Cancel)
-            if reply == QtGui.QMessageBox.Cancel:
+            reply = QtWidgets.QMessageBox.question(self.ui, 'Load configuration', message,
+                                               QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel)
+            if reply == QtWidgets.QMessageBox.Cancel:
                 return
-            elif reply == QtGui.QMessageBox.Yes:
+            elif reply == QtWidgets.QMessageBox.Yes:
                 self.load_configuration(self.last_save_config_file)
         else:
             error_dialog('no changes to revert')
@@ -2584,13 +2594,15 @@ class RunManager(object):
             default = self.last_save_config_file
         else:
             default = os.path.join(self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
-        save_file = QtGui.QFileDialog.getSaveFileName(self.ui,
+        save_file = QtWidgets.QFileDialog.getSaveFileName(self.ui,
                                                       'Select  file to save current runmanager configuration',
                                                       default,
                                                       "config files (*.ini)")
         if not save_file:
             # User cancelled
             return
+        if type(save_file) is tuple:
+            save_file, _ = save_file
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         save_file = os.path.abspath(save_file)
@@ -2669,11 +2681,11 @@ class RunManager(object):
         if self.last_save_data is not None and save_data != self.last_save_data:
             message = ('Current configuration (which groups are active/open and other GUI state) '
                        'has changed: save config file \'%s\'?' % self.last_save_config_file)
-            reply = QtGui.QMessageBox.question(self.ui, 'Load configuration', message,
-                                               QtGui.QMessageBox.Yes | QtGui.QMessageBox.No | QtGui.QMessageBox.Cancel)
-            if reply == QtGui.QMessageBox.Cancel:
+            reply = QtWidgets.QMessageBox.question(self.ui, 'Load configuration', message,
+                                               QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+            if reply == QtWidgets.QMessageBox.Cancel:
                 return
-            if reply == QtGui.QMessageBox.Yes:
+            if reply == QtWidgets.QMessageBox.Yes:
                 self.save_configuration(self.last_save_config_file)
 
         if self.last_save_config_file is not None:
@@ -2681,13 +2693,15 @@ class RunManager(object):
         else:
             default = os.path.join(self.exp_config.get('paths', 'experiment_shot_storage'), 'runmanager.ini')
 
-        file = QtGui.QFileDialog.getOpenFileName(self.ui,
+        file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
                                                  'Select runmanager configuration file to load',
                                                  default,
                                                  "config files (*.ini)")
         if not file:
             # User cancelled
             return
+        if type(file) is tuple:
+            file, _ = file
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         file = os.path.abspath(file)
@@ -2968,7 +2982,7 @@ class RunManager(object):
             if (not global_depends_on_global_with_outer_product(global_name, global_hierarchy, expansions)
                     and not isinstance(expansion_types[global_name]['value'], runmanager.ExpansionError)):
                 current_dependencies = find_dependencies(global_name, global_hierarchy, expansion_types)
-                
+
                 # if this global has other globals that use it, then add them
                 # all to a zip group with the name of this global
                 if current_dependencies:
