@@ -1580,11 +1580,12 @@ class RunManager(object):
                                                            'Select labscript file',
                                                            self.last_opened_labscript_folder,
                                                            "Python files (*.py)")
+        if type(labscript_file) is tuple:
+            labscript_file, _ = labscript_file
+
         if not labscript_file:
             # User cancelled selection
             return
-        if type(labscript_file) is tuple:
-            labscript_file, _ = labscript_file
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         labscript_file = os.path.abspath(labscript_file)
         if not os.path.isfile(labscript_file):
@@ -1624,11 +1625,12 @@ class RunManager(object):
         shot_output_folder = QtWidgets.QFileDialog.getExistingDirectory(self.ui,
                                                                     'Select shot output folder',
                                                                     self.last_selected_shot_output_folder)
+        if type(shot_output_folder) is tuple:
+            shot_output_folder, _ = shot_output_folder
+
         if not shot_output_folder:
             # User cancelled selection
             return
-        if type(shot_output_folder) is tuple:
-            shot_output_folder, _ = shot_output_folder
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         shot_output_folder = os.path.abspath(shot_output_folder)
         # Save the containing folder for use next time we open the dialog box:
@@ -1887,11 +1889,12 @@ class RunManager(object):
                                                          'Select globals file',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
+
         if not globals_file:
             # User cancelled selection
             return
-        if type(globals_file) is tuple:
-            globals_file, _ = globals_file
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = os.path.abspath(globals_file)
         if not os.path.isfile(globals_file):
@@ -1907,11 +1910,12 @@ class RunManager(object):
                                                          'Create new globals file',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
+
         if not globals_file:
             # User cancelled
             return
-        if type(globals_file) is tuple:
-            globals_file, _ = globals_file
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         globals_file = os.path.abspath(globals_file)
@@ -1926,11 +1930,12 @@ class RunManager(object):
                                                          'Select globals file to compare',
                                                          self.last_opened_globals_folder,
                                                          "HDF5 files (*.h5)")
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
+
         if not globals_file:
             # User cancelled
             return
-        if type(globals_file) is tuple:
-            globals_file, _ = globals_file
 
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = os.path.abspath(globals_file)
@@ -2598,11 +2603,12 @@ class RunManager(object):
                                                       'Select  file to save current runmanager configuration',
                                                       default,
                                                       "config files (*.ini)")
+        if type(save_file) is tuple:
+            save_file, _ = save_file
+
         if not save_file:
             # User cancelled
             return
-        if type(save_file) is tuple:
-            save_file, _ = save_file
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         save_file = os.path.abspath(save_file)
@@ -2697,11 +2703,12 @@ class RunManager(object):
                                                  'Select runmanager configuration file to load',
                                                  default,
                                                  "config files (*.ini)")
+        if type(file) is tuple:
+            file, _ = file
+
         if not file:
             # User cancelled
             return
-        if type(file) is tuple:
-            file, _ = file
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         file = os.path.abspath(file)
