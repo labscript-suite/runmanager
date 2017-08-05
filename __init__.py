@@ -138,8 +138,15 @@ def copy_group(filename, originalgroupname, newgroupname):
         if originalgroupname not in f['globals']:
             raise Exception('Can\'t copy there is no group "{}"!'.format(originalgroupname))
         if newgroupname in f['globals']:
-            raise Exception('There allready exists a group "{}" please rename it!'.format(newgroupname))
+            i = 1
+            while True:
+                newgroupname_rep = "{}({})".format(newgroupname, i)
+                if newgroupname_rep not in f['globals']:
+                    newgroupname = newgroupname_rep
+                    break
+                i += 1
         f.copy(f['globals'][originalgroupname], '/globals/%s' % newgroupname)
+    return newgroupname
 
 
 def rename_group(filename, oldgroupname, newgroupname):

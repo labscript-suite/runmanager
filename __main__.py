@@ -2488,7 +2488,7 @@ class RunManager(object):
         originalgroupname = item.text()
 
         try:
-            runmanager.copy_group(globals_file, originalgroupname, group_name)
+            group_name = runmanager.copy_group(globals_file, originalgroupname, group_name)
         except Exception as e:
             error_dialog(str(e))
         else:
