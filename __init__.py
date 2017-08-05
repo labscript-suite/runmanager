@@ -133,6 +133,15 @@ def new_group(filename, groupname):
         group.create_group('expansion')
 
 
+def copy_group(filename, originalgroupname, newgroupname):
+    with h5py.File(filename, 'a') as f:
+        if originalgroupname not in f['globals']:
+            raise Exception('Can\'t copy there is no group "{}"!'.format(originalgroupname))
+        if newgroupname in f['globals']:
+            raise Exception('There allready exists a group "{}" please rename it!'.format(newgroupname))
+        f.copy(f['globals'][originalgroupname], '/globals/%s' % newgroupname)
+
+
 def rename_group(filename, oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
         # No rename!
@@ -823,4 +832,4 @@ def globals_diff_shots(file1, file2, max_cols=100):
     other_groups = get_all_groups(file2)
 
     print('Globals diff between:\n%s\n%s\n\n' % (file1, file2))
-    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
+    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)

@@ -1449,6 +1449,8 @@ class RunManager(object):
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
         self.action_groups_close_selected_files = QtGui.QAction(
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected file(s)', self.ui)
+        self.action_groups_copy_selected_groups = QtWidgets.QAction(
+            QtGui.QIcon(':/qtutils/fugue/blue-document-copy'), 'Copy selected group(s)', self.ui)
 
         # A counter for keeping track of the recursion depth of
         # self._groups_model_active_changed(). This is used so that some
@@ -1506,6 +1508,7 @@ class RunManager(object):
         self.action_groups_open_selected.triggered.connect(self.on_groups_open_selected_triggered)
         self.action_groups_close_selected_groups.triggered.connect(self.on_groups_close_selected_groups_triggered)
         self.action_groups_close_selected_files.triggered.connect(self.on_groups_close_selected_files_triggered)
+        self.action_groups_copy_selected_groups.triggered.connect(self.on_groups_copy_selected_groups_triggered)
 
         self.ui.pushButton_open_globals_file.clicked.connect(self.on_open_globals_file_clicked)
         self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
@@ -1796,7 +1799,19 @@ class RunManager(object):
         menu.addAction(self.action_groups_open_selected)
         menu.addAction(self.action_groups_close_selected_groups)
         menu.addAction(self.action_groups_close_selected_files)
+        menu.addAction(self.action_groups_copy_selected_groups)
         menu.exec_(QtGui.QCursor.pos())
+
+    def on_groups_copy_selected_groups_triggered(self):
+        selected_indexes = self.ui.treeView_groups.selectedIndexes()
+        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        name_items = [item for item in selected_items
+                      if item.column() == self.GROUPS_COL_NAME
+                      and item.parent() is not None]
+        for item in name_items:
+            globals_file = item.parent().text()
+            group_name = "{}_copy".format(item.text())
+            self.copy_group(globals_file, group_name, item)
 
     def on_groups_set_selection_active_triggered(self, checked_state):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -2468,6 +2483,29 @@ class RunManager(object):
         # Remove the globals file from the model:
         self.groups_model.removeRow(item.row())
         self.globals_changed()
+
+    def copy_group(self, globals_file, group_name, item):
+        originalgroupname = item.text()
+
+        try:
+            runmanager.copy_group(globals_file, originalgroupname, group_name)
+        except Exception as e:
+            error_dialog(str(e))
+        else:
+            # Insert the newly created globals group into the model, as a
+            # child row of the globals file it belong to.
+            group_row = self.make_group_row(group_name)
+            last_index = item.parent().rowCount()
+            # Insert it as the row before the last (dummy) row:
+            item.parent().insertRow(last_index - 1, group_row)
+            self.do_model_sort()
+            # Open the group
+            self.open_group(globals_file, group_name)
+            name_item = group_row[self.GROUPS_COL_NAME]
+            self.globals_changed()
+            self.ui.treeView_groups.setCurrentIndex(name_item.index())
+            # If this changed the sort order, ensure the group item is still visible:
+            scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)
 
     def new_group(self, globals_file, group_name):
         item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME,
