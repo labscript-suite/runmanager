@@ -1799,6 +1799,9 @@ class RunManager(object):
         copy_menu = QtGui.QMenu('Copy selected group(s)', menu)
         copy_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document-copy'))
         menu.addMenu(copy_menu)
+        move_menu = QtGui.QMenu('Move selected group(s)', menu)
+        move_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document--arrow'))
+        menu.addMenu(move_menu)
 
         # Create a dict of all filepaths -> filenames
         filenames = {}
@@ -1818,13 +1821,14 @@ class RunManager(object):
             filenames = new_filename
             i += 1
 
-        # add all filenames to the copy submenu
+        # add all filenames to the copy and move submenu
         for filepath, filename in filenames.items():
-            action = copy_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath))
+            copy_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath))
+            move_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath, True))
 
         menu.exec_(QtGui.QCursor.pos())
 
-    def on_groups_copy_selected_groups_triggered(self, new_globals_file=None):
+    def on_groups_copy_selected_groups_triggered(self, new_globals_file=None, move=False):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
         selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
         name_items = [item for item in selected_items
@@ -1832,7 +1836,7 @@ class RunManager(object):
                       and item.parent() is not None]
         for item in name_items:
             globals_file = item.parent().text()
-            self.copy_group(globals_file, item.text(), new_globals_file)
+            self.copy_group(globals_file, item.text(), new_globals_file, move)
 
     def on_groups_set_selection_active_triggered(self, checked_state):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -2505,11 +2509,13 @@ class RunManager(object):
         self.groups_model.removeRow(item.row())
         self.globals_changed()
 
-    def copy_group(self, globals_file, group_name, new_globals_file=None):
+    def copy_group(self, globals_file, group_name, new_globals_file=None, move=False):
         """This function copys a group of globals with the name group_name from the file globals_file to
-            a new file new_globals_file"""
+            a new file new_globals_file. If move is True the original group is deleted after copying"""
+        if move and globals_file == new_globals_file:
+            return
         try:
-            group_name = runmanager.copy_group(globals_file, group_name, new_globals_file)
+            new_group_name = runmanager.copy_group(globals_file, group_name, new_globals_file, move)
         except Exception as e:
             error_dialog(str(e))
         else:
@@ -2526,16 +2532,18 @@ class RunManager(object):
 
             last_index = parent_row.rowCount()
             # Insert it as the row before the last (dummy) row:
-            group_row = self.make_group_row(group_name)
+            group_row = self.make_group_row(new_group_name)
             parent_row.insertRow(last_index - 1, group_row)
-
             self.do_model_sort()
 
             # Open the group
-            self.open_group(new_globals_file, group_name)
+            self.open_group(new_globals_file, new_group_name)
             name_item = group_row[self.GROUPS_COL_NAME]
             self.globals_changed()
             self.ui.treeView_groups.setCurrentIndex(name_item.index())
+
+            # delete original
+            self.delete_group(globals_file, group_name, confirm=False)
 
             # If this changed the sort order, ensure the group item is still visible:
             scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)

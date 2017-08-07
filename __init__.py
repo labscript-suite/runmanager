@@ -133,9 +133,10 @@ def new_group(filename, groupname):
         group.create_group('expansion')
 
 
-def copy_group(globals_file, groupname, new_globals_file):
+def copy_group(globals_file, groupname, new_globals_file, move=False):
     """ This function copies the group groupname from globals_file to new_globals_file
-        and renames the new group so that there is no name collision"""
+        and renames the new group so that there is no name collision.
+        If move is False the copyied files have a suffix '_copy'."""
     with h5py.File(globals_file, 'a') as f:
         # check if group exists
         if groupname not in f['globals']:
@@ -148,7 +149,7 @@ def copy_group(globals_file, groupname, new_globals_file):
             new_f = f  # no -> new files is old file
 
         # rename Group until there is no name collisions
-        i = 0
+        i = 0 if not move else 1
         new_groupname = groupname
         while new_groupname in new_f['globals']:
             new_groupname = "{}({})".format(new_groupname, i) if i > 0 else "{}_copy".format(new_groupname)
