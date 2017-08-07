@@ -133,26 +133,35 @@ def new_group(filename, groupname):
         group.create_group('expansion')
 
 
-def copy_group(filename, originalgroupname, newgroupname, new_globals_file):
-    with h5py.File(filename, 'a') as f:
-        if originalgroupname not in f['globals']:
-            raise Exception('Can\'t copy there is no group "{}"!'.format(originalgroupname))
-        if new_globals_file != None and filename != new_globals_file:
-            new_f = h5py.File(new_globals_file, 'a')
+def copy_group(globals_file, groupname, new_globals_file):
+    """ This function copies the group groupname from globals_file to new_globals_file
+        and renames the new group so that there is no name collision"""
+    with h5py.File(globals_file, 'a') as f:
+        # check if group exists
+        if groupname not in f['globals']:
+            raise Exception('Can\'t copy there is no group "{}"!'.format(groupname))
+
+        # Are we coping from one file to another?
+        if new_globals_file is not None and globals_file != new_globals_file:
+            new_f = h5py.File(new_globals_file, 'a')  # yes -> open new_globals_file
         else:
-            new_f = f
-        if newgroupname in new_f['globals']:
-            i = 1
-            while True:
-                newgroupname_rep = "{}({})".format(newgroupname, i)
-                if newgroupname_rep not in new_f['globals']:
-                    newgroupname = newgroupname_rep
-                    break
-                i += 1
-        new_f.copy(f['globals'][originalgroupname], '/globals/%s' % newgroupname)
+            new_f = f  # no -> new files is old file
+
+        # rename Group until there is no name collisions
+        i = 0
+        new_groupname = groupname
+        while new_groupname in new_f['globals']:
+            new_groupname = "{}({})".format(new_groupname, i) if i > 0 else "{}_copy".format(new_groupname)
+            i += 1
+
+        # copy group
+        new_f.copy(f['globals'][groupname], '/globals/%s' % new_groupname)
+
+        # close opend file
         if new_f != f:
             new_f.close()
-    return newgroupname
+
+    return new_groupname
 
 
 def rename_group(filename, oldgroupname, newgroupname):

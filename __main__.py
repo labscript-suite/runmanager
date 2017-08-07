@@ -1800,11 +1800,13 @@ class RunManager(object):
         copy_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document-copy'))
         menu.addMenu(copy_menu)
 
+        # Create a dict of all filepaths -> filenames
         filenames = {}
         for index in range(self.groups_model.rowCount()):
             filepath = self.groups_model.item(index, self.GROUPS_COL_NAME).text()
             filenames[filepath] = filepath.split(os.sep)[-1]
 
+        # expand duplicate filenames until there is nomore duplicates
         new_filename = {}
         i = 2
         while new_filename != filenames:
@@ -1816,9 +1818,9 @@ class RunManager(object):
             filenames = new_filename
             i += 1
 
+        # add all filenames to the copy submenu
         for filepath, filename in filenames.items():
-            print(filepath, filename)
-            action = copy_menu.addAction(filename, lambda filepath=filepath: on_groups_copy_selected_groups_triggered(filepath))
+            action = copy_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath))
 
         menu.exec_(QtGui.QCursor.pos())
 
@@ -1830,8 +1832,7 @@ class RunManager(object):
                       and item.parent() is not None]
         for item in name_items:
             globals_file = item.parent().text()
-            group_name = "{}_copy".format(item.text())
-            self.copy_group(globals_file, group_name, item, new_globals_file)
+            self.copy_group(globals_file, item.text(), new_globals_file)
 
     def on_groups_set_selection_active_triggered(self, checked_state):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -2504,35 +2505,38 @@ class RunManager(object):
         self.groups_model.removeRow(item.row())
         self.globals_changed()
 
-    def copy_group(self, globals_file, group_name, item, new_globals_file):
-        originalgroupname = item.text()
-
+    def copy_group(self, globals_file, group_name, new_globals_file=None):
+        """This function copys a group of globals with the name group_name from the file globals_file to
+            a new file new_globals_file"""
         try:
-            group_name = runmanager.copy_group(globals_file, originalgroupname, group_name, new_globals_file)
+            group_name = runmanager.copy_group(globals_file, group_name, new_globals_file)
         except Exception as e:
             error_dialog(str(e))
         else:
             # Insert the newly created globals group into the model, as a
-            # child row of the globals file it belong to.
-            group_row = self.make_group_row(group_name)
-            if new_globals_file != None:
-                for index in range(self.groups_model.rowCount()):
-                    if self.groups_model.item(index, self.GROUPS_COL_NAME).text() == new_globals_file:
-                        parent_row = self.groups_model.item(index)
-                        break
+            # child row of the new globals file.
+            if new_globals_file is None:
+                new_globals_file = globals_file
+
+            # find the new groups parent row by filepath
+            for index in range(self.groups_model.rowCount()):
+                if self.groups_model.item(index, self.GROUPS_COL_NAME).text() == new_globals_file:
+                    parent_row = self.groups_model.item(index)
+                    break
 
             last_index = parent_row.rowCount()
             # Insert it as the row before the last (dummy) row:
+            group_row = self.make_group_row(group_name)
             parent_row.insertRow(last_index - 1, group_row)
+
             self.do_model_sort()
+
             # Open the group
-            if new_globals_file is None:
-                self.open_group(globals_file, group_name)
-            else:
-                self.open_group(new_globals_file, group_name)
+            self.open_group(new_globals_file, group_name)
             name_item = group_row[self.GROUPS_COL_NAME]
             self.globals_changed()
             self.ui.treeView_groups.setCurrentIndex(name_item.index())
+
             # If this changed the sort order, ensure the group item is still visible:
             scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)
 
