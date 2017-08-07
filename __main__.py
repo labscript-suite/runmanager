@@ -1815,7 +1815,7 @@ class RunManager(object):
         while new_filename != filenames:
             for filepath, filename in filenames.items():
                 if filenames.values().count(filename) > 1:
-                    new_filename[filepath] = filepath.split(os.sep)[-i:]
+                    new_filename[filepath] = os.sep.join(filepath.split(os.sep)[-i:])
                 else:
                     new_filename[filepath] = filename
             filenames = new_filename
