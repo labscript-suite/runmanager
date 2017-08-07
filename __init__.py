@@ -133,19 +133,25 @@ def new_group(filename, groupname):
         group.create_group('expansion')
 
 
-def copy_group(filename, originalgroupname, newgroupname):
+def copy_group(filename, originalgroupname, newgroupname, new_globals_file):
     with h5py.File(filename, 'a') as f:
         if originalgroupname not in f['globals']:
             raise Exception('Can\'t copy there is no group "{}"!'.format(originalgroupname))
-        if newgroupname in f['globals']:
+        if new_globals_file != None and filename != new_globals_file:
+            new_f = h5py.File(new_globals_file, 'a')
+        else:
+            new_f = f
+        if newgroupname in new_f['globals']:
             i = 1
             while True:
                 newgroupname_rep = "{}({})".format(newgroupname, i)
-                if newgroupname_rep not in f['globals']:
+                if newgroupname_rep not in new_f['globals']:
                     newgroupname = newgroupname_rep
                     break
                 i += 1
-        f.copy(f['globals'][originalgroupname], '/globals/%s' % newgroupname)
+        new_f.copy(f['globals'][originalgroupname], '/globals/%s' % newgroupname)
+        if new_f != f:
+            new_f.close()
     return newgroupname
 
 
