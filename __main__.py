@@ -1449,8 +1449,6 @@ class RunManager(object):
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
         self.action_groups_close_selected_files = QtGui.QAction(
             QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected file(s)', self.ui)
-        self.action_groups_copy_selected_groups = QtWidgets.QAction(
-            QtGui.QIcon(':/qtutils/fugue/blue-document-copy'), 'Copy selected group(s)', self.ui)
 
         # A counter for keeping track of the recursion depth of
         # self._groups_model_active_changed(). This is used so that some
@@ -1508,7 +1506,6 @@ class RunManager(object):
         self.action_groups_open_selected.triggered.connect(self.on_groups_open_selected_triggered)
         self.action_groups_close_selected_groups.triggered.connect(self.on_groups_close_selected_groups_triggered)
         self.action_groups_close_selected_files.triggered.connect(self.on_groups_close_selected_files_triggered)
-        self.action_groups_copy_selected_groups.triggered.connect(self.on_groups_copy_selected_groups_triggered)
 
         self.ui.pushButton_open_globals_file.clicked.connect(self.on_open_globals_file_clicked)
         self.ui.pushButton_new_globals_file.clicked.connect(self.on_new_globals_file_clicked)
