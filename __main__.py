@@ -1818,7 +1818,7 @@ class RunManager(object):
 
         for filepath, filename in filenames.items():
             print(filepath, filename)
-            action = copy_menu.addAction(filename, lambda: self.on_groups_copy_selected_groups_triggered(str(filepath)))
+            action = copy_menu.addAction(filename, lambda filepath=filepath: on_groups_copy_selected_groups_triggered(filepath))
 
         menu.exec_(QtGui.QCursor.pos())
 
