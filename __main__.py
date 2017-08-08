@@ -1823,7 +1823,7 @@ class RunManager(object):
 
         # add all filenames to the copy and move submenu
         for filepath, filename in filenames.items():
-            copy_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath))
+            copy_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath, False))
             move_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath, True))
 
         menu.exec_(QtGui.QCursor.pos())
@@ -2543,7 +2543,8 @@ class RunManager(object):
             self.ui.treeView_groups.setCurrentIndex(name_item.index())
 
             # delete original
-            self.delete_group(globals_file, group_name, confirm=False)
+            if move:
+                self.delete_group(globals_file, group_name, confirm=False)
 
             # If this changed the sort order, ensure the group item is still visible:
             scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)
