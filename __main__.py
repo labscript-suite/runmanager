@@ -1828,15 +1828,15 @@ class RunManager(object):
 
         menu.exec_(QtGui.QCursor.pos())
 
-    def on_groups_copy_selected_groups_triggered(self, new_globals_file=None, move=False):
+    def on_groups_copy_selected_groups_triggered(self, dest_globals_file=None, delete_source_group=False):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
         selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is not None]
         for item in name_items:
-            globals_file = item.parent().text()
-            self.copy_group(globals_file, item.text(), new_globals_file, move)
+            source_globals_file = item.parent().text()
+            self.copy_group(source_globals_file, item.text(), dest_globals_file, delete_source_group)
 
     def on_groups_set_selection_active_triggered(self, checked_state):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -2509,42 +2509,43 @@ class RunManager(object):
         self.groups_model.removeRow(item.row())
         self.globals_changed()
 
-    def copy_group(self, globals_file, group_name, new_globals_file=None, move=False):
-        """This function copys a group of globals with the name group_name from the file globals_file to
-            a new file new_globals_file. If move is True the original group is deleted after copying"""
-        if move and globals_file == new_globals_file:
+    def copy_group(self, source_globals_file, source_group_name, dest_globals_file=None, delete_source_group=False):
+        """This function copys a group of globals with the name source_group_name from the file
+            source_globals_file to a new file dest_globals_file. If delete_source_group is True
+            the source group is deleted after copying"""
+        if delete_source_group and source_globals_file == dest_globals_file:
             return
         try:
-            new_group_name = runmanager.copy_group(globals_file, group_name, new_globals_file, move)
+            dest_group_name = runmanager.copy_group(source_globals_file, source_group_name, dest_globals_file, delete_source_group)
         except Exception as e:
             error_dialog(str(e))
         else:
             # Insert the newly created globals group into the model, as a
             # child row of the new globals file.
-            if new_globals_file is None:
-                new_globals_file = globals_file
+            if dest_globals_file is None:
+                dest_globals_file = source_globals_file
 
             # find the new groups parent row by filepath
             for index in range(self.groups_model.rowCount()):
-                if self.groups_model.item(index, self.GROUPS_COL_NAME).text() == new_globals_file:
+                if self.groups_model.item(index, self.GROUPS_COL_NAME).text() == dest_globals_file:
                     parent_row = self.groups_model.item(index)
                     break
 
             last_index = parent_row.rowCount()
             # Insert it as the row before the last (dummy) row:
-            group_row = self.make_group_row(new_group_name)
+            group_row = self.make_group_row(dest_group_name)
             parent_row.insertRow(last_index - 1, group_row)
             self.do_model_sort()
 
             # Open the group
-            self.open_group(new_globals_file, new_group_name)
+            self.open_group(dest_globals_file, dest_group_name)
             name_item = group_row[self.GROUPS_COL_NAME]
             self.globals_changed()
             self.ui.treeView_groups.setCurrentIndex(name_item.index())
 
             # delete original
-            if move:
-                self.delete_group(globals_file, group_name, confirm=False)
+            if delete_source_group:
+                self.delete_group(source_globals_file, source_group_name, confirm=False)
 
             # If this changed the sort order, ensure the group item is still visible:
             scroll_treeview_to_row_if_current(self.ui.treeView_groups, name_item)

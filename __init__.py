@@ -133,36 +133,37 @@ def new_group(filename, groupname):
         group.create_group('expansion')
 
 
-def copy_group(globals_file, groupname, new_globals_file, move=False):
-    """ This function copies the group groupname from globals_file to new_globals_file
-        and renames the new group so that there is no name collision.
-        If move is False the copyied files have a suffix '_copy'."""
-    with h5py.File(globals_file, 'a') as f:
+def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_source_group=False):
+    """ This function copies the group source_groupname from source_globals_file
+        to dest_globals_file and renames the new group so that there is no name
+        collision. If delete_source_group is False the copyied files have
+        a suffix '_copy'."""
+    with h5py.File(source_globals_file, 'a') as source_f:
         # check if group exists
-        if groupname not in f['globals']:
-            raise Exception('Can\'t copy there is no group "{}"!'.format(groupname))
+        if source_groupname not in source_f['globals']:
+            raise Exception('Can\'t copy there is no group "{}"!'.format(source_groupname))
 
         # Are we coping from one file to another?
-        if new_globals_file is not None and globals_file != new_globals_file:
-            new_f = h5py.File(new_globals_file, 'a')  # yes -> open new_globals_file
+        if dest_globals_file is not None and source_globals_file != dest_globals_file:
+            dest_f = h5py.File(dest_globals_file, 'a')  # yes -> open dest_globals_file
         else:
-            new_f = f  # no -> new files is old file
+            dest_f = source_f  # no -> dest files is source file
 
         # rename Group until there is no name collisions
-        i = 0 if not move else 1
-        new_groupname = groupname
-        while new_groupname in new_f['globals']:
-            new_groupname = "{}({})".format(new_groupname, i) if i > 0 else "{}_copy".format(new_groupname)
+        i = 0 if not delete_source_group else 1
+        dest_groupname = source_groupname
+        while dest_groupname in dest_f['globals']:
+            dest_groupname = "{}({})".format(dest_groupname, i) if i > 0 else "{}_copy".format(dest_groupname)
             i += 1
 
         # copy group
-        new_f.copy(f['globals'][groupname], '/globals/%s' % new_groupname)
+        dest_f.copy(source_f['globals'][source_groupname], '/globals/%s' % dest_groupname)
 
         # close opend file
-        if new_f != f:
-            new_f.close()
+        if dest_f != source_f:
+            dest_f.close()
 
-    return new_groupname
+    return dest_groupname
 
 
 def rename_group(filename, oldgroupname, newgroupname):
