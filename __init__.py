@@ -133,6 +133,39 @@ def new_group(filename, groupname):
         group.create_group('expansion')
 
 
+def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_source_group=False):
+    """ This function copies the group source_groupname from source_globals_file
+        to dest_globals_file and renames the new group so that there is no name
+        collision. If delete_source_group is False the copyied files have
+        a suffix '_copy'."""
+    with h5py.File(source_globals_file, 'a') as source_f:
+        # check if group exists
+        if source_groupname not in source_f['globals']:
+            raise Exception('Can\'t copy there is no group "{}"!'.format(source_groupname))
+
+        # Are we coping from one file to another?
+        if dest_globals_file is not None and source_globals_file != dest_globals_file:
+            dest_f = h5py.File(dest_globals_file, 'a')  # yes -> open dest_globals_file
+        else:
+            dest_f = source_f  # no -> dest files is source file
+
+        # rename Group until there is no name collisions
+        i = 0 if not delete_source_group else 1
+        dest_groupname = source_groupname
+        while dest_groupname in dest_f['globals']:
+            dest_groupname = "{}({})".format(dest_groupname, i) if i > 0 else "{}_copy".format(dest_groupname)
+            i += 1
+
+        # copy group
+        dest_f.copy(source_f['globals'][source_groupname], '/globals/%s' % dest_groupname)
+
+        # close opend file
+        if dest_f != source_f:
+            dest_f.close()
+
+    return dest_groupname
+
+
 def rename_group(filename, oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
         # No rename!
@@ -823,4 +856,4 @@ def globals_diff_shots(file1, file2, max_cols=100):
     other_groups = get_all_groups(file2)
 
     print('Globals diff between:\n%s\n%s\n\n' % (file1, file2))
-    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
+    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
