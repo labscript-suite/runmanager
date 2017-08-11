@@ -1802,10 +1802,10 @@ class RunManager(object):
         menu.addAction(self.action_groups_open_selected)
         menu.addAction(self.action_groups_close_selected_groups)
         menu.addAction(self.action_groups_close_selected_files)
-        copy_menu = QtGui.QMenu('Copy selected group(s) to...', menu)
+        copy_menu = QtWidgets.QMenu('Copy selected group(s) to...', menu)
         copy_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document-copy'))
         menu.addMenu(copy_menu)
-        move_menu = QtGui.QMenu('Move selected group(s) to...', menu)
+        move_menu = QtWidgets.QMenu('Move selected group(s) to...', menu)
         move_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document--arrow'))
         menu.addMenu(move_menu)
 
