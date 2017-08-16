@@ -1321,12 +1321,6 @@ class RunManager(object):
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
 
-        # Another loop, for submitting to mise in a separate thread:
-        self.mise_submission_queue = Queue.Queue()
-        self.mise_submission_queue_thread = threading.Thread(target=self.mise_submission_loop)
-        self.mise_submission_queue_thread.daemon = True
-        self.mise_submission_queue_thread.start()
-
         # Start the compiler subprocess:
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues(
             'batch_compiler.py', self.output_box.port)
@@ -1474,10 +1468,6 @@ class RunManager(object):
         self.ui.toolButton_reset_shot_output_folder.clicked.connect(self.on_reset_shot_output_folder_clicked)
         self.ui.lineEdit_labscript_file.textChanged.connect(self.on_labscript_file_text_changed)
         self.ui.lineEdit_shot_output_folder.textChanged.connect(self.on_shot_output_folder_text_changed)
-
-        # compile/send to mise toggling:
-        self.ui.radioButton_compile.toggled.connect(self.on_compile_toggled)
-        self.ui.radioButton_send_to_mise.toggled.connect(self.on_send_to_mise_toggled)
 
         # Control buttons; engage, abort, restart subprocess:
         self.ui.pushButton_engage.clicked.connect(self.on_engage_clicked)
@@ -1673,23 +1663,9 @@ class RunManager(object):
         self.ui.toolButton_reset_shot_output_folder.setEnabled(enabled)
         self.ui.lineEdit_shot_output_folder.setToolTip(text)
 
-    def on_compile_toggled(self, checked):
-        if checked:
-            # Show the corresponding page of the stackedWidget:
-            page = self.ui.stackedWidgetPage_compile
-            self.ui.stackedWidget_compile_or_mise.setCurrentWidget(page)
-
-    def on_send_to_mise_toggled(self, checked):
-        if checked:
-            # Show the corresponding page of the stackedWidget:
-            page = self.ui.stackedWidgetPage_send_to_mise
-            self.ui.stackedWidget_compile_or_mise.setCurrentWidget(page)
-
     def on_engage_clicked(self):
         logger.info('Engage')
         try:
-            compile = self.ui.radioButton_compile.isChecked()
-            submit_to_mise = self.ui.radioButton_send_to_mise.isChecked()
             send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
             send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
             labscript_file = self.ui.lineEdit_labscript_file.text()
@@ -1700,26 +1676,17 @@ class RunManager(object):
             if not output_folder:
                 raise Exception('Error: No output folder selected')
             BLACS_host = self.ui.lineEdit_BLACS_hostname.text()
-            mise_host = self.ui.lineEdit_mise_hostname.text()
             logger.info('Parsing globals...')
             active_groups = self.get_active_groups()
             try:
                 sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups)
             except Exception as e:
                 raise Exception('Error parsing globals:\n%s\nCompilation aborted.' % str(e))
-            if compile:
-                logger.info('Making h5 files')
-                labscript_file, run_files = self.make_h5_files(
-                    labscript_file, output_folder, sequenceglobals, shots, shuffle)
-                self.ui.pushButton_abort.setEnabled(True)
-                self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
-            elif submit_to_mise:
-                if not mise_host:
-                    raise Exception('Error: No mise host entered')
-                self.mise_submission_queue.put(
-                    [mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder])
-            else:
-                raise RuntimeError('neither radiobutton selected')  # Sanity check
+            logger.info('Making h5 files')
+            labscript_file, run_files = self.make_h5_files(
+                labscript_file, output_folder, sequenceglobals, shots, shuffle)
+            self.ui.pushButton_abort.setEnabled(True)
+            self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
         except Exception as e:
             self.output_box.output('%s\n\n' % str(e), red=True)
         logger.info('end engage')
@@ -2729,12 +2696,7 @@ class RunManager(object):
 
         # Get the server hostnames:
         BLACS_host = self.ui.lineEdit_BLACS_hostname.text()
-        mise_host = self.ui.lineEdit_mise_hostname.text()
 
-        # Get other GUI settings:
-        compile = self.ui.radioButton_compile.isChecked()
-        submit_to_mise = self.ui.radioButton_send_to_mise.isChecked()
-        compile = self.ui.checkBox_run_shots.isChecked()
         send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
         send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
         shuffle = self.ui.pushButton_shuffle.isChecked()
@@ -2745,13 +2707,10 @@ class RunManager(object):
                      'current_labscript_file': current_labscript_file,
                      'shot_output_folder': shot_output_folder,
                      'is_using_default_shot_output_folder': is_using_default_shot_output_folder,
-                     'submit_to_mise': submit_to_mise,
-                     'compile': compile,
                      'send_to_runviewer': send_to_runviewer,
                      'send_to_BLACS': send_to_BLACS,
                      'shuffle': shuffle,
-                     'BLACS_host': BLACS_host,
-                     'mise_host': mise_host}
+                     'BLACS_host': BLACS_host}
         return save_data
 
     def save_configuration(self, save_file):
@@ -2882,20 +2841,6 @@ class RunManager(object):
                 self.ui.lineEdit_shot_output_folder.setText(default_output_folder)
                 self.last_selected_shot_output_folder = os.path.dirname(default_output_folder)
         try:
-            submit_to_mise = ast.literal_eval(runmanager_config.get('runmanager_state', 'submit_to_mise'))
-        except Exception:
-            pass
-        else:
-            if submit_to_mise:
-                self.ui.radioButton_send_to_mise.setChecked(True)
-        try:
-            compile = ast.literal_eval(runmanager_config.get('runmanager_state', 'compile'))
-        except Exception:
-            pass
-        else:
-            if compile:
-                self.ui.radioButton_compile.setChecked(True)
-        try:
             send_to_runviewer = ast.literal_eval(runmanager_config.get('runmanager_state', 'send_to_runviewer'))
         except Exception:
             pass
@@ -2920,12 +2865,6 @@ class RunManager(object):
             pass
         else:
             self.ui.lineEdit_BLACS_hostname.setText(BLACS_host)
-        try:
-            mise_host = ast.literal_eval(runmanager_config.get('runmanager_state', 'mise_host'))
-        except Exception:
-            pass
-        else:
-            self.ui.lineEdit_mise_hostname.setText(mise_host)
         # Set as self.last_save_data:
         save_data = self.get_save_data()
         self.last_save_data = save_data
@@ -3176,29 +3115,6 @@ class RunManager(object):
                 self.output_box.output('Shot %s sent to runviewer.\n' % os.path.basename(run_file))
         except Exception as e:
             self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n' % str(e), red=True)
-
-    def mise_submission_loop(self):
-        mise_port = int(self.exp_config.get('ports', 'mise'))
-        BLACS_port = int(self.exp_config.get('ports', 'BLACS'))
-        while True:
-            try:
-                mise_host, BLACS_host, labscript_file, sequenceglobals, shots, shuffle, output_folder = \
-                    self.mise_submission_queue.get()
-                self.output_box.output('submitting labscript and parameter space to mise\n')
-                data = ('from runmanager', labscript_file, sequenceglobals, shots,
-                        output_folder, shuffle, BLACS_host, BLACS_port, self.shared_drive_prefix)
-                try:
-                    success, message = zprocess.zmq_get(mise_port, host=mise_host, data=data, timeout=2)
-                except ZMQError as e:
-                    success, message = False, 'Could not send to mise: %s\n\n' % str(e)
-                self.output_box.output(message, red=not success)
-                if success:
-                    self.output_box.output('Ready.\n\n')
-            except Exception:
-                # Raise it so whatever bug it is gets seen, but keep going so the thread keeps functioning:
-                exc_info = sys.exc_info()
-                zprocess.raise_exception_in_thread(exc_info)
-                continue
 
 if __name__ == "__main__":
     logger = setup_logging('runmanager')
