@@ -33,16 +33,6 @@ import pprint
 import matplotlib
 matplotlib.use('Agg')
 
-import sip
-
-API_NAMES = ["QDate", "QDateTime", "QString", "QTextStream", "QTime", "QUrl", "QVariant"]
-API_VERSION = 2
-for name in API_NAMES:
-    sip.setapi(name, API_VERSION)
-
-from qtutils.qt import QtCore, QtGui, QtWidgets
-from qtutils.qt.QtCore import pyqtSignal as Signal
-
 import signal
 # Quit on ctrl-c
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -56,6 +46,9 @@ check_version('labscript_utils', '2', '3')
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('zprocess', '1.1.5', '3.0')
 check_version('pandas', '0.13', '2')
+
+from qtutils.qt import QtCore, QtGui, QtWidgets
+from qtutils.qt.QtCore import pyqtSignal as Signal
 
 import zprocess.locking
 from zmq import ZMQError
