@@ -230,7 +230,7 @@ def get_value(filename, groupname, globalname):
         value = f['globals'][groupname].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = str(value)
         return value
 
 
@@ -244,7 +244,7 @@ def get_units(filename, groupname, globalname):
         value = f['globals'][groupname]['units'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = str(value)
         return value
 
 
@@ -258,7 +258,7 @@ def get_expansion(filename, groupname, globalname):
         value = f['globals'][groupname]['expansion'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = str(value)
         return value
 
 
@@ -297,7 +297,7 @@ def iterator_to_tuple(iterator, max_length=1000000):
 
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files, str) or isinstance(h5_files, unicode):
+    if isinstance(h5_files, str) or isinstance(h5_files, str):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
@@ -333,9 +333,9 @@ def get_globals(groups):
                     expansion = expansions[global_name]
                     # Replace numpy strings with python unicode strings.
                     # DEPRECATED, for backward compat with old files
-                    value = unicode(value)
-                    unit = unicode(unit)
-                    expansion = unicode(expansion)
+                    value = str(value)
+                    unit = str(unit)
+                    expansion = str(expansion)
                     sequence_globals[group_name][global_name] = value, unit, expansion
     return sequence_globals
 
