@@ -10,7 +10,13 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import print_function
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+    import Queue as queue
+else:
+    import queue
 
 import os
 import sys
@@ -21,7 +27,6 @@ import time
 import contextlib
 import subprocess
 import threading
-import Queue
 import socket
 import ast
 import pprint
@@ -1309,7 +1314,7 @@ class RunManager(object):
         self.previous_expansions = {}
 
         # Start the loop that allows compilations to be queued up:
-        self.compile_queue = Queue.Queue()
+        self.compile_queue = queue.Queue()
         self.compile_queue_thread = threading.Thread(target=self.compile_loop)
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
@@ -2878,7 +2883,10 @@ class RunManager(object):
                             # We do .next() instead of looping over run_files
                             # so that if compilation is aborted we won't
                             # create an extra file unnecessarily.
-                            run_file = run_files.next()
+                            if PY2:
+                                run_file = run_files.next()
+                            else:
+                                run_file = run_files.__next__()
                         except StopIteration:
                             self.output_box.output('Ready.\n\n')
                             break

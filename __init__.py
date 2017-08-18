@@ -11,7 +11,11 @@
 #                                                                   #
 #####################################################################
 
-from __future__ import division
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import itertools
 import os
 import sys
@@ -30,8 +34,6 @@ import zprocess
 
 __version__ = '2.0.5'
 
-if not sys.version < '3':
-    unicode = str
 
 def is_valid_python_identifier(name):
     import tokenize
