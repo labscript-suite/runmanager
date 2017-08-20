@@ -37,9 +37,12 @@ __version__ = '2.0.5'
 
 def is_valid_python_identifier(name):
     import tokenize
-    import StringIO
+    if PY2:
+        import StringIO as io
+    else:
+        import io
     try:
-        tokens = list(tokenize.generate_tokens(StringIO.StringIO(name).readline))
+        tokens = list(tokenize.generate_tokens(io.StringIO(name).readline))
     except tokenize.TokenError:
         return False
     if len(tokens) == 2:
@@ -729,7 +732,7 @@ def dict_diff(dict1, dict2):
     """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
     Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
     diff_keys = []
-    common_keys = np.intersect1d(dict1.keys(), dict2.keys())
+    common_keys = np.intersect1d(list(dict1.keys()), list(dict2.keys()))
     for key in common_keys:
         if np.iterable(dict1[key]) or np.iterable(dict2[key]):
             if not np.array_equal(dict1[key], dict2[key]):
@@ -760,13 +763,16 @@ def remove_comments_and_tokenify(line):
     comparisons between lines to be made without being sensitive to
     whitespace."""
     import tokenize
-    import StringIO
+    if PY2:
+        import StringIO as io
+    else:
+        import io
     result_expression = ''
     result_tokens = []
     error_encountered = False
     # This never fails because it produces a generator, syntax errors
     # come out when looping over it:
-    tokens = tokenize.generate_tokens(StringIO.StringIO(line).readline)
+    tokens = tokenize.generate_tokens(io.StringIO(line).readline)
     try:
         for token_type, token_value, (_, start), (_, end), _ in tokens:
             if token_type == tokenize.COMMENT and not error_encountered:
