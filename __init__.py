@@ -300,7 +300,7 @@ def iterator_to_tuple(iterator, max_length=1000000):
 
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files, str) or isinstance(h5_files, str):
+    if not isinstance(h5_files, list):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
@@ -806,7 +806,7 @@ def flatten_globals(sequence_globals, evaluated=False):
 
 
 def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_string=True):
-    """Given two sets of globals groups, perform a diff of the raw 
+    """Given two sets of globals groups, perform a diff of the raw
     and evaluated globals."""
     our_sequence_globals = get_globals(active_groups)
     other_sequence_globals = get_globals(other_groups)
