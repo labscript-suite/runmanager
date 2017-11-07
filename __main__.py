@@ -70,6 +70,25 @@ os.chdir(runmanager_dir)
 zprocess.locking.set_client_process_name('runmanager')
 
 
+def log_if_global(g, g_list, message):
+    """logs a message if the global name "g" is in "g_list"
+    
+    useful if you want to print out a message inside a loop over globals,
+    but only for a particular global (or set of globals).
+    
+    If g_list is empty, then it will use the hardcoded list below
+    (useful if you want to change the behaviour globally)    
+    """
+    if not isinstance(g_list, list):
+        g_list = [g_list]
+        
+    if not g_list:
+        g_list = [] # add global options here
+    
+    if g in g_list:
+        logger.info(message)
+
+    
 def set_win_appusermodel(window_id):
     from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
     icon_path = os.path.abspath('runmanager.ico')
@@ -2955,13 +2974,24 @@ class RunManager(object):
                 try:
                     previous_value = self.previous_evaled_globals[group_name][global_name]
                 except KeyError:
-                    # This variable is only used to guess the expansion type
-                    # so we can set it to '0' which will result in an
+                    # This variable is used to guess the expansion type
+                    # 
+                    # If we already have an expansion specified for this, but
+                    # don't have a previous value, then we should use the 
+                    # new_value for the guess as we are likely loading from HDF5
+                    # file for the first time (and either way, don't want to 
+                    # overwrite what the user has put in the expansion type)
+                    #
+                    # If we don't have an expansion...
+                    # then we set it to '0' which will result in an
                     # expansion type guess of '' (emptys string) This will
                     # either result in nothing being done to the expansion
                     # type or the expansion type being found to be 'outer',
                     # which will then make it go through the machinery below
-                    previous_value = 0
+                    if global_name in expansions and expansions[global_name]:
+                        previous_value = new_value
+                    else:
+                        previous_value = 0
 
                 new_guess = runmanager.guess_expansion_type(new_value)
                 previous_guess = runmanager.guess_expansion_type(previous_value)
@@ -2995,6 +3025,30 @@ class RunManager(object):
                     if expansions[dependency]:
                         return True
 
+        def set_expansion_type_guess(expansion_types, expansions, global_name, expansion_to_set, new=True):
+            if new:
+                key = 'new_guess'
+            else:
+                key = 'previous_guess'
+                
+            # debug logging
+            log_if_global(global_name, [], 'setting expansion type for new dependency' if new else 'setting expansion type for old dependencies')
+            
+            
+            # only do this if the expansion is *not* already set to a specific zip group
+            if global_name in expansions and expansions[global_name] != '' and expansions[global_name] != 'outer':
+                expansion_types[global_name][key] = expansions[global_name]
+                
+                # debug logging
+                log_if_global(global_name, [], 'Using existing expansion %s for %s'%(expansions[global_name], global_name))
+            else:
+                expansion_types[global_name][key] = expansion_to_set
+                expansions[global_name] = expansion_to_set
+                
+                # debug logging
+                log_if_global(global_name, [], 'Using existing expansion %s for %s'%(expansion_to_set, global_name))
+            
+        
         for global_name in sorted(expansion_types):
             # we have a global that does not depend on anything that has an
             # expansion type of 'outer'
@@ -3005,11 +3059,10 @@ class RunManager(object):
                 # if this global has other globals that use it, then add them
                 # all to a zip group with the name of this global
                 if current_dependencies:
-                    for dependency in current_dependencies:
-                        expansion_types[dependency]['new_guess'] = str(global_name)
-                        expansions[dependency] = str(global_name)
-                    expansion_types[global_name]['new_guess'] = str(global_name)
-                    expansions[global_name] = str(global_name)
+                    for dependency in current_dependencies:                        
+                        set_expansion_type_guess(expansion_types, expansions, dependency,  str(global_name))
+                            
+                    set_expansion_type_guess(expansion_types, expansions, global_name,  str(global_name))
 
         for global_name in sorted(self.previous_expansion_types):
             if (not global_depends_on_global_with_outer_product(
@@ -3021,9 +3074,9 @@ class RunManager(object):
                 if old_dependencies:
                     for dependency in old_dependencies:
                         if dependency in expansion_types:
-                            expansion_types[dependency]['previous_guess'] = str(global_name)
+                            set_expansion_type_guess(expansion_types, self.previous_expansions, dependency, str(global_name), new=False)
                     if global_name in expansion_types:
-                        expansion_types[global_name]['previous_guess'] = str(global_name)
+                        set_expansion_type_guess(expansion_types, self.previous_expansions, global_name, str(global_name), new=False)
 
         for global_name, guesses in expansion_types.items():
             if guesses['new_guess'] != guesses['previous_guess']:
