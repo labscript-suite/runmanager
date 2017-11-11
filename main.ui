@@ -192,8 +192,26 @@ QPushButton:hover {
            </property>
           </widget>
          </item>
+         <item row="1" column="0">
+          <widget class="QPushButton" name="pushButton_restart_subprocess">
+           <property name="focusPolicy">
+            <enum>Qt::NoFocus</enum>
+           </property>
+           <property name="toolTip">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Forcefully restart the compilation subprocess, stopping any compilation in process.&lt;/p&gt;&lt;p&gt;This can be useful if the child process is misbehaving for any reason.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>Restart
+subprocess</string>
+           </property>
+           <property name="icon">
+            <iconset>
+             <normaloff>:/qtutils/fugue/arrow-circle-135-left.png</normaloff>:/qtutils/fugue/arrow-circle-135-left.png</iconset>
+           </property>
+          </widget>
+         </item>
          <item row="1" column="1">
-          <widget class="QPushButton" name="pushButton_shuffle">
+          <widget class="QCheckBox" name="pushButton_shuffle">
            <property name="focusPolicy">
             <enum>Qt::NoFocus</enum>
            </property>
@@ -210,23 +228,8 @@ QPushButton:hover {
            <property name="checkable">
             <bool>true</bool>
            </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QPushButton" name="pushButton_restart_subprocess">
-           <property name="focusPolicy">
-            <enum>Qt::NoFocus</enum>
-           </property>
-           <property name="toolTip">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Forcefully restart the compilation subprocess, stopping any compilation in process.&lt;/p&gt;&lt;p&gt;This can be useful if the child process is misbehaving for any reason.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-           <property name="text">
-            <string>Restart
-subprocess</string>
-           </property>
-           <property name="icon">
-            <iconset>
-             <normaloff>:/qtutils/fugue/arrow-circle-135-left.png</normaloff>:/qtutils/fugue/arrow-circle-135-left.png</iconset>
+           <property name="tristate">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -572,7 +575,7 @@ QToolButton:hover {
        <enum>QTabWidget::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="elideMode">
        <enum>Qt::ElideRight</enum>
@@ -738,8 +741,8 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>933</width>
-             <height>516</height>
+             <width>926</width>
+             <height>486</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_7">
@@ -750,7 +753,17 @@ QToolButton:hover {
              <number>0</number>
             </property>
             <item>
-             <widget class="QTreeView" name="treeView_axes"/>
+             <widget class="QTreeView" name="treeView_axes">
+              <property name="editTriggers">
+               <set>QAbstractItemView::NoEditTriggers</set>
+              </property>
+              <property name="selectionMode">
+               <enum>QAbstractItemView::ExtendedSelection</enum>
+              </property>
+              <property name="selectionBehavior">
+               <enum>QAbstractItemView::SelectRows</enum>
+              </property>
+             </widget>
             </item>
            </layout>
           </widget>
@@ -863,8 +876,8 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>962</width>
-             <height>485</height>
+             <width>963</width>
+             <height>448</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -897,7 +910,7 @@ QToolButton:hover {
      <x>0</x>
      <y>0</y>
      <width>1000</width>
-     <height>25</height>
+     <height>31</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

@@ -459,7 +459,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     return results, global_hierarchy, expansions
 
 
-def expand_globals(sequence_globals, evaled_globals):
+def expand_globals(sequence_globals, evaled_globals, expansion_config = None, return_dimensions = False):
     """Expands iterable globals according to their expansion
     settings. Creates a number of 'axes' which are to be outer product'ed
     together. Some of these axes have only one element, these are globals
@@ -468,6 +468,14 @@ def expand_globals(sequence_globals, evaled_globals):
     across its values (the globals set to 'outer' expansion). Returns
     a list of shots, each element of which is a dictionary for that
     shot's globals."""
+    
+    if expansion_config is None:
+        order = {}
+        shuffle = {}
+    else:
+        order = {k:v['order'] for k,v in expansion_config.items() if 'order' in v}
+        shuffle = {k:v['shuffle'] for k,v in expansion_config.items() if 'shuffle' in v}
+    
     values = {}
     expansions = {}
     for group_name in sequence_globals:
@@ -483,10 +491,13 @@ def expand_globals(sequence_globals, evaled_globals):
         zip_keys.remove('outer')
     except KeyError:
         pass
-    axes = []
-    global_names = []
+
+    axes = {}
+    global_names = {}
+    dimensions = {}
     for zip_key in zip_keys:
         axis = []
+        zip_global_names = []
         for global_name in expansions:
             if expansions[global_name] == zip_key:
                 value = values[global_name]
@@ -496,9 +507,11 @@ def expand_globals(sequence_globals, evaled_globals):
                     # this will give us the result we want:
                     value = [value]
                 axis.append(value)
-                global_names.append(global_name)
+                zip_global_names.append(global_name)
         axis = zip(*axis)
-        axes.append(axis)
+        dimensions['zip '+zip_key] = len(axis)
+        axes['zip '+zip_key] = axis
+        global_names['zip '+zip_key] = zip_global_names
 
     # Give each global being outer-product'ed its own axis. It gets
     # wrapped up in a list and zipped with itself so that it is in the
@@ -509,9 +522,32 @@ def expand_globals(sequence_globals, evaled_globals):
             value = values[global_name]
             axis = [value]
             axis = zip(*axis)
-            axes.append(axis)
-            global_names.append(global_name)
-
+            dimensions['outer '+global_name] = len(axis)
+            axes['outer '+global_name] = axis
+            global_names['outer '+global_name] = [global_name]
+    
+    # add any missing items to order and dimensions
+    for key, value in axes.items():
+        if key not in order:
+            order[key] = -1
+        if key not in shuffle:
+            shuffle[key] = False
+        if key not in dimensions:
+            dimensions[key] = 1
+            
+    # shuffle relevant axes
+    for axis_name, axis_values in axes.items():
+        if shuffle[axis_name]:
+            random.shuffle(axis_values)
+            
+    # sort axes and global names by order
+    axes = [axes.get(key) for key in sorted(order, key=order.get)]
+    global_names = [global_names.get(key) for key in sorted(order, key=order.get)]
+    
+    # flatten the global names
+    global_names = [global_name for global_list in global_names for global_name in global_list]
+          
+          
     shots = []
     for axis_values in itertools.product(*axes):
         # values here is a tuple of tuples, with the outer list being over
@@ -520,8 +556,11 @@ def expand_globals(sequence_globals, evaled_globals):
         global_values = [value for axis in axis_values for value in axis]
         shot_globals = dict(zip(global_names, global_values))
         shots.append(shot_globals)
-    return shots
-
+        
+    if return_dimensions:
+        return shots, dimensions
+    else:
+        return shots
 
 def generate_sequence_id(scriptname):
     """Our convention for generating sequence ids. Just a timestamp and
