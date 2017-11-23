@@ -502,7 +502,7 @@ def expand_globals(sequence_globals, evaled_globals):
                     value = [value]
                 axis.append(value)
                 global_names.append(global_name)
-        axis = zip(*axis)
+        axis = list(zip(*axis))
         axes.append(axis)
 
     # Give each global being outer-product'ed its own axis. It gets
@@ -513,7 +513,7 @@ def expand_globals(sequence_globals, evaled_globals):
         if expansions[global_name] == 'outer':
             value = values[global_name]
             axis = [value]
-            axis = zip(*axis)
+            axis = list(zip(*axis))
             axes.append(axis)
             global_names.append(global_name)
 
