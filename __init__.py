@@ -513,7 +513,7 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
                     value = [value]
                 axis.append(value)
                 zip_global_names.append(global_name)
-        axis = zip(*axis)
+        axis = list(zip(*axis))
         dimensions['zip '+zip_key] = len(axis)
         axes['zip '+zip_key] = axis
         global_names['zip '+zip_key] = zip_global_names
@@ -526,7 +526,7 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
         if expansions[global_name] == 'outer':
             value = values[global_name]
             axis = [value]
-            axis = zip(*axis)
+            axis = list(zip(*axis))
             dimensions['outer '+global_name] = len(axis)
             axes['outer '+global_name] = axis
             global_names['outer '+global_name] = [global_name]
