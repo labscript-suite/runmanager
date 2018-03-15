@@ -3131,13 +3131,10 @@ class RunManager(object):
                         break
                     try:
                         try:
-                            # We do .next() instead of looping over run_files
+                            # We do next() instead of looping over run_files
                             # so that if compilation is aborted we won't
                             # create an extra file unnecessarily.
-                            if PY2:
-                                run_file = run_files.next()
-                            else:
-                                run_file = run_files.__next__()
+                            run_file = next(run_files)
                         except StopIteration:
                             self.output_box.output('Ready.\n\n')
                             break
