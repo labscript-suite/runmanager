@@ -1168,7 +1168,7 @@ class GroupTab(object):
                 if isinstance(value, Exception):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
-                    tooltip = '%s: %s' % (value.__class__.__name__, value.message)
+                    tooltip = '%s: %s' % (value.__class__.__name__, str(value))
                     tab_contains_errors = True
                 else:
                     if value_item.background().color().name().lower() != self.COLOR_OK.lower():
