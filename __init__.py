@@ -233,7 +233,7 @@ def get_value(filename, groupname, globalname):
         value = f['globals'][groupname].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = str(value)
+        value = value.decode() if isinstance(value, bytes) else str(value)
         return value
 
 
@@ -247,7 +247,7 @@ def get_units(filename, groupname, globalname):
         value = f['globals'][groupname]['units'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = str(value)
+        value = value.decode() if isinstance(value, bytes) else str(value)
         return value
 
 
@@ -261,7 +261,7 @@ def get_expansion(filename, groupname, globalname):
         value = f['globals'][groupname]['expansion'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = str(value)
+        value = value.decode() if isinstance(value, bytes) else str(value)
         return value
 
 
@@ -336,9 +336,9 @@ def get_globals(groups):
                     expansion = expansions[global_name]
                     # Replace numpy strings with python unicode strings.
                     # DEPRECATED, for backward compat with old files
-                    value = str(value)
-                    unit = str(unit)
-                    expansion = str(expansion)
+                    value = value.decode() if isinstance(value, bytes) else str(value)
+                    unit = unit.decode() if isinstance(unit, bytes) else str(unit)
+                    expansion = expansion.decode() if isinstance(expansion, bytes) else str(expansion)
                     sequence_globals[group_name][global_name] = value, unit, expansion
     return sequence_globals
 
