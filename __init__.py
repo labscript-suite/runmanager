@@ -763,6 +763,8 @@ def get_shot_globals(filepath):
             # DEPRECATED, for backward compat with old files.
             if isinstance(value, np.str_):
                 value = str(value)
+            if isinstance(value, bytes):
+                value = value.decode()
             params[name] = value
     return params
 
