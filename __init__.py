@@ -305,7 +305,7 @@ def iterator_to_tuple(iterator, max_length=1000000):
 
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files, bytes) or isinstance(h5_files, unicode):
+    if isinstance(h5_files, bytes) or isinstance(h5_files, str):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
