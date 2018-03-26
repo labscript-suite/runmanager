@@ -35,6 +35,11 @@ import zprocess
 __version__ = '2.1.0'
 
 
+def _ensure_str(s):
+    """convert bytestrings and numpy strings to python strings"""
+    return s.decode() if isinstance(s, bytes) else str(s)
+
+
 def is_valid_python_identifier(name):
     import tokenize
     if PY2:
@@ -233,7 +238,7 @@ def get_value(filename, groupname, globalname):
         value = f['globals'][groupname].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = value.decode() if isinstance(value, bytes) else str(value)
+        value = _ensure_str(value)
         return value
 
 
@@ -247,7 +252,7 @@ def get_units(filename, groupname, globalname):
         value = f['globals'][groupname]['units'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = value.decode() if isinstance(value, bytes) else str(value)
+        value = _ensure_str(value)
         return value
 
 
@@ -261,7 +266,7 @@ def get_expansion(filename, groupname, globalname):
         value = f['globals'][groupname]['expansion'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = value.decode() if isinstance(value, bytes) else str(value)
+        value = _ensure_str(value)
         return value
 
 
@@ -300,7 +305,7 @@ def iterator_to_tuple(iterator, max_length=1000000):
 
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if not isinstance(h5_files, list):
+    if isinstance(h5_files, bytes) or isinstance(h5_files, unicode):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
@@ -336,9 +341,9 @@ def get_globals(groups):
                     expansion = expansions[global_name]
                     # Replace numpy strings with python unicode strings.
                     # DEPRECATED, for backward compat with old files
-                    value = value.decode() if isinstance(value, bytes) else str(value)
-                    unit = unit.decode() if isinstance(unit, bytes) else str(unit)
-                    expansion = expansion.decode() if isinstance(expansion, bytes) else str(expansion)
+                    value = _ensure_str(value)
+                    unit = _ensure_str(unit)
+                    expansion = _ensure_str(expansion)
                     sequence_globals[group_name][global_name] = value, unit, expansion
     return sequence_globals
 
