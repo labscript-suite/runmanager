@@ -11,7 +11,11 @@
 #                                                                   #
 #####################################################################
 
-from __future__ import division
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import itertools
 import os
 import sys
@@ -30,14 +34,20 @@ import zprocess
 
 __version__ = '2.1.0'
 
-if not sys.version < '3':
-    unicode = str
+
+def _ensure_str(s):
+    """convert bytestrings and numpy strings to python strings"""
+    return s.decode() if isinstance(s, bytes) else str(s)
+
 
 def is_valid_python_identifier(name):
     import tokenize
-    import StringIO
+    if PY2:
+        import StringIO as io
+    else:
+        import io
     try:
-        tokens = list(tokenize.generate_tokens(StringIO.StringIO(name).readline))
+        tokens = list(tokenize.generate_tokens(io.StringIO(name).readline))
     except tokenize.TokenError:
         return False
     if len(tokens) == 2:
@@ -228,7 +238,7 @@ def get_value(filename, groupname, globalname):
         value = f['globals'][groupname].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = _ensure_str(value)
         return value
 
 
@@ -242,7 +252,7 @@ def get_units(filename, groupname, globalname):
         value = f['globals'][groupname]['units'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = _ensure_str(value)
         return value
 
 
@@ -256,7 +266,7 @@ def get_expansion(filename, groupname, globalname):
         value = f['globals'][groupname]['expansion'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = _ensure_str(value)
         return value
 
 
@@ -295,7 +305,7 @@ def iterator_to_tuple(iterator, max_length=1000000):
 
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files, str) or isinstance(h5_files, unicode):
+    if isinstance(h5_files, bytes) or isinstance(h5_files, str):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
@@ -331,9 +341,9 @@ def get_globals(groups):
                     expansion = expansions[global_name]
                     # Replace numpy strings with python unicode strings.
                     # DEPRECATED, for backward compat with old files
-                    value = unicode(value)
-                    unit = unicode(unit)
-                    expansion = unicode(expansion)
+                    value = _ensure_str(value)
+                    unit = _ensure_str(unit)
+                    expansion = _ensure_str(expansion)
                     sequence_globals[group_name][global_name] = value, unit, expansion
     return sequence_globals
 
@@ -468,14 +478,14 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
     across its values (the globals set to 'outer' expansion). Returns
     a list of shots, each element of which is a dictionary for that
     shot's globals."""
-    
+
     if expansion_config is None:
         order = {}
         shuffle = {}
     else:
         order = {k:v['order'] for k,v in expansion_config.items() if 'order' in v}
         shuffle = {k:v['shuffle'] for k,v in expansion_config.items() if 'shuffle' in v}
-    
+
     values = {}
     expansions = {}
     for group_name in sequence_globals:
@@ -508,7 +518,7 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
                     value = [value]
                 axis.append(value)
                 zip_global_names.append(global_name)
-        axis = zip(*axis)
+        axis = list(zip(*axis))
         dimensions['zip '+zip_key] = len(axis)
         axes['zip '+zip_key] = axis
         global_names['zip '+zip_key] = zip_global_names
@@ -521,11 +531,11 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
         if expansions[global_name] == 'outer':
             value = values[global_name]
             axis = [value]
-            axis = zip(*axis)
+            axis = list(zip(*axis))
             dimensions['outer '+global_name] = len(axis)
             axes['outer '+global_name] = axis
             global_names['outer '+global_name] = [global_name]
-    
+
     # add any missing items to order and dimensions
     for key, value in axes.items():
         if key not in order:
@@ -534,20 +544,20 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
             shuffle[key] = False
         if key not in dimensions:
             dimensions[key] = 1
-            
+
     # shuffle relevant axes
     for axis_name, axis_values in axes.items():
         if shuffle[axis_name]:
             random.shuffle(axis_values)
-            
+
     # sort axes and global names by order
     axes = [axes.get(key) for key in sorted(order, key=order.get)]
     global_names = [global_names.get(key) for key in sorted(order, key=order.get)]
-    
+
     # flatten the global names
     global_names = [global_name for global_list in global_names for global_name in global_list]
-          
-          
+
+
     shots = []
     for axis_values in itertools.product(*axes):
         # values here is a tuple of tuples, with the outer list being over
@@ -556,7 +566,7 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
         global_values = [value for axis in axis_values for value in axis]
         shot_globals = dict(zip(global_names, global_values))
         shots.append(shot_globals)
-        
+
     if return_dimensions:
         return shots, dimensions
     else:
@@ -758,6 +768,8 @@ def get_shot_globals(filepath):
             # DEPRECATED, for backward compat with old files.
             if isinstance(value, np.str_):
                 value = str(value)
+            if isinstance(value, bytes):
+                value = value.decode()
             params[name] = value
     return params
 
@@ -766,7 +778,7 @@ def dict_diff(dict1, dict2):
     """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
     Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
     diff_keys = []
-    common_keys = np.intersect1d(dict1.keys(), dict2.keys())
+    common_keys = np.intersect1d(list(dict1.keys()), list(dict2.keys()))
     for key in common_keys:
         if np.iterable(dict1[key]) or np.iterable(dict2[key]):
             if not np.array_equal(dict1[key], dict2[key]):
@@ -797,13 +809,16 @@ def remove_comments_and_tokenify(line):
     comparisons between lines to be made without being sensitive to
     whitespace."""
     import tokenize
-    import StringIO
+    if PY2:
+        import StringIO as io
+    else:
+        import io
     result_expression = ''
     result_tokens = []
     error_encountered = False
     # This never fails because it produces a generator, syntax errors
     # come out when looping over it:
-    tokens = tokenize.generate_tokens(StringIO.StringIO(line).readline)
+    tokens = tokenize.generate_tokens(io.StringIO(line).readline)
     try:
         for token_type, token_value, (_, start), (_, end), _ in tokens:
             if token_type == tokenize.COMMENT and not error_encountered:
@@ -837,7 +852,7 @@ def flatten_globals(sequence_globals, evaluated=False):
 
 
 def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_string=True):
-    """Given two sets of globals groups, perform a diff of the raw 
+    """Given two sets of globals groups, perform a diff of the raw
     and evaluated globals."""
     our_sequence_globals = get_globals(active_groups)
     other_sequence_globals = get_globals(other_groups)
@@ -894,4 +909,4 @@ def globals_diff_shots(file1, file2, max_cols=100):
     other_groups = get_all_groups(file2)
 
     print('Globals diff between:\n%s\n%s\n\n' % (file1, file2))
-    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
+    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)

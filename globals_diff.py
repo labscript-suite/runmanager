@@ -1,4 +1,6 @@
+from __future__ import division, unicode_literals, print_function, absolute_import
+
 import sys
 from runmanager import globals_diff_shots
 
-df = globals_diff_shots(sys.argv[1], sys.argv[2])
+df = globals_diff_shots(sys.argv[1], sys.argv[2])

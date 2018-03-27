@@ -10,7 +10,9 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
 
+import os
 import sys
 import traceback
 from zprocess import setup_connection_with_parent
@@ -45,7 +47,10 @@ class BatchProcessor(object):
             # Do not let the modulewatcher unload any modules whilst we're working:
             with kill_lock, module_watcher.lock:
                 labscript.labscript_init(run_file, labscript_file=labscript_file)
-                execfile(labscript_file,sandbox,sandbox)
+                with open(labscript_file) as f:
+                    code = compile(f.read(), os.path.basename(labscript_file),
+                                   'exec', dont_inherit=True)
+                    exec(code, sandbox)
             return True
         except:
             traceback_lines = traceback.format_exception(*sys.exc_info())

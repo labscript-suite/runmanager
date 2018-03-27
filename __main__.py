@@ -10,7 +10,13 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import print_function
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+    import Queue as queue
+else:
+    import queue
 
 import os
 import sys
@@ -21,7 +27,6 @@ import time
 import contextlib
 import subprocess
 import threading
-import Queue
 import socket
 import ast
 import pprint
@@ -1163,7 +1168,7 @@ class GroupTab(object):
                 if isinstance(value, Exception):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
-                    tooltip = '%s: %s' % (value.__class__.__name__, value.message)
+                    tooltip = '%s: %s' % (value.__class__.__name__, str(value))
                     tab_contains_errors = True
                 else:
                     if value_item.background().color().name().lower() != self.COLOR_OK.lower():
@@ -1329,7 +1334,7 @@ class RunManager(object):
         self.previous_expansions = {}
 
         # Start the loop that allows compilations to be queued up:
-        self.compile_queue = Queue.Queue()
+        self.compile_queue = queue.Queue()
         self.compile_queue_thread = threading.Thread(target=self.compile_loop)
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
@@ -1928,7 +1933,7 @@ class RunManager(object):
         i = 2
         while new_filename != filenames:
             for filepath, filename in filenames.items():
-                if filenames.values().count(filename) > 1:
+                if list(filenames.values()).count(filename) > 1:
                     new_filename[filepath] = os.sep.join(filepath.split(os.sep)[-i:])
                 else:
                     new_filename[filepath] = filename
@@ -3126,10 +3131,10 @@ class RunManager(object):
                         break
                     try:
                         try:
-                            # We do .next() instead of looping over run_files
+                            # We do next() instead of looping over run_files
                             # so that if compilation is aborted we won't
                             # create an extra file unnecessarily.
-                            run_file = run_files.next()
+                            run_file = next(run_files)
                         except StopIteration:
                             self.output_box.output('Ready.\n\n')
                             break
