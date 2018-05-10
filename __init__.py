@@ -410,7 +410,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             # start the trace to determine which globals this global depends on
             sandbox.start_trace()
             try:
-                value = eval(expression, sandbox)
+                code = compile(expression, '<string>', 'eval', dont_inherit=True)
+                value = eval(code, sandbox)
                 # Need to know the length of any generators, convert to tuple:
                 if isinstance(value, types.GeneratorType):
                     value = iterator_to_tuple(value)
