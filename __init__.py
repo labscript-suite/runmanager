@@ -451,7 +451,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             if raise_exceptions:
                 message = 'Error parsing globals:\n'
                 for global_name, exception in errors:
-                    message += '%s: %s: %s\n' % (global_name, exception.__class__.__name__, exception.message)
+                    message += '%s: %s: %s\n' % (global_name, exception.__class__.__name__, exception.message if PY2 else str(exception))
                 raise Exception(message)
             else:
                 for global_name, exception in errors:
@@ -641,7 +641,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_id, run
                 message = ('Global %s cannot be saved as an hdf5 attribute. ' % name +
                            'Globals can only have relatively simple datatypes, with no nested structures. ' +
                            'Original error was:\n' +
-                           '%s: %s' % (e.__class__.__name__, e.message))
+                           '%s: %s' % (e.__class__.__name__, e.message if PY2 else str(e)))
                 raise ValueError(message)
 
 
