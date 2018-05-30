@@ -1522,7 +1522,6 @@ class RunManager(object):
         self.groups_model_item_changed_disconnected = DisconnectContextManager(
             self.groups_model.itemChanged, self.on_groups_model_item_changed)
         
-
         # Keyboard shortcuts:
         engage_shortcut = QtWidgets.QShortcut('F5', self.ui,
             lambda: self.ui.pushButton_engage.clicked.emit(False))
@@ -1530,7 +1529,6 @@ class RunManager(object):
         QtWidgets.QShortcut('ctrl+W', self.ui, self.close_current_tab)
         QtWidgets.QShortcut('ctrl+Tab', self.ui, lambda: self.switch_tabs(+1))
         QtWidgets.QShortcut('ctrl+shift+Tab', self.ui, lambda: self.switch_tabs(-1))
-
 
         # Tell Windows how to handle our windows in the the taskbar, making pinning work properly and stuff:
         if os.name == 'nt':
