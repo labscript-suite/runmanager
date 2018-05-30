@@ -161,8 +161,10 @@ class KeyPressQApplication(QtWidgets.QApplication):
     def notify(self, object, event):
         if event.type() == QtCore.QEvent.KeyPress and event.key():
             self.keyPress.emit(event.key(), event.modifiers(), event.isAutoRepeat())
+            return 1
         elif event.type() == QtCore.QEvent.KeyRelease and event.key():
             self.keyRelease.emit(event.key(), event.modifiers(), event.isAutoRepeat())
+            return 1
         return QtWidgets.QApplication.notify(self, object, event)
 
 
