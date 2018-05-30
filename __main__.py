@@ -152,20 +152,6 @@ def scroll_treeview_to_row_if_current(treeview, item):
         horizontal_scrollbar.setValue(existing_horizontal_position)
 
 
-class KeyPressQApplication(QtWidgets.QApplication):
-
-    """A Qapplication that emits a signal keyPress(key) on keypresses"""
-    keyPress = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
-    keyRelease = Signal(int, QtCore.Qt.KeyboardModifiers, bool)
-
-    def notify(self, object, event):
-        if event.type() == QtCore.QEvent.KeyPress and event.key():
-            self.keyPress.emit(event.key(), event.modifiers(), event.isAutoRepeat())
-        elif event.type() == QtCore.QEvent.KeyRelease and event.key():
-            self.keyRelease.emit(event.key(), event.modifiers(), event.isAutoRepeat())
-        return QtWidgets.QApplication.notify(self, object, event)
-
-
 class FingerTabBarWidget(QtWidgets.QTabBar):
 
     """A TabBar with the tabs on the left and the text horizontal. Credit to
@@ -1537,6 +1523,15 @@ class RunManager(object):
             self.groups_model.itemChanged, self.on_groups_model_item_changed)
         
 
+        # Keyboard shortcuts:
+        engage_shortcut = QtWidgets.QShortcut('F5', self.ui,
+            lambda: self.ui.pushButton_engage.clicked.emit(False))
+        engage_shortcut.setAutoRepeat(False)
+        QtWidgets.QShortcut('ctrl+W', self.ui, self.close_current_tab)
+        QtWidgets.QShortcut('ctrl+Tab', self.ui, lambda: self.switch_tabs(+1))
+        QtWidgets.QShortcut('ctrl+shift+Tab', self.ui, lambda: self.switch_tabs(-1))
+
+
         # Tell Windows how to handle our windows in the the taskbar, making pinning work properly and stuff:
         if os.name == 'nt':
             self.ui.newWindow.connect(set_win_appusermodel)
@@ -1556,30 +1551,17 @@ class RunManager(object):
         self.to_child.put(['quit', None])
         return True
 
-    def on_keyPress(self, key, modifiers, is_autorepeat):
-        if key == QtCore.Qt.Key_F5 and modifiers == QtCore.Qt.NoModifier and not is_autorepeat:
-            self.ui.pushButton_engage.setDown(True)
-        elif key == QtCore.Qt.Key_W and modifiers == QtCore.Qt.ControlModifier and not is_autorepeat:
-            current_tab_widget = self.ui.tabWidget.currentWidget()
-            for (globals_file, group_name), tab in self.currently_open_groups.items():
-                if tab.ui is current_tab_widget:
-                    self.close_group(globals_file, group_name)
-        elif modifiers & QtCore.Qt.ControlModifier:
-            if key == QtCore.Qt.Key_Tab:
-                change = 1
-            elif key == QtCore.Qt.Key_Backtab:
-                change = -1
-            else:
-                return
-            current_index = self.ui.tabWidget.currentIndex()
-            n_tabs = self.ui.tabWidget.count()
-            new_index = (current_index + change) % n_tabs
-            self.ui.tabWidget.setCurrentIndex(new_index)
+    def close_current_tab(self):
+        current_tab_widget = self.ui.tabWidget.currentWidget()
+        for (globals_file, group_name), tab in self.currently_open_groups.items():
+            if tab.ui is current_tab_widget:
+                self.close_group(globals_file, group_name)
 
-    def on_keyRelease(self, key, modifiers, is_autorepeat):
-        if key == QtCore.Qt.Key_F5 and not is_autorepeat:
-            self.ui.pushButton_engage.setDown(False)
-            self.ui.pushButton_engage.clicked.emit(False)
+    def switch_tabs(self, change):
+        current_index = self.ui.tabWidget.currentIndex()
+        n_tabs = self.ui.tabWidget.count()
+        new_index = (current_index + change) % n_tabs
+        self.ui.tabWidget.setCurrentIndex(new_index)
 
     def on_output_popout_button_clicked(self):
         if self.output_box_is_popped_out:
@@ -3410,9 +3392,7 @@ if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
-    qapplication = KeyPressQApplication(sys.argv)
+    qapplication = QtWidgets.QApplication(sys.argv)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
-    qapplication.keyPress.connect(app.on_keyPress)
-    qapplication.keyRelease.connect(app.on_keyRelease)
     sys.exit(qapplication.exec_())
