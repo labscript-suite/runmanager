@@ -319,15 +319,6 @@ class FingerTabWidget(QtWidgets.QTabWidget):
         QtWidgets.QTabWidget.__init__(self, parent, *args)
         self.setTabBar(FingerTabBarWidget(self))
 
-    def keyPressEvent(self, event):
-        if event.modifiers() & QtCore.Qt.ControlModifier:
-            if event.key() in (QtCore.Qt.Key_Tab, QtCore.Qt.Key_Backtab):
-                # We are handling ctrl-tab events at the level of the whole
-                # application, so ignore them here so as not to double up.
-                event.ignore()
-                return
-        return QtWidgets.QTabWidget.keyPressEvent(self, event)
-
     def addTab(self, *args, **kwargs):
         closeable = kwargs.pop('closable', False)
         index = QtWidgets.QTabWidget.addTab(self, *args, **kwargs)
