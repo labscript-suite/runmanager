@@ -11,6 +11,9 @@
 #                                                                   #
 #####################################################################
 from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 import os
 import sys
@@ -40,9 +43,15 @@ class BatchProcessor(object):
             else:
                 raise ValueError(signal)
                     
-    def compile(self,labscript_file, run_file):
+    def compile(self, labscript_file, run_file):
         # The namespace the labscript will run in:
-        sandbox = {'__name__':'__main__'}
+        if PY2:
+            path_native_string = labscript_file.encode(sys.getfilesystemencoding())
+        else:
+            path_native_string = labscript_file
+
+        sandbox = {'__name__': '__main__', '__file__': path_native_string}
+        
         try:
             # Do not let the modulewatcher unload any modules whilst we're working:
             with kill_lock, module_watcher.lock:
