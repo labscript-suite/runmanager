@@ -32,7 +32,7 @@ import numpy as np
 
 import zprocess
 
-__version__ = '2.1.0'
+__version__ = '2.2.0'
 
 
 def _ensure_str(s):
