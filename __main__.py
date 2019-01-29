@@ -34,6 +34,7 @@ from labscript_utils.splash import Splash
 splash = Splash(os.path.join(os.path.dirname(__file__), 'runmanager.ico'))
 splash.show()
 
+splash.update_text('importing standard library modules')
 import time
 import contextlib
 import subprocess
@@ -42,6 +43,7 @@ import socket
 import ast
 import pprint
 
+splash.update_text('importing matplotlib')
 # Evaluation of globals happens in a thread with the pylab module imported.
 # Although we don't care about plotting, importing pylab makes Qt calls. We
 # can't have that from a non main thread, so we'll just disable matplotlib's
@@ -53,9 +55,13 @@ import signal
 # Quit on ctrl-c
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-
+splash.update_text('importing Qt')
 check_version('qtutils', '2.0.0', '3.0.0')
+
+splash.update_text('importing zprocess')
 check_version('zprocess', '1.1.5', '3.0')
+
+splash.update_text('importing pandas')
 check_version('pandas', '0.13', '2')
 
 from qtutils.qt import QtCore, QtGui, QtWidgets
@@ -64,6 +70,7 @@ from qtutils.qt.QtCore import pyqtSignal as Signal
 import zprocess.locking
 from zmq import ZMQError
 
+splash.update_text('importing labscript suite modules')
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
@@ -1243,7 +1250,7 @@ class RunManager(object):
     GROUPS_DUMMY_ROW_TEXT = '<Click to add group>'
 
     def __init__(self):
-    
+        splash.update_text('loading graphical interface')
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
         loader.registerCustomWidget(TreeView)
@@ -1322,6 +1329,7 @@ class RunManager(object):
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
 
+        splash.update_text('starting compiler subprocess')
         # Start the compiler subprocess:
         self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues(
             'batch_compiler.py', self.output_box.port)
@@ -1359,6 +1367,7 @@ class RunManager(object):
             # so that the GUI pops up faster in the meantime
             self.ui.firstPaint.connect(lambda: QtCore.QTimer.singleShot(50, load_the_config_file))
 
+        splash.update_text('done')
         self.ui.show()
 
     def setup_config(self):
