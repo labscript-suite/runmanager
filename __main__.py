@@ -23,6 +23,17 @@ import sys
 import errno
 import labscript_utils.excepthook
 
+try:
+    from labscript_utils import check_version
+except ImportError:
+    raise ImportError('Require labscript_utils > 2.1.0')
+
+check_version('labscript_utils', '2.10.0', '3')
+# Splash screen
+from labscript_utils.splash import Splash
+splash = Splash(os.path.join(os.path.dirname(__file__), 'runmanager.ico'))
+splash.show()
+
 import time
 import contextlib
 import subprocess
@@ -42,12 +53,7 @@ import signal
 # Quit on ctrl-c
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
 
-check_version('labscript_utils', '2', '3')
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('zprocess', '1.1.5', '3.0')
 check_version('pandas', '0.13', '2')
@@ -3384,4 +3390,5 @@ if __name__ == "__main__":
     qapplication = QtWidgets.QApplication(sys.argv)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
+    splash.hide()
     sys.exit(qapplication.exec_())
