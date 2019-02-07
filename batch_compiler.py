@@ -15,14 +15,20 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
+from labscript_utils.ls_zprocess import ProcessTree
+process_tree = ProcessTree.connect_to_parent()
+to_parent = process_tree.to_parent
+from_parent = process_tree.from_parent
+kill_lock = process_tree.kill_lock
+
+# Set a meaningful name for zprocess.locking's client id:
+process_tree.zlock_client.set_process_name('runmanager.batch_compiler')
+
 import os
 import sys
 import traceback
-from zprocess import setup_connection_with_parent
-to_parent, from_parent, kill_lock = setup_connection_with_parent(lock = True)
 
 import labscript
-import labscript_utils.excepthook
 from labscript_utils.modulewatcher import ModuleWatcher
 
 class BatchProcessor(object):
