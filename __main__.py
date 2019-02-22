@@ -58,19 +58,17 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 splash.update_text('importing Qt')
 check_version('qtutils', '2.0.0', '3.0.0')
 
-splash.update_text('importing zprocess')
-check_version('zprocess', '1.1.5', '3.0')
-
 splash.update_text('importing pandas')
 check_version('pandas', '0.13', '2')
 
 from qtutils.qt import QtCore, QtGui, QtWidgets
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
-import zprocess.locking
 from zmq import ZMQError
 
 splash.update_text('importing labscript suite modules')
+check_version('labscript_utils', '2.11.0', '3')
+from labscript_utils.ls_zprocess import zmq_get, ProcessTree
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
@@ -84,8 +82,10 @@ import qtutils.icons
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
 os.chdir(runmanager_dir)
 
+process_tree = ProcessTree.instance()
+
 # Set a meaningful name for zprocess.locking's client id:
-zprocess.locking.set_client_process_name('runmanager')
+process_tree.zlock_client.set_process_name('runmanager')
 
 
 def log_if_global(g, g_list, message):
@@ -1331,8 +1331,9 @@ class RunManager(object):
 
         splash.update_text('starting compiler subprocess')
         # Start the compiler subprocess:
-        self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues(
-            'batch_compiler.py', self.output_box.port)
+        self.to_child, self.from_child, self.child = process_tree.subprocess(
+            'batch_compiler.py', output_redirection_port=self.output_box.port
+        )
 
         # Start a thread to monitor the time of day and create new shot output
         # folders for each day:
@@ -1748,8 +1749,9 @@ class RunManager(object):
         else:
             self.output_box.output('done.\n')
         self.output_box.output('Spawning new compiler subprocess...')
-        self.to_child, self.from_child, self.child = zprocess.subprocess_with_queues(
-            'batch_compiler.py', self.output_box.port)
+        self.to_child, self.from_child, self.child = process_tree.subprocess(
+            'batch_compiler.py', output_redirection_port=self.output_box.port
+        )
         self.output_box.output('done.\n')
         self.output_box.output('Ready.\n\n')
 
@@ -3347,7 +3349,7 @@ class RunManager(object):
         agnostic_path = shared_drive.path_to_agnostic(run_file)
         self.output_box.output('Submitting run file %s.\n' % os.path.basename(run_file))
         try:
-            response = zprocess.zmq_get(port, BLACS_hostname, data=agnostic_path)
+            response = zmq_get(port, BLACS_hostname, data=agnostic_path)
             if 'added successfully' in response:
                 self.output_box.output(response)
             else:
@@ -3360,7 +3362,7 @@ class RunManager(object):
         runviewer_port = int(self.exp_config.get('ports', 'runviewer'))
         agnostic_path = shared_drive.path_to_agnostic(run_file)
         try:
-            response = zprocess.zmq_get(runviewer_port, 'localhost', data='hello', timeout=1)
+            response = zmq_get(runviewer_port, 'localhost', data='hello', timeout=1)
             if 'hello' not in response:
                 raise Exception(response)
         except Exception as e:
@@ -3379,12 +3381,12 @@ class RunManager(object):
                                      stdin=devnull, stdout=devnull, stderr=devnull, close_fds=True)
                     os._exit(0)
             try:
-                zprocess.zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
+                zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
             except Exception as e:
                 self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n' % str(e), red=True)
 
         try:
-            response = zprocess.zmq_get(runviewer_port, 'localhost', data=agnostic_path, timeout=0.5)
+            response = zmq_get(runviewer_port, 'localhost', data=agnostic_path, timeout=0.5)
             if 'ok' not in response:
                 raise Exception(response)
             else:
