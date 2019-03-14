@@ -596,10 +596,10 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
 
 def next_sequence_index(shot_basedir, dt, increment=True):
     """Return the next sequence index for sequences in the given base directory (i.e.
-    <experiment_shot_storage>/<script_basename>), and the date of the given datetiem
-    object, and the sequence index atomically on disk if increment=True. If not setting
-    increment=True, then the result is indicative only and may be used by other code at
-    any time. One must increment the sequence index prior to use."""
+    <experiment_shot_storage>/<script_basename>) and the date of the given datetime
+    object, and increment the sequence index atomically on disk if increment=True. If
+    not setting increment=True, then the result is indicative only and may be used by
+    other code at any time. One must increment the sequence index prior to use."""
     from labscript_utils.ls_zprocess import Lock
     from labscript_utils.shared_drive import path_to_agnostic
 
