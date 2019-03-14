@@ -130,16 +130,6 @@ def question_dialog(message):
     return (reply == QtWidgets.QMessageBox.Yes)
 
 
-def mkdir_p(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
-
-
 @contextlib.contextmanager
 def nested(*contextmanagers):
     if contextmanagers:
@@ -1293,14 +1283,6 @@ class RunManager(object):
         self.last_selected_shot_output_folder = self.exp_config.get('paths', 'experiment_shot_storage')
         self.shared_drive_prefix = self.exp_config.get('paths', 'shared_drive')
         self.experiment_shot_storage = self.exp_config.get('paths', 'experiment_shot_storage')
-        # What the automatically created output folders should be, as an
-        # argument to time.strftime():
-        try:
-            self.output_folder_format = self.exp_config.get('runmanager', 'output_folder_format')
-            # Better not start with slashes, irrelevant if it ends with them:
-            self.output_folder_format = self.output_folder_format.strip(os.path.sep)
-        except (LabConfig.NoOptionError, LabConfig.NoSectionError):
-            self.output_folder_format = os.path.join('%Y', '%m', '%d')
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
 
@@ -1338,6 +1320,7 @@ class RunManager(object):
         # Start a thread to monitor the time of day and create new shot output
         # folders for each day:
         self.output_folder_update_required = threading.Event()
+        self.previous_default_output_folder = self.get_default_output_folder()
         inthread(self.rollover_shot_output_folder)
 
         # The data from the last time we saved the configuration, so we can
@@ -2325,32 +2308,32 @@ class RunManager(object):
         the current date and selected labscript file. Returns empty string if
         no labscript file is selected. Does not create the default output
         folder, does not check if it exists."""
-        current_day_folder_suffix = time.strftime(self.output_folder_format)
         current_labscript_file = self.ui.lineEdit_labscript_file.text()
         if not current_labscript_file:
             return ''
-        current_labscript_basename = os.path.splitext(os.path.basename(current_labscript_file))[0]
-        default_output_folder = os.path.join(self.experiment_shot_storage,
-                                             current_labscript_basename, current_day_folder_suffix)
+        _, default_output_folder, _ = runmanager.new_sequence_details(
+            current_labscript_file,
+            config=self.exp_config,
+            increment_sequence_index=False,
+        )
         default_output_folder = os.path.normpath(default_output_folder)
         return default_output_folder
 
     def rollover_shot_output_folder(self):
-        """Runs in a thread, checking once a second if it is a new day or the
-        labscript file has changed. If it is or has, sets the default folder
-        in which compiled shots will be put. Does not create the folder if it
-        does not already exists, this will be done at compile-time. Will run
-        immediately without waiting a full second if the threading.Event
+        """Runs in a thread, checking once a second if the default output folder has
+        changed, likely because the date has changed. If it is or has, sets the default
+        folder in which compiled shots will be put. Does not create the folder if it
+        does not already exists, this will be done at compile-time. Will run immediately
+        without waiting a full second if the threading.Event
         self.output_folder_update_required is set() from anywhere."""
-        previous_default_output_folder = self.get_default_output_folder()
         while True:
             # Wait up to one second, shorter if the Event() gets set() by someone:
             self.output_folder_update_required.wait(1)
             self.output_folder_update_required.clear()
-            previous_default_output_folder = self.check_output_folder_update(previous_default_output_folder)
+            self.check_output_folder_update()
 
     @inmain_decorator()
-    def check_output_folder_update(self, previous_default_output_folder):
+    def check_output_folder_update(self):
         """Do a single check of whether the output folder needs updating. This
         is implemented as a separate function to the above loop so that the
         whole check happens at once in the Qt main thread and hence is atomic
@@ -2358,16 +2341,15 @@ class RunManager(object):
         current_default_output_folder = self.get_default_output_folder()
         if current_default_output_folder is None:
             # No labscript file selected:
-            return previous_default_output_folder
+            return
         currently_selected_output_folder = self.ui.lineEdit_shot_output_folder.text()
-        if current_default_output_folder != previous_default_output_folder:
+        if current_default_output_folder != self.previous_default_output_folder:
             # It's a new day, or a new labscript file.
             # Is the user using default folders?
-            if currently_selected_output_folder == previous_default_output_folder:
+            if currently_selected_output_folder == self.previous_default_output_folder:
                 # Yes they are. In that case, update to use the new folder:
                 self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
-            return current_default_output_folder
-        return previous_default_output_folder
+            self.previous_default_output_folder = current_default_output_folder
 
     @inmain_decorator()
     def globals_changed(self):
@@ -2980,7 +2962,6 @@ class RunManager(object):
             self.close_globals_file(globals_file, confirm=False)
         # Ensure folder exists, if this was opened programmatically we are
         # creating the file, so the directory had better exist!
-        mkdir_p(os.path.dirname(filename))
         runmanager_config = LabConfig(filename)
 
         has_been_a_warning = [False]
@@ -3338,9 +3319,24 @@ class RunManager(object):
         return expansion_types_changed
 
     def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
-        mkdir_p(output_folder)  # ensure it exists
-        sequence_id = runmanager.generate_sequence_id(labscript_file)
-        run_files = runmanager.make_run_files(output_folder, sequence_globals, shots, sequence_id, shuffle)
+        sequence_attrs, default_output_dir, filename_prefix = runmanager.new_sequence_details(
+            labscript_file, config=self.exp_config, increment_sequence_index=True
+        )
+        if output_folder == self.previous_default_output_folder:
+            # The user is using dthe efault output folder. Just in case the sequence
+            # index has been updated or the date has changed, use the default_output dir
+            # obtained from new_sequence_details, as it is race-free, whereas the one
+            # from the UI may be out of date since we only update it once a second.
+            output_folder = default_output_dir
+        self.output_folder_update_required.set()
+        run_files = runmanager.make_run_files(
+            output_folder,
+            sequence_globals,
+            shots,
+            sequence_attrs,
+            filename_prefix,
+            shuffle,
+        )
         logger.debug(run_files)
         return labscript_file, run_files
 
