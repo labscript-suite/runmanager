@@ -38,7 +38,7 @@ import labscript_utils.h5_lock
 import h5py
 import numpy as np
 
-check_version('labscript_utils', '2.11.0', '3')
+check_version('labscript_utils', '2.12.0', '3')
 from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
 process_tree = ProcessTree.instance()
