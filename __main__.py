@@ -2328,7 +2328,7 @@ class RunManager(object):
         self.output_folder_update_required is set() from anywhere."""
         while True:
             # Wait up to one second, shorter if the Event() gets set() by someone:
-            self.output_folder_update_required.wait(1)
+            self.output_folder_update_required.wait(30)
             self.output_folder_update_required.clear()
             self.check_output_folder_update()
 
