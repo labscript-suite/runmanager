@@ -53,13 +53,21 @@ def is_valid_python_identifier(name):
         import StringIO as io
     else:
         import io
+    # No whitespace allowed. Do this check here because an actual newline in the source
+    # is not easily distinguished from a NEWLINE token in the produced tokens, which is
+    # produced even when there is no newline character in the string. So since we ignore
+    # NEWLINE later, we must check for it now.
+    if name != "".join(name.split()):
+        return False
     try:
         tokens = list(tokenize.generate_tokens(io.StringIO(name).readline))
     except tokenize.TokenError:
         return False
-    if len(tokens) == 2:
-        (token_type, _, _, _, _), _ = tokens
-        return token_type == tokenize.NAME
+    token_types = [
+        t[0] for t in tokens if t[0] not in [tokenize.NEWLINE, tokenize.ENDMARKER]
+    ]
+    if len(token_types) == 1:
+        return token_types[0] == tokenize.NAME
     return False
 
 
