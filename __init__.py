@@ -527,6 +527,8 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
         for global_name in expansions:
             if expansions[global_name] == zip_key:
                 value = values[global_name]
+                if isinstance(value, Exception):
+                    continue
                 if not zip_key:
                     # Wrap up non-iterating globals (with zip_key = '') in a
                     # one-element list. When zipped and then outer product'ed,
@@ -546,6 +548,8 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
     for global_name in expansions:
         if expansions[global_name] == 'outer':
             value = values[global_name]
+            if isinstance(value, Exception):
+                continue
             axis = [value]
             axis = list(zip(*axis))
             dimensions['outer '+global_name] = len(axis)
