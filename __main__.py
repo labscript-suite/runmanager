@@ -1980,17 +1980,12 @@ class RunManager(object):
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is not None]
-        # Make things a bit faster by acquiring network only locks on all the
-        # files we're dealing with.  That way all the open and close
-        # operations will be faster.
         filenames = set(item.parent().text() for item in name_items)
-        file_locks = [labscript_utils.h5_lock.NetworkOnlyLock(filename) for filename in filenames]
-        with nested(*file_locks):
-            for item in name_items:
-                globals_file = item.parent().text()
-                group_name = item.text()
-                if (globals_file, group_name) not in self.currently_open_groups:
-                    self.open_group(globals_file, group_name, trigger_preparse=False)
+        for item in name_items:
+            globals_file = item.parent().text()
+            group_name = item.text()
+            if (globals_file, group_name) not in self.currently_open_groups:
+                self.open_group(globals_file, group_name, trigger_preparse=False)
         if name_items:
             self.globals_changed()
 
