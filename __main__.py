@@ -1657,10 +1657,11 @@ class RunManager(object):
         # Blank out the 'reset default output folder' button if the user is
         # already using the default output folder
         if text == self.get_default_output_folder():
-            enabled = False
+            non_default_folder = False
         else:
-            enabled = True
-        self.ui.toolButton_reset_shot_output_folder.setEnabled(enabled)
+            non_default_folder = True
+        self.ui.toolButton_reset_shot_output_folder.setEnabled(non_default_folder)
+        self.ui.label_non_default_folder.setVisible(non_default_folder)
         self.ui.lineEdit_shot_output_folder.setToolTip(text)
 
     def on_engage_clicked(self):
