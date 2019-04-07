@@ -39,7 +39,7 @@ check_version('labscript_utils', '2.11.0', '3')
 from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 process_tree = ProcessTree.instance()
 
-__version__ = '2.2.0'
+__version__ = '2.3.0'
 
 
 def _ensure_str(s):
