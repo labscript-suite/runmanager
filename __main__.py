@@ -560,9 +560,10 @@ class Editor(QtWidgets.QTextEdit):
 
 class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
-    """An item delegate with a larger row height, faint grey vertical lines between
-    columns, and a custom editor for handling multi-line data"""
+    """An item delegate with a larger row height and column width, faint grey vertical
+    lines between columns, and a custom editor for handling multi-line data"""
     EXTRA_ROW_HEIGHT = 7
+    EXTRA_COL_WIDTH = 20
 
     def __init__(self, *args, **kwargs):
         QtWidgets.QStyledItemDelegate.__init__(self, *args, **kwargs)
@@ -572,7 +573,9 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
     def sizeHint(self, *args):
         size = QtWidgets.QStyledItemDelegate.sizeHint(self, *args)
-        return QtCore.QSize(size.width(), size.height() + self.EXTRA_ROW_HEIGHT)
+        return QtCore.QSize(
+            size.width() + self.EXTRA_COL_WIDTH, size.height() + self.EXTRA_ROW_HEIGHT
+        )
 
     def paint(self, painter, option, index):
         QtWidgets.QStyledItemDelegate.paint(self, painter, option, index)
