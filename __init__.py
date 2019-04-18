@@ -43,7 +43,7 @@ from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
 process_tree = ProcessTree.instance()
 
-__version__ = '2.3.0'
+__version__ = '2.4.0'
 
 
 def _ensure_str(s):
@@ -626,7 +626,7 @@ def next_sequence_index(shot_basedir, dt, increment=True):
                 if datestr != dt.strftime(DATE_FORMAT):
                     # New day, start from zero again:
                     sequence_index = 0
-        except OSError as exc:
+        except (OSError, IOError) as exc:
             if exc.errno != errno.ENOENT:
                 raise
             # File doesn't exist yet, start from zero
