@@ -1418,7 +1418,6 @@ class RunManager(object):
                     self.load_configuration(autoload_config_file)
                     self.output_box.output('done.\n')
                 except Exception as e:
-                    raise
                     self.output_box.output('\nCould not load config file: %s: %s\n\n' %
                                            (e.__class__.__name__, str(e)), red=True)
                 else:
