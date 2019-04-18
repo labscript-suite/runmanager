@@ -17,7 +17,16 @@
    <property name="spacing">
     <number>0</number>
    </property>
-   <property name="margin">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
     <number>0</number>
    </property>
    <item>
@@ -116,18 +125,27 @@
         <x>0</x>
         <y>0</y>
         <width>476</width>
-        <height>246</height>
+        <height>238</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout">
        <property name="spacing">
         <number>0</number>
        </property>
-       <property name="margin">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
         <number>0</number>
        </property>
        <item>
-        <widget class="TreeView" name="treeView_globals">
+        <widget class="TableView" name="tableView_globals">
          <property name="styleSheet">
           <string notr="true"/>
          </property>
@@ -144,8 +162,8 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>TreeView</class>
-   <extends>QTreeView</extends>
+   <class>TableView</class>
+   <extends>QTableView</extends>
    <header>qtutils/widgets.h</header>
   </customwidget>
  </customwidgets>
