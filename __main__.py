@@ -583,6 +583,10 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         return Editor(parent)
 
+    def setEditorData(self, editor, index):
+        editor.setPlainText(index.data())
+        editor.selectAll()
+        
     def setModelData(self, editor, model, index):
         model.setData(index, editor.toPlainText())
 
