@@ -362,6 +362,17 @@ class ItemView(object):
         self._double_click = False
         self._ROLE_IGNORE_TABNEXT = None
         self.setAutoScroll(False)
+        p = self.palette()
+        p.setColor(
+            QtGui.QPalette.Inactive,
+            QtGui.QPalette.Highlight,
+            p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight))
+        p.setColor(
+            QtGui.QPalette.Inactive,
+            QtGui.QPalette.HighlightedText,
+            p.color(QtGui.QPalette.Active, QtGui.QPalette.HighlightedText)
+        )
+        self.setPalette(p)
 
     def setRoleIgnoreTabNext(self, role):
         """Tell the view what model role it should look in for a boolean
