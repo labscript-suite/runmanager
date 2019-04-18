@@ -362,6 +362,11 @@ class ItemView(object):
         self._double_click = False
         self._ROLE_IGNORE_TABNEXT = None
         self.setAutoScroll(False)
+        # Set the style of the widget to be consistent on all OSs.
+        # Fusion only exists on Qt5+, so only set the style in this case.
+        style = QtWidgets.QStyleFactory.create('Fusion')
+        if self.style is not None:
+            self.setStyle(style)
 
     def setRoleIgnoreTabNext(self, role):
         """Tell the view what model role it should look in for a boolean
