@@ -480,9 +480,6 @@ class TableView(ItemView, QtWidgets.QTableView):
         self.setShowGrid(False)
         self.horizontalHeader().setHighlightSections(False)
 
-    def sizeHintForRow(self, row):
-        return QtWidgets.QTableView.sizeHintForRow(self, row)
-
     def on_column_resized(self, col):
         for row in range(self.model().rowCount()):
             self.resizeRowToContents(row)
@@ -544,11 +541,15 @@ class Editor(QtWidgets.QTextEdit):
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.textChanged.connect(self.update_size)
+        self.initial_height = None
 
     def update_size(self):
+        if self.initial_height is not None:
+            self.setFixedHeight(self.initial_height)
         preferred_height = self.document().size().toSize().height()
-        # Only grow the height, never shrink it:
-        self.setFixedHeight(max(self.height(), preferred_height))
+        # Do not shrink smaller than the initial height:
+        if self.initial_height is not None and preferred_height >= self.initial_height:
+            self.setFixedHeight(preferred_height)
 
     def keyPressEvent(self, event):
         if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
@@ -556,6 +557,14 @@ class Editor(QtWidgets.QTextEdit):
             self.close()
             return
         return QtWidgets.QTextEdit.keyPressEvent(self, event)
+
+    def resizeEvent(self, event):
+        result = QtWidgets.QTextEdit.resizeEvent(self, event)
+        # Record the initial height after it is first set:
+        if self.initial_height is None:
+            self.initial_height = self.height()
+        return result
+        
 
 
 class ItemDelegate(QtWidgets.QStyledItemDelegate):
