@@ -562,13 +562,6 @@ class Editor(QtWidgets.QTextEdit):
         if self.initial_height is not None and preferred_height >= self.initial_height:
             self.setFixedHeight(preferred_height)
 
-    def keyPressEvent(self, event):
-        if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
-            event.accept()
-            self.close()
-            return
-        return QtWidgets.QTextEdit.keyPressEvent(self, event)
-
     def resizeEvent(self, event):
         result = QtWidgets.QTextEdit.resizeEvent(self, event)
         # Record the initial height after it is first set:
@@ -602,6 +595,24 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         if index.column() > 0:
             painter.setPen(self._pen)
             painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.KeyPress:
+            if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
+                # Allow shift-enter
+                if not event.modifiers() & QtCore.Qt.ShiftModifier:
+                    self.commitData.emit(obj)
+                    self.closeEditor.emit(obj)
+                    return True
+            elif event.key() == QtCore.Qt.Key_Tab:
+                self.commitData.emit(obj)
+                self.closeEditor.emit(obj, QtWidgets.QStyledItemDelegate.EditNextItem)
+                return True
+            elif event.key() == QtCore.Qt.Key_Backtab:
+                self.commitData.emit(obj)
+                self.closeEditor.emit(obj, QtWidgets.QStyledItemDelegate.EditPreviousItem)
+                return True
+        return  QtWidgets.QStyledItemDelegate.eventFilter(self, obj, event)
 
     def createEditor(self, parent, option, index):
         return Editor(parent)
