@@ -108,6 +108,18 @@ def log_if_global(g, g_list, message):
         logger.info(message)
 
     
+def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
+    """composite a second color over a first with given alpha values and return the
+    result"""
+    a0 /= 255
+    a1 /= 255
+    a = a0 + a1 - a0 * a1
+    r = (a1 * r1 + (1 - a1) * a0 * r0) / a
+    g = (a1 * g1 + (1 - a1) * a0 * g0) / a
+    b = (a1 * b1 + (1 - a1) * a0 * b0) / a
+    return int(round(r)), int(round(g)), int(round(b)), int(a * 255)
+
+
 def set_win_appusermodel(window_id):
     from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
     icon_path = os.path.abspath('runmanager.ico')
@@ -356,6 +368,8 @@ class ItemView(object):
     leftClicked = Signal(QtCore.QModelIndex)
     doubleLeftClicked = Signal(QtCore.QModelIndex)
 
+    COLOR_HIGHLIGHT = "#40308CC6" # Semitransparent blue
+
     def __init__(self, *args):
         super(ItemView, self).__init__(*args)
         self._pressed_index = None
@@ -363,15 +377,16 @@ class ItemView(object):
         self._ROLE_IGNORE_TABNEXT = None
         self.setAutoScroll(False)
         p = self.palette()
-        p.setColor(
-            QtGui.QPalette.Inactive,
-            QtGui.QPalette.Highlight,
-            p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight))
-        p.setColor(
-            QtGui.QPalette.Inactive,
-            QtGui.QPalette.HighlightedText,
-            p.color(QtGui.QPalette.Active, QtGui.QPalette.HighlightedText)
-        )
+        for group in [QtGui.QPalette.Active, QtGui.QPalette.Inactive]:
+            p.setColor(
+                group,
+                QtGui.QPalette.Highlight,
+                QtGui.QColor(self.COLOR_HIGHLIGHT))
+            p.setColor(
+                group,
+                QtGui.QPalette.HighlightedText,
+                p.color(QtGui.QPalette.Active, QtGui.QPalette.Foreground)
+            )
         self.setPalette(p)
 
     def setRoleIgnoreTabNext(self, role):
@@ -471,6 +486,7 @@ class TreeView(ItemView, QtWidgets.QTreeView):
         self.header().setSectionResizeMode(
             QtWidgets.QHeaderView.ResizeToContents
         )
+        self.setItemDelegate(ItemDelegate(self))
 
 
 class TableView(ItemView, QtWidgets.QTableView):
@@ -486,7 +502,7 @@ class TableView(ItemView, QtWidgets.QTableView):
             QtWidgets.QHeaderView.ResizeToContents
         )
         self.horizontalHeader().sectionResized.connect(self.on_column_resized)
-        self.setItemDelegate(ItemDelegate())
+        self.setItemDelegate(ItemDelegate(self))
         self.verticalHeader().hide()
         self.setShowGrid(False)
         self.horizontalHeader().setHighlightSections(False)
@@ -498,46 +514,76 @@ class TableView(ItemView, QtWidgets.QTableView):
 
 class AlternatingColorModel(QtGui.QStandardItemModel):
 
-    def __init__(self, treeview):
+    def __init__(self, view):
         QtGui.QStandardItemModel.__init__(self)
         # How much darker in each channel is the alternate base color compared
         # to the base color?
-        palette = treeview.palette()
-        normal_color = palette.color(QtGui.QPalette.Base)
-        alternate_color = palette.color(QtGui.QPalette.AlternateBase)
-        r, g, b, a = normal_color.getRgb()
-        alt_r, alt_g, alt_b, alt_a = alternate_color.getRgb()
+        self.view = view
+        palette = view.palette()
+        self.normal_color = palette.color(QtGui.QPalette.Base)
+        self.alternate_color = palette.color(QtGui.QPalette.AlternateBase)
+        r, g, b, a = self.normal_color.getRgb()
+        alt_r, alt_g, alt_b, alt_a = self.alternate_color.getRgb()
         self.delta_r = alt_r - r
         self.delta_g = alt_g - g
         self.delta_b = alt_b - b
         self.delta_a = alt_a - a
 
-        # A cache, store brushes so we don't have to recalculate them. Is faster.
-        self.alternate_brushes = {}
+        # Caches to store brusehs so we don't have to recalculate them. Is faster.
+        self.bg_brushes = {}
+
+    def get_bgbrush(self, normal_brush, alternate, selected, active):
+        """Get cell color as a function of its ordinary colour, whether it is on an odd
+        row, whether it is selected, and whether it is the active cell"""
+        normal_rgb = normal_brush.color().getRgb() if normal_brush is not None else None
+        try:
+            return self.bg_brushes[normal_rgb, alternate, selected, active]
+        except KeyError:
+            pass
+        # Get the color of the cell with alternate row shading:
+        if normal_rgb is None:
+            # No color has been set. Use palette colors:
+            if alternate:
+                bg_color = self.alternate_color
+            else:
+                bg_color = self.normal_color
+        else:
+            bg_color = normal_brush.color()
+            if alternate:
+                # Modify alternate rows:
+                r, g, b, a = normal_rgb
+                alt_r = min(max(r + self.delta_r, 0), 255)
+                alt_g = min(max(g + self.delta_g, 0), 255)
+                alt_b = min(max(b + self.delta_b, 0), 255)
+                alt_a = min(max(a + self.delta_a, 0), 255)
+                bg_color = QtGui.QColor(alt_r, alt_g, alt_b, alt_a)
+
+        # If parent is a TableView, we handle selection highlighting as part of the
+        # background colors:
+        if selected and isinstance(self.view, QtWidgets.QTableView):
+            # Overlay highlight colour:
+            r_s, g_s, b_s, a_s = QtGui.QColor(ItemView.COLOR_HIGHLIGHT).getRgb()
+            r_0, g_0, b_0, a_0 = bg_color.getRgb()
+            rgb = composite_colors(r_0, g_0, b_0, a_0, r_s, g_s, b_s, a_s)
+            bg_color = QtGui.QColor(*rgb)
+
+        brush = QtGui.QBrush(bg_color)
+        self.bg_brushes[normal_rgb, alternate, selected, active] = brush
+        return brush
 
     def data(self, index, role):
         """When background color data is being requested, returns modified
-       colours for every second row, according to the palette of the treeview.
-       This has the effect of making the alternate colours visible even when
-       custom colors have been set - the same shading will be applied to the
-       custom colours. Only really looks sensible when the normal and
-       alternate colors are similar."""
-        if role == QtCore.Qt.BackgroundRole and index.row() % 2:
+        colours for every second row, according to the palette of the view.
+        This has the effect of making the alternate colours visible even when
+        custom colors have been set - the same shading will be applied to the
+        custom colours. Only really looks sensible when the normal and
+        alternate colors are similar."""
+        if role == QtCore.Qt.BackgroundRole:
             normal_brush = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
-            if normal_brush is not None:
-                normal_color = normal_brush.color()
-                try:
-                    return self.alternate_brushes[normal_color.rgb()]
-                except KeyError:
-                    r, g, b, a = normal_color.getRgb()
-                    alt_r = min(max(r + self.delta_r, 0), 255)
-                    alt_g = min(max(g + self.delta_g, 0), 255)
-                    alt_b = min(max(b + self.delta_b, 0), 255)
-                    alt_a = min(max(a + self.delta_a, 0), 255)
-                    alternate_color = QtGui.QColor(alt_r, alt_g, alt_b, alt_a)
-                    alternate_brush = QtGui.QBrush(alternate_color)
-                    self.alternate_brushes[normal_color.rgb()] = alternate_brush
-                    return alternate_brush
+            selected = index in self.view.selectedIndexes()
+            alternate = not index.row() % 2
+            current = index == self.view.currentIndex()
+            return self.get_bgbrush(normal_brush, alternate, selected, current)
         return QtGui.QStandardItemModel.data(self, index, role)
 
 
@@ -587,10 +633,18 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
     def sizeHint(self, *args):
         size = QtWidgets.QStyledItemDelegate.sizeHint(self, *args)
         return QtCore.QSize(
-            size.width() + self.EXTRA_COL_WIDTH, size.height() + self.EXTRA_ROW_HEIGHT
+            size.width() + self.EXTRA_COL_WIDTH,
+            # 19 pixels is the row size when there is an icon visible, so we better not
+            # be smaller than that otherwise there is flickering when icons appear and
+            # disappear
+            max(size.height(), 19) + self.EXTRA_ROW_HEIGHT
         )
 
     def paint(self, painter, option, index):
+        if isinstance(self.parent(), QtWidgets.QTableView):
+            # Disable rendering of selection highlight for TableViews, they handle
+            # it themselves with the background colour data:
+            option.state &= ~(QtWidgets.QStyle.State_Selected)
         QtWidgets.QStyledItemDelegate.paint(self, painter, option, index)
         if index.column() > 0:
             painter.setPen(self._pen)
@@ -659,12 +713,9 @@ class GroupTab(object):
 
         self.set_file_and_group_name(globals_file, group_name)
 
-        self.globals_model = AlternatingColorModel(treeview=self.ui.tableView_globals)
+        self.globals_model = AlternatingColorModel(view=self.ui.tableView_globals)
         self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name', 'Value', 'Units', 'Expansion'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
-
-        self.item_delegate = ItemDelegate()
-        self.ui.tableView_globals.setItemDelegate(self.item_delegate)
 
         self.ui.tableView_globals.setModel(self.globals_model)
         self.ui.tableView_globals.setRoleIgnoreTabNext(self.GLOBALS_ROLE_IGNORE_TABNEXT)
@@ -1511,10 +1562,7 @@ class RunManager(object):
         self.groups_model = QtGui.QStandardItemModel()
         self.groups_model.setHorizontalHeaderLabels(['File/group name', 'Active', 'Delete', 'Open/Close'])
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
-        self.item_delegate = ItemDelegate(self.ui.treeView_groups)
         self.ui.treeView_groups.setModel(self.groups_model)
-        for col in range(self.groups_model.columnCount()):
-            self.ui.treeView_groups.setItemDelegateForColumn(col, self.item_delegate)
         self.ui.treeView_groups.setAnimated(True)  # Pretty
         self.ui.treeView_groups.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
