@@ -285,6 +285,7 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
 class TabToolButton(QtWidgets.QToolButton):
     def __init__(self, *args, **kwargs):
         QtWidgets.QToolButton.__init__(self, *args, **kwargs)
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
 
     def paintEvent(self, event):
         painter = QtWidgets.QStylePainter(self)
