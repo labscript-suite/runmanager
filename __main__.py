@@ -593,7 +593,7 @@ class Editor(QtWidgets.QTextEdit):
     def __init__(self, parent):
         QtWidgets.QTextEdit.__init__(self, parent)
         self.setWordWrapMode(QtGui.QTextOption.WordWrap)
-        self.setTabChangesFocus(True)
+        # self.setTabChangesFocus(True)
         self.setAcceptRichText(False)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -1122,8 +1122,8 @@ class GroupTab(object):
             self.globals_changed()
             value_item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_VALUE)
             value = value_item.text()
-            if not value:
-                # Go into editing the units item automatically:
+            if not value and self.ui.tableView_globals.state() != QtWidgets.QAbstractItemView.EditingState:
+                # Go into editing the value item automatically if not already in edit mode:
                 value_item_index = value_item.index()
                 self.ui.tableView_globals.setCurrentIndex(value_item_index)
                 self.ui.tableView_globals.edit(value_item_index)
@@ -1163,8 +1163,8 @@ class GroupTab(object):
             self.globals_changed()
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
             units = units_item.text()
-            if not units:
-                # Go into editing the units item automatically:
+            if not units and self.ui.tableView_globals.state() != QtWidgets.QAbstractItemView.EditingState:
+                # Go into editing the units item automatically if not already in edit mode:
                 units_item_index = units_item.index()
                 self.ui.tableView_globals.setCurrentIndex(units_item_index)
                 self.ui.tableView_globals.edit(units_item_index)
