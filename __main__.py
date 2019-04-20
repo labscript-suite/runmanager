@@ -695,11 +695,10 @@ class GroupTab(object):
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
     GLOBALS_ROLE_IGNORE_TABNEXT = QtCore.Qt.UserRole + 5
 
-    COLOR_ERROR = '#FF9999'  # light red
-    COLOR_OK = '#AAFFCC'  # light green
-    COLOR_BOOL_ON = '#66FF33'  # bright green
+    COLOR_ERROR = '#F79494'  # light red
+    COLOR_OK = '#A5F7C6'  # light green
+    COLOR_BOOL_ON = '#63F731'  # bright green
     COLOR_BOOL_OFF = '#608060'  # dark green
-    COLOR_NAME = '#EFEFEF'  # light grey
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
 
@@ -819,7 +818,6 @@ class GroupTab(object):
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)  # Clears the 'selectable' flag
-        dummy_name_item.setBackground(QtGui.QColor(self.COLOR_NAME))
 
         dummy_value_item = QtGui.QStandardItem()
         dummy_value_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
@@ -859,7 +857,6 @@ class GroupTab(object):
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
-        name_item.setBackground(QtGui.QColor(self.COLOR_NAME))
         name_item.setFont(QtGui.QFont("Ubuntu Mono", UBUNTU_FONT_SIZE))
 
         value_item = QtGui.QStandardItem(value)
