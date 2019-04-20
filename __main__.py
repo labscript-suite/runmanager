@@ -56,7 +56,7 @@ import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 splash.update_text('importing Qt')
-check_version('qtutils', '2.0.0', '3.0.0')
+check_version('qtutils', '2.2.2', '3.0.0')
 
 splash.update_text('importing pandas')
 check_version('pandas', '0.13', '2')
@@ -76,7 +76,7 @@ from zprocess import raise_exception_in_thread
 import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
-from qtutils.outputbox import OutputBox
+from qtutils.outputbox import OutputBox, FONT_SIZE as UBUNTU_FONT_SIZE
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -673,6 +673,9 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
     def setEditorData(self, editor, index):
         editor.setPlainText(index.data())
+        font = index.data(QtCore.Qt.FontRole)
+        if font is not None:
+            editor.setFont(font)
         editor.selectAll()
         
     def setModelData(self, editor, model, index):
@@ -857,11 +860,13 @@ class GroupTab(object):
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
         name_item.setBackground(QtGui.QColor(self.COLOR_NAME))
+        name_item.setFont(QtGui.QFont("Ubuntu Mono", UBUNTU_FONT_SIZE))
 
         value_item = QtGui.QStandardItem(value)
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
         value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
+        value_item.setFont(QtGui.QFont("Ubuntu Mono", UBUNTU_FONT_SIZE))
 
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
