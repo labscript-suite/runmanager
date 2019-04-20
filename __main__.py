@@ -374,7 +374,6 @@ class ItemView(object):
         super(ItemView, self).__init__(*args)
         self._pressed_index = None
         self._double_click = False
-        self._ROLE_IGNORE_TABNEXT = None
         self.setAutoScroll(False)
         p = self.palette()
         for group in [QtGui.QPalette.Active, QtGui.QPalette.Inactive]:
@@ -388,13 +387,6 @@ class ItemView(object):
                 p.color(QtGui.QPalette.Active, QtGui.QPalette.Foreground)
             )
         self.setPalette(p)
-
-    def setRoleIgnoreTabNext(self, role):
-        """Tell the view what model role it should look in for a boolean
-        saying whether to ignore the MoveNext cursor action. This will cause
-        cells marked as such to simply end editing when tab is pressed,
-        without starting editing on any other call."""
-        self._ROLE_IGNORE_TABNEXT = role
 
     def mousePressEvent(self, event):
         result = super(ItemView, self).mousePressEvent(event)
@@ -430,26 +422,14 @@ class ItemView(object):
         self._double_click = False
         return result
 
-    def event(self, event):
-        if (event.type() == QtCore.QEvent.ShortcutOverride
-                and event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]):
-            event.accept()
-            item = self.model().itemFromIndex(self.currentIndex())
-            if item is not None and item.isEditable():
-                if self.state() != QtWidgets.QAbstractItemView.EditingState:
-                    self.edit(self.currentIndex())
-            else:
-                # Enter on non-editable items simulates a left click:
-                self.leftClicked.emit(self.currentIndex())
-            return True
-        else:
-            return super(ItemView, self).event(event)
-
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Space:
+        if event.key() in [QtCore.Qt.Key_Space, QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
             item = self.model().itemFromIndex(self.currentIndex())
-            if not item.isEditable():
-                # Space on non-editable items simulates a left click:
+            if item.isEditable():
+                # Space/enter edits editable items:
+                self.edit(self.currentIndex())
+            else:
+                # Space/enter on non-editable items simulates a left click:
                 self.leftClicked.emit(self.currentIndex())
         return super(ItemView, self).keyPressEvent(event)
 
@@ -467,11 +447,6 @@ class ItemView(object):
         elif cursor_action == QtWidgets.QAbstractItemView.MovePrevious:
             return current_index.sibling(current_row, current_column - 1)
         elif cursor_action == QtWidgets.QAbstractItemView.MoveNext:
-            item = self.model().itemFromIndex(self.currentIndex())
-            if (item is not None and self._ROLE_IGNORE_TABNEXT is not None
-                    and item.data(self._ROLE_IGNORE_TABNEXT)):
-                # A null index means end editing and don't go anywhere:
-                return QtCore.QModelIndex()
             return current_index.sibling(current_row, current_column + 1)
         else:
             return super(ItemView, self).moveCursor(cursor_action, keyboard_modifiers)
@@ -593,7 +568,6 @@ class Editor(QtWidgets.QTextEdit):
     def __init__(self, parent):
         QtWidgets.QTextEdit.__init__(self, parent)
         self.setWordWrapMode(QtGui.QTextOption.WordWrap)
-        # self.setTabChangesFocus(True)
         self.setAcceptRichText(False)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -666,7 +640,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
                 self.commitData.emit(obj)
                 self.closeEditor.emit(obj, QtWidgets.QStyledItemDelegate.EditPreviousItem)
                 return True
-        return  QtWidgets.QStyledItemDelegate.eventFilter(self, obj, event)
+        return QtWidgets.QStyledItemDelegate.eventFilter(self, obj, event)
 
     def createEditor(self, parent, option, index):
         return Editor(parent)
@@ -693,7 +667,6 @@ class GroupTab(object):
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
-    GLOBALS_ROLE_IGNORE_TABNEXT = QtCore.Qt.UserRole + 5
 
     COLOR_ERROR = '#F79494'  # light red
     COLOR_OK = '#A5F7C6'  # light green
@@ -720,7 +693,6 @@ class GroupTab(object):
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
 
         self.ui.tableView_globals.setModel(self.globals_model)
-        self.ui.tableView_globals.setRoleIgnoreTabNext(self.GLOBALS_ROLE_IGNORE_TABNEXT)
         self.ui.tableView_globals.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
         self.ui.tableView_globals.setSelectionMode(QtWidgets.QTableView.ExtendedSelection)
         self.ui.tableView_globals.setSortingEnabled(True)
@@ -869,9 +841,6 @@ class GroupTab(object):
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
-        # Treeview.moveCursor will see this and not go to the expansion item
-        # when tab is pressed after editing:
-        units_item.setData(True, self.GLOBALS_ROLE_IGNORE_TABNEXT)
         units_item.setToolTip('')
 
         expansion_item = QtGui.QStandardItem(expansion)
