@@ -109,7 +109,7 @@ def log_if_global(g, g_list, message):
 
     
 def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
-    """composite a second color over a first with given alpha values and return the
+    """composite a second colour over a first with given alpha values and return the
     result"""
     a0 /= 255
     a1 /= 255
@@ -117,7 +117,7 @@ def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
     r = (a1 * r1 + (1 - a1) * a0 * r0) / a
     g = (a1 * g1 + (1 - a1) * a0 * g0) / a
     b = (a1 * b1 + (1 - a1) * a0 * b0) / a
-    return int(round(r)), int(round(g)), int(round(b)), int(a * 255)
+    return [int(round(x)) for x in (r, g, b, 255 * a)]
 
 
 def set_win_appusermodel(window_id):
@@ -365,7 +365,8 @@ class FingerTabWidget(QtWidgets.QTabWidget):
 class ItemView(object):
     """Mixin for QTableView and QTreeView that emits a custom signal leftClicked(index)
     after a left click on a valid index, and doubleLeftClicked(index) (in addition) on
-    double click. Also has modified tab and arrow key behaviour."""
+    double click. Also has modified tab and arrow key behaviour and custom selection
+    highlighting."""
     leftClicked = Signal(QtCore.QModelIndex)
     doubleLeftClicked = Signal(QtCore.QModelIndex)
 
@@ -505,20 +506,20 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
         self.delta_b = alt_b - b
         self.delta_a = alt_a - a
 
-        # Caches to store brusehs so we don't have to recalculate them. Is faster.
+        # A cache, store brushes so we don't have to recalculate them. Is faster.
         self.bg_brushes = {}
 
-    def get_bgbrush(self, normal_brush, alternate, selected, active):
-        """Get cell color as a function of its ordinary colour, whether it is on an odd
-        row, whether it is selected, and whether it is the active cell"""
+    def get_bgbrush(self, normal_brush, alternate, selected):
+        """Get cell colour as a function of its ordinary colour, whether it is on an odd
+        row, and whether it is selected."""
         normal_rgb = normal_brush.color().getRgb() if normal_brush is not None else None
         try:
-            return self.bg_brushes[normal_rgb, alternate, selected, active]
+            return self.bg_brushes[normal_rgb, alternate, selected]
         except KeyError:
             pass
-        # Get the color of the cell with alternate row shading:
+        # Get the colour of the cell with alternate row shading:
         if normal_rgb is None:
-            # No color has been set. Use palette colors:
+            # No colour has been set. Use palette colours:
             if alternate:
                 bg_color = self.alternate_color
             else:
@@ -535,7 +536,7 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
                 bg_color = QtGui.QColor(alt_r, alt_g, alt_b, alt_a)
 
         # If parent is a TableView, we handle selection highlighting as part of the
-        # background colors:
+        # background colours:
         if selected and isinstance(self.view, QtWidgets.QTableView):
             # Overlay highlight colour:
             r_s, g_s, b_s, a_s = QtGui.QColor(ItemView.COLOR_HIGHLIGHT).getRgb()
@@ -544,28 +545,27 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
             bg_color = QtGui.QColor(*rgb)
 
         brush = QtGui.QBrush(bg_color)
-        self.bg_brushes[normal_rgb, alternate, selected, active] = brush
+        self.bg_brushes[normal_rgb, alternate, selected] = brush
         return brush
 
     def data(self, index, role):
-        """When background color data is being requested, returns modified
-        colours for every second row, according to the palette of the view.
-        This has the effect of making the alternate colours visible even when
-        custom colors have been set - the same shading will be applied to the
-        custom colours. Only really looks sensible when the normal and
-        alternate colors are similar."""
+        """When background color data is being requested, returns modified colours for
+        every second row, according to the palette of the view. This has the effect of
+        making the alternate colours visible even when custom colors have been set - the
+        same shading will be applied to the custom colours. Only really looks sensible
+        when the normal and alternate colors are similar. Also applies selection
+        highlight colour (using ItemView.COLOR_HIGHLIGHT), similarly with alternate-row
+        shading, for the case of a QTableView."""
         if role == QtCore.Qt.BackgroundRole:
             normal_brush = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
             selected = index in self.view.selectedIndexes()
-            alternate = not index.row() % 2
-            current = index == self.view.currentIndex()
-            return self.get_bgbrush(normal_brush, alternate, selected, current)
+            alternate = index.row() % 2
+            return self.get_bgbrush(normal_brush, alternate, selected)
         return QtGui.QStandardItemModel.data(self, index, role)
 
 
 class Editor(QtWidgets.QTextEdit):
-    """Popup editor with word wrapping, and customised enter and tab behaviour to quit
-    editing rather than type enter or tab characters."""
+    """Popup editor with word wrapping and automatic resizing."""
     def __init__(self, parent):
         QtWidgets.QTextEdit.__init__(self, parent)
         self.setWordWrapMode(QtGui.QTextOption.WordWrap)
@@ -577,6 +577,10 @@ class Editor(QtWidgets.QTextEdit):
 
     def update_size(self):
         if self.initial_height is not None:
+            # Temporarily shrink back to the initial height, just so that the document
+            # size below returns the preferred size rather than the current size.
+            # QTextDocument doesn't have a sizeHint of minimumSizeHint method, so this
+            # is the best we can do to get its minimum size.
             self.setFixedHeight(self.initial_height)
         preferred_height = self.document().size().toSize().height()
         # Do not shrink smaller than the initial height:
@@ -626,6 +630,9 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
             painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
 
     def eventFilter(self, obj, event):
+        """Filter events before they get to the editor, so that editing is ended when
+        the user presses tab, shift-tab or enter (which otherwise would not end editing
+        in a QTextEdit)."""
         if event.type() == QtCore.QEvent.KeyPress:
             if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
                 # Allow shift-enter
