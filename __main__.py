@@ -76,7 +76,7 @@ from zprocess import raise_exception_in_thread
 import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
-from qtutils.outputbox import OutputBox
+from labscript_utils.qtwidgets import OutputBox
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
