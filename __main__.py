@@ -76,7 +76,8 @@ from zprocess import raise_exception_in_thread
 import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
-from qtutils.outputbox import OutputBox, FONT_SIZE as UBUNTU_FONT_SIZE
+from labscript_utils.qtwidgets.outputbox import OutputBox
+from qtutils.outputbox import FONT_SIZE as UBUNTU_FONT_SIZE
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
