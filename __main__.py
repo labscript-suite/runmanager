@@ -601,7 +601,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
     """An item delegate with a larger row height and column width, faint grey vertical
     lines between columns, and a custom editor for handling multi-line data"""
-    EXTRA_ROW_HEIGHT = 5
+    MIN_ROW_HEIGHT = 22
     EXTRA_COL_WIDTH = 20
 
     def __init__(self, *args, **kwargs):
@@ -614,10 +614,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         size = QtWidgets.QStyledItemDelegate.sizeHint(self, *args)
         return QtCore.QSize(
             size.width() + self.EXTRA_COL_WIDTH,
-            # 19 pixels is the row size when there is an icon visible, so we better not
-            # be smaller than that otherwise there is flickering when icons appear and
-            # disappear
-            max(size.height(), 19) + self.EXTRA_ROW_HEIGHT
+            max(size.height(), self.MIN_ROW_HEIGHT)
         )
 
     def paint(self, painter, option, index):
