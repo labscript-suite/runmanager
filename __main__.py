@@ -601,6 +601,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
     """An item delegate with a larger row height and column width, faint grey vertical
     lines between columns, and a custom editor for handling multi-line data"""
     MIN_ROW_HEIGHT = 22
+    EXTRA_ROW_HEIGHT = 6
     EXTRA_COL_WIDTH = 20
 
     def __init__(self, *args, **kwargs):
@@ -611,10 +612,12 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
     def sizeHint(self, *args):
         size = QtWidgets.QStyledItemDelegate.sizeHint(self, *args)
-        return QtCore.QSize(
-            size.width() + self.EXTRA_COL_WIDTH,
-            max(size.height(), self.MIN_ROW_HEIGHT)
-        )
+        if size.height() <= self.MIN_ROW_HEIGHT:
+            height = self.MIN_ROW_HEIGHT
+        else:
+            # Esnure cells with multiple lines of text still have some padding:
+            height = size.height() + self.EXTRA_ROW_HEIGHT
+        return QtCore.QSize(size.width() + self.EXTRA_COL_WIDTH, height)
 
     def paint(self, painter, option, index):
         if isinstance(self.parent(), QtWidgets.QTableView):
@@ -655,6 +658,9 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         font = index.data(QtCore.Qt.FontRole)
         if font is not None:
             editor.setFont(font)
+            font_height = QtGui.QFontMetrics(font).height()
+            padding = (self.MIN_ROW_HEIGHT - font_height) // 2
+            editor.document().setDocumentMargin(padding)
         editor.selectAll()
         
     def setModelData(self, editor, model, index):
