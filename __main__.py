@@ -77,7 +77,6 @@ import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 from labscript_utils.qtwidgets.outputbox import OutputBox
-from qtutils.outputbox import FONT_SIZE as UBUNTU_FONT_SIZE
 import qtutils.icons
 
 # Set working directory to runmanager folder, resolving symlinks
@@ -835,13 +834,13 @@ class GroupTab(object):
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
-        name_item.setFont(QtGui.QFont("Ubuntu Mono", UBUNTU_FONT_SIZE))
+        name_item.setFont(QtGui.QFont("Ubuntu Mono"))
 
         value_item = QtGui.QStandardItem(value)
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
         value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
-        value_item.setFont(QtGui.QFont("Ubuntu Mono", UBUNTU_FONT_SIZE))
+        value_item.setFont(QtGui.QFont("Ubuntu Mono"))
 
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
