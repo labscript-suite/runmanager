@@ -656,11 +656,14 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
     def setEditorData(self, editor, index):
         editor.setPlainText(index.data())
         font = index.data(QtCore.Qt.FontRole)
-        if font is not None:
-            editor.setFont(font)
-            font_height = QtGui.QFontMetrics(font).height()
-            padding = (self.MIN_ROW_HEIGHT - font_height) // 2
-            editor.document().setDocumentMargin(padding)
+        default_font = qapplication.font(self.parent())
+        if font is None:
+            font = default_font
+        font.setPointSize(default_font.pointSize())
+        editor.setFont(font)
+        font_height = QtGui.QFontMetrics(font).height()
+        padding = (self.MIN_ROW_HEIGHT - font_height) // 2
+        editor.document().setDocumentMargin(padding)
         editor.selectAll()
         
     def setModelData(self, editor, model, index):
