@@ -601,7 +601,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
     """An item delegate with a larger row height and column width, faint grey vertical
     lines between columns, and a custom editor for handling multi-line data"""
-    EXTRA_ROW_HEIGHT = 7
+    EXTRA_ROW_HEIGHT = 5
     EXTRA_COL_WIDTH = 20
 
     def __init__(self, *args, **kwargs):
