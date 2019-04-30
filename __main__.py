@@ -662,7 +662,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         font.setPointSize(default_font.pointSize())
         editor.setFont(font)
         font_height = QtGui.QFontMetrics(font).height()
-        padding = (self.MIN_ROW_HEIGHT - font_height) // 2
+        padding = (self.MIN_ROW_HEIGHT - font_height) / 2 - 1
         editor.document().setDocumentMargin(padding)
         editor.selectAll()
         
