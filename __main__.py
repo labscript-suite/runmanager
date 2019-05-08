@@ -42,6 +42,7 @@ import threading
 import socket
 import ast
 import pprint
+import traceback
 
 splash.update_text('importing matplotlib')
 # Evaluation of globals happens in a thread with the pylab module imported.
@@ -68,12 +69,13 @@ from zmq import ZMQError
 
 splash.update_text('importing labscript suite modules')
 check_version('labscript_utils', '2.11.0', '3')
-from labscript_utils.ls_zprocess import zmq_get, ProcessTree
+from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
 from zprocess import raise_exception_in_thread
 import runmanager
+import runmanager.remote
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
 from labscript_utils.qtwidgets.outputbox import OutputBox
@@ -971,7 +973,7 @@ class GroupTab(object):
                 # If this changed the sort order, ensure the item is still visible:
                 scroll_treeview_to_row_if_current(self.ui.treeView_globals, item)
 
-    def change_global_value(self, global_name, previous_value, new_value):
+    def change_global_value(self, global_name, previous_value, new_value, interactive=True):
         logger.info('%s:%s - change global value: %s = %s -> %s' %
                     (self.globals_file, self.group_name, global_name, previous_value, new_value))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
@@ -982,13 +984,21 @@ class GroupTab(object):
         item.setData(None, QtCore.Qt.BackgroundRole)
         item.setIcon(QtGui.QIcon(':qtutils/fugue/hourglass'))
         args = global_name, previous_value, new_value, item, previous_background, previous_icon
-        QtCore.QTimer.singleShot(1, lambda: self.complete_change_global_value(*args))
+        if interactive:
+            QtCore.QTimer.singleShot(1, lambda: self.complete_change_global_value(*args))
+        else:
+            # New value has not been set interactively by the user, it is up to us to
+            # set it:
+            with self.globals_model_item_changed_disconnected:
+                item.setText(new_value)
+            self.complete_change_global_value(*args, interactive=False)
 
-    def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon):
+    def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon, interactive=True):
         try:
             runmanager.set_value(self.globals_file, self.group_name, global_name, new_value)
         except Exception as e:
-            error_dialog(str(e))
+            if interactive:
+                error_dialog(str(e))
             # Set the item text back to the old name, since the change failed:
             with self.globals_model_item_changed_disconnected:
                 item.setText(previous_value)
@@ -996,11 +1006,15 @@ class GroupTab(object):
                 item.setData(previous_value, self.GLOBALS_ROLE_SORT_DATA)
                 item.setData(previous_background, QtCore.Qt.BackgroundRole)
                 item.setIcon(previous_icon)
+            if not interactive:
+                raise
         else:
             self.check_for_boolean_values(item)
             self.do_model_sort()
             item.setToolTip('Evaluating...')
             self.globals_changed()
+            if not interactive:
+                return
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
             units = units_item.text()
             if not units:
@@ -3387,6 +3401,90 @@ class RunManager(object):
         except Exception as e:
             self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n' % str(e), red=True)
 
+
+class RemoteServer(ZMQServer):
+    def __init__(self):
+        port = app.exp_config.getint(
+            'ports', 'runmanager', fallback=runmanager.remote.DEFAULT_PORT
+        )
+        ZMQServer.__init__(self, port=port)
+
+    def handle_get_globals(self):
+        active_groups = app.get_active_groups()
+        if active_groups is None:
+            msg = "Error getting global. Runmanager may be in an error state"
+            raise RuntimeError(msg)
+        sequence_globals = runmanager.get_globals(active_groups)
+        evaled_globals, global_hierarchy, expansions = runmanager.evaluate_globals(
+            sequence_globals, raise_exceptions=False
+        )
+        all_globals = {}
+        for group_globals in evaled_globals.values():
+            all_globals.update(group_globals)
+        return all_globals
+
+    def handle_get_globals_full(self):
+        active_groups = app.get_active_groups()
+        if active_groups is None:
+            msg = "Error getting globals. Runmanager may be in an error state"
+            raise RuntimeError(msg)
+        return runmanager.get_globals(active_groups)
+
+    def handle_set_globals(self, globals):
+        active_groups = app.get_active_groups()
+        if active_groups is None:
+            msg = "Error setting globals. Runmanager may be in an error state"
+            raise RuntimeError(msg)
+        sequence_globals = runmanager.get_globals(active_groups)
+        for global_name, new_value in globals.items():
+            # Convert to str representation for saving to the GUI or file. If this does
+            # not result in an object the user can actually use, evaluation will error
+            # and the caller will find out about it later
+            new_value = repr(new_value)
+            # Find the group this global is in:
+            for group_name, group_globals in sequence_globals.items():
+                globals_file = active_groups[group_name]
+                if global_name in group_globals:
+                    try:
+                        # Is the group open?
+                        group_tab = app.currently_open_groups[globals_file, group_name]
+                    except KeyError:
+                        # Group is not open. Change the global value on disk:
+                        runmanager.set_value(
+                            globals_file, group_name, global_name, new_value
+                        )
+                    else:
+                        # Group is open. Change the global value via the GUI:
+                        previous_value, _, _ = sequence_globals[group_name][global_name]
+                        group_tab.change_global_value(
+                            global_name, previous_value, new_value, interactive=False
+                        )
+                    break
+            else:
+                # Global was not found.
+                msg = "Global %s not found in any active group" % global_name
+                raise ValueError(msg)
+
+    def handle_set_globals_full(self, globals_full):
+        raise NotImplementedError
+
+    def handle_engage(self):
+        app.on_engage_clicked()
+
+    def handler(self, request_data):
+        cmd, args, kwargs = request_data
+        if cmd == 'hello':
+            return 'hello'
+        elif cmd == '__version__':
+            return runmanager.__version__
+        try:
+            return inmain(getattr(self, 'handle_' + cmd), *args, **kwargs)
+        except Exception as e:
+            msg = traceback.format_exc()
+            msg = "Runmanager server returned an exception:\n" + msg
+            return e.__class__(msg)
+
+
 if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
@@ -3394,5 +3492,8 @@ if __name__ == "__main__":
     qapplication = QtWidgets.QApplication(sys.argv)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
+    splash.update_text('Starting remote server')
+    remote_server = RemoteServer()
     splash.hide()
-    sys.exit(qapplication.exec_())
+    qapplication.exec_()
+    remote_server.shutdown()
