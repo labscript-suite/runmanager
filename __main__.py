@@ -977,6 +977,10 @@ class GroupTab(object):
         logger.info('%s:%s - change global value: %s = %s -> %s' %
                     (self.globals_file, self.group_name, global_name, previous_value, new_value))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+        if not interactive:
+            # Value was not set interactively by the user, it is up to us to set it:
+            with self.globals_model_item_changed_disconnected:
+                item.setText(new_value)
         previous_background = item.background()
         previous_icon = item.icon()
         item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -987,10 +991,6 @@ class GroupTab(object):
         if interactive:
             QtCore.QTimer.singleShot(1, lambda: self.complete_change_global_value(*args))
         else:
-            # New value has not been set interactively by the user, it is up to us to
-            # set it:
-            with self.globals_model_item_changed_disconnected:
-                item.setText(new_value)
             self.complete_change_global_value(*args, interactive=False)
 
     def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon, interactive=True):

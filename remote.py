@@ -1,4 +1,4 @@
-DEFAULT_PORT = 42423
+DEFAULT_PORT = 42523
 
 from labscript_utils.ls_zprocess import ZMQClient
 from labscript_utils.labconfig import LabConfig
