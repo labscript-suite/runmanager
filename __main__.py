@@ -73,6 +73,7 @@ from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
+from labscript_utils import dedent
 from zprocess import raise_exception_in_thread
 import runmanager
 import runmanager.remote
@@ -3455,6 +3456,14 @@ class RemoteServer(ZMQServer):
             for group_name, group_globals in sequence_globals.items():
                 globals_file = active_groups[group_name]
                 if global_name in group_globals:
+                    # Confirm it's not also in another group:
+                    for other_name, other_globals in sequence_globals.items():
+                        if other_globals is not group_globals:
+                            if global_name in other_globals:
+                                msg = """Cannot set global %s, it is defined in multiple
+                                    active groups: %s and %s"""
+                                msg = msg % (global_name, group_name, other_name)
+                                raise RuntimeError(dedent(msg))
                     previous_value, _, _ = sequence_globals[group_name][global_name]
 
                     # Append expression-final comments in the previous expression to the
