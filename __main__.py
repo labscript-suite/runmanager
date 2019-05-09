@@ -3448,11 +3448,15 @@ class RemoteServer(ZMQServer):
                 if global_name in group_globals:
                     previous_value, _, _ = sequence_globals[group_name][global_name]
 
-                    # Append any comments in the previous expression to the new one
-                    expr, _ = runmanager.remove_comments_and_tokenify(previous_value)
-                    comments = previous_value[len(expr):]
-                    if comments.strip():
-                        new_value += comments
+                    # Append expression-final comments in the previous expression to the
+                    # new one:
+                    comments = runmanager.find_comments(previous_value)
+                    if comments:
+                        # Only the final comment
+                        comment_start, comment_end = comments[-1]
+                        # Only if the comment is the last thing in the expression:
+                        if comment_end == len(previous_value):
+                            new_value += previous_value[comment_start:comment_end]
 
                     try:
                         # Is the group open?
