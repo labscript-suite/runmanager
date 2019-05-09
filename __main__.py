@@ -3436,6 +3436,7 @@ class RemoteServer(ZMQServer):
             msg = "Error setting globals. Runmanager may be in an error state"
             raise RuntimeError(msg)
         sequence_globals = runmanager.get_globals(active_groups)
+
         for global_name, new_value in globals.items():
             # Convert to str representation for saving to the GUI or file. If this does
             # not result in an object the user can actually use, evaluation will error
@@ -3445,6 +3446,14 @@ class RemoteServer(ZMQServer):
             for group_name, group_globals in sequence_globals.items():
                 globals_file = active_groups[group_name]
                 if global_name in group_globals:
+                    previous_value, _, _ = sequence_globals[group_name][global_name]
+
+                    # Append any comments in the previous expression to the new one
+                    expr, _ = runmanager.remove_comments_and_tokenify(previous_value)
+                    comments = previous_value[len(expr):]
+                    if comments.strip():
+                        new_value += comments
+
                     try:
                         # Is the group open?
                         group_tab = app.currently_open_groups[globals_file, group_name]
@@ -3455,7 +3464,6 @@ class RemoteServer(ZMQServer):
                         )
                     else:
                         # Group is open. Change the global value via the GUI:
-                        previous_value, _, _ = sequence_globals[group_name][global_name]
                         group_tab.change_global_value(
                             global_name, previous_value, new_value, interactive=False
                         )

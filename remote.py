@@ -61,9 +61,10 @@ engage = _default_client.engage
 
 if __name__ == '__main__':
     # Test
+    import time
     current = get_globals()
     print("get globals:", current)
     print("get globals full:", get_globals_full())
     # Add 1 to test:
-    print("set globals", set_globals({'test': current['test'] + 1}))
-    assert get_globals()['test'] == current['test'] + 1
+    print("set globals", set_globals({'test': current['test'] + '1'}))
+    assert get_globals()['test'] == current['test'] + '1'
