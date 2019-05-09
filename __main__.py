@@ -3409,28 +3409,33 @@ class RemoteServer(ZMQServer):
         )
         ZMQServer.__init__(self, port=port)
 
-    def handle_get_globals(self):
-        active_groups = app.get_active_groups()
-        if active_groups is None:
-            msg = "Error getting global. Runmanager may be in an error state"
-            raise RuntimeError(msg)
-        sequence_globals = runmanager.get_globals(active_groups)
-        evaled_globals, global_hierarchy, expansions = runmanager.evaluate_globals(
-            sequence_globals, raise_exceptions=False
-        )
-        all_globals = {}
-        for group_globals in evaled_globals.values():
-            all_globals.update(group_globals)
-        return all_globals
-
-    def handle_get_globals_full(self):
+    def handle_get_globals(self, raw=False):
         active_groups = app.get_active_groups()
         if active_groups is None:
             msg = "Error getting globals. Runmanager may be in an error state"
             raise RuntimeError(msg)
-        return runmanager.get_globals(active_groups)
+        sequence_globals = runmanager.get_globals(active_groups)
+        all_globals = {}
+        if raw:
+            for group_globals in sequence_globals.values():
+                values_only = {name: val for name, (val, _, _) in group_globals.items()}
+                all_globals.update(values_only)
+        else:
+            evaled_globals, global_hierarchy, expansions = runmanager.evaluate_globals(
+                sequence_globals, raise_exceptions=False
+            )
+            for group_globals in evaled_globals.values():
+                all_globals.update(group_globals)
+        return all_globals
 
-    def handle_set_globals(self, globals):
+    # def handle_get_globals_full(self):
+    #     active_groups = app.get_active_groups()
+    #     if active_groups is None:
+    #         msg = "Error getting globals. Runmanager may be in an error state"
+    #         raise RuntimeError(msg)
+    #     return runmanager.get_globals(active_groups)
+
+    def handle_set_globals(self, globals, raw=False):
         active_groups = app.get_active_groups()
         if active_groups is None:
             msg = "Error setting globals. Runmanager may be in an error state"
@@ -3438,10 +3443,14 @@ class RemoteServer(ZMQServer):
         sequence_globals = runmanager.get_globals(active_groups)
 
         for global_name, new_value in globals.items():
-            # Convert to str representation for saving to the GUI or file. If this does
-            # not result in an object the user can actually use, evaluation will error
-            # and the caller will find out about it later
-            new_value = repr(new_value)
+            # Unless raw=True, convert to str representation for saving to the GUI or
+            # file. If this does not result in an object the user can actually use,
+            # evaluation will error and the caller will find out about it later
+            if not raw:
+                new_value = repr(new_value)
+            elif not isinstance(new_value, (str, bytes)):
+                msg = "global %s must be a string if raw=True, not %s"
+                raise TypeError(msg % (global_name, new_value.__class__.__name__))
             # Find the group this global is in:
             for group_name, group_globals in sequence_globals.items():
                 globals_file = active_groups[group_name]
@@ -3477,8 +3486,8 @@ class RemoteServer(ZMQServer):
                 msg = "Global %s not found in any active group" % global_name
                 raise ValueError(msg)
 
-    def handle_set_globals_full(self, globals_full):
-        raise NotImplementedError
+    # def handle_set_globals_full(self, globals_full):
+    #     raise NotImplementedError
 
     def handle_engage(self):
         app.on_engage_clicked()
