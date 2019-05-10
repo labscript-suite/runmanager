@@ -1321,6 +1321,9 @@ class RunManager(object):
         self.previous_expansion_types = {}
         self.previous_expansions = {}
 
+        # The prospective number of shots resulting from compilation
+        self.n_shots = None
+
         # Start the loop that allows compilations to be queued up:
         self.compile_queue = queue.Queue()
         self.compile_queue_thread = threading.Thread(target=self.compile_loop)
@@ -2467,7 +2470,7 @@ class RunManager(object):
         while True:
             results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False, return_dimensions = True)
             sequence_globals, shots, evaled_globals, global_hierarchy, expansions, dimensions = results
-            n_shots = len(shots)
+            self.n_shots = len(shots)
             expansions_changed = self.guess_expansion_modes(
                 active_groups, evaled_globals, global_hierarchy, expansions)
             if not expansions_changed:
@@ -2476,9 +2479,9 @@ class RunManager(object):
                 # when changing a zip group from a list to a single value
                 results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True, return_dimensions = True)
                 sequence_globals, shots, evaled_globals, global_hierarchy, expansions, dimensions = results
-                n_shots = len(shots)
+                self.n_shots = len(shots)
                 break
-        self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, n_shots)
+        self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, self.n_shots)
         self.update_axes_tab(expansions, dimensions)
 
 
@@ -3501,6 +3504,9 @@ class RemoteServer(ZMQServer):
     def handle_engage(self):
         app.on_engage_clicked()
 
+    def handle_abort(self):
+        app.on_abort_clicked()
+
     def handle_get_run_shots(self):
         return app.ui.checkBox_run_shots.isChecked()
 
@@ -3518,6 +3524,9 @@ class RemoteServer(ZMQServer):
 
     def handle_set_shuffle(self, value):
         app.ui.pushButton_shuffle.setChecked(value)
+
+    def handle_n_shots(self):
+        return app.n_shots
 
     def handler(self, request_data):
         cmd, args, kwargs = request_data

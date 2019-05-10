@@ -55,6 +55,10 @@ class Client(ZMQClient):
         """Trigger shot compilation/submission"""
         return self.request('engage')
 
+    def abort(self):
+        """Trigger abort compilation/submission"""
+        return self.request('abort')
+
     def get_run_shots(self):
         """Get boolean state of 'Run shot(s)' checkbox"""
         return self.request('get_run_shots')
@@ -79,6 +83,10 @@ class Client(ZMQClient):
         """Set boolean state of 'Shuffle' checkbox"""
         return self.request('set_shuffle', value)
 
+    def n_shots(self):
+        """Get the number of prospective shots from pressing Engage"""
+        return self.request('n_shots')
+
 _default_client = Client()
 
 say_hello = _default_client.say_hello
@@ -88,12 +96,14 @@ get_globals = _default_client.get_globals
 set_globals = _default_client.set_globals
 # set_globals_full = _default_client.set_globals_full
 engage = _default_client.engage
+abort = _default_client.abort
 get_run_shots = _default_client.get_run_shots
 set_run_shots = _default_client.set_run_shots
 get_view_shots = _default_client.get_view_shots
 set_view_shots = _default_client.set_view_shots
 get_shuffle = _default_client.get_shuffle
 set_shuffle = _default_client.set_shuffle
+n_shots = _default_client.n_shots
 
 if __name__ == '__main__':
     # Test
