@@ -55,6 +55,30 @@ class Client(ZMQClient):
         """Trigger shot compilation/submission"""
         return self.request('engage')
 
+    def get_run_shots(self):
+        """Get boolean state of 'Run shot(s)' checkbox"""
+        return self.request('get_run_shots')
+
+    def set_run_shots(self, value):
+        """Set boolean state of 'Run shot(s)' checkbox"""
+        return self.request('set_run_shots', value)
+
+    def get_view_shots(self):
+        """Get boolean state of 'View shot(s)' checkbox"""
+        return self.request('get_view_shots')
+
+    def set_view_shots(self, value):
+        """Set boolean state of 'View shot(s)' checkbox"""
+        return self.request('set_view_shots', value)
+
+    def get_shuffle(self):
+        """Get boolean state of 'Shuffle' checkbox"""
+        return self.request('get_shuffle')
+
+    def set_shuffle(self, value):
+        """Set boolean state of 'Shuffle' checkbox"""
+        return self.request('set_shuffle', value)
+
 _default_client = Client()
 
 say_hello = _default_client.say_hello
@@ -64,6 +88,12 @@ get_globals = _default_client.get_globals
 set_globals = _default_client.set_globals
 # set_globals_full = _default_client.set_globals_full
 engage = _default_client.engage
+get_run_shots = _default_client.get_run_shots
+set_run_shots = _default_client.set_run_shots
+get_view_shots = _default_client.get_view_shots
+set_view_shots = _default_client.set_view_shots
+get_shuffle = _default_client.get_shuffle
+set_shuffle = _default_client.set_shuffle
 
 if __name__ == '__main__':
     # Test

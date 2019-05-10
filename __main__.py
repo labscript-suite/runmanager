@@ -3501,6 +3501,24 @@ class RemoteServer(ZMQServer):
     def handle_engage(self):
         app.on_engage_clicked()
 
+    def handle_get_run_shots(self):
+        return app.ui.checkBox_run_shots.isChecked()
+
+    def handle_set_run_shots(self, value):
+        app.ui.checkBox_run_shots.setChecked(value)
+
+    def handle_get_view_shots(self):
+        return app.ui.checkBox_view_shots.isChecked()
+
+    def handle_set_view_shots(self, value):
+        app.ui.checkBox_view_shots.setChecked(value)
+
+    def handle_get_shuffle(self):
+        return app.ui.pushButton_shuffle.isChecked()
+
+    def handle_set_shuffle(self, value):
+        app.ui.pushButton_shuffle.setChecked(value)
+
     def handler(self, request_data):
         cmd, args, kwargs = request_data
         if cmd == 'hello':
