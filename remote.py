@@ -84,8 +84,36 @@ class Client(ZMQClient):
         return self.request('set_shuffle', value)
 
     def n_shots(self):
-        """Get the number of prospective shots from pressing Engage"""
+        """Get the number of prospective shots from pressing 'Engage'"""
         return self.request('n_shots')
+
+    def get_labscript_file(self):
+        """Get the path of the current experiment script"""
+        return self.request('get_labscript_file')
+
+    def set_labscript_file(self, value):
+        """Set the current experiment script"""
+        return self.request('set_labscript_file', value)
+
+    def get_shot_output_folder(self):
+        """Get the current shot output folder"""
+        return self.request('get_shot_output_folder')
+
+    def set_shot_output_folder(self, value):
+        """Set the shot output folder"""
+        return self.request('set_shot_output_folder', value)
+
+    def error_in_globals(self):
+        """True if any tab of an active group contains error(s)"""
+        return self.request('error_in_globals')
+
+    def is_output_folder_default(self):
+        """True if shot output folder is not the default path"""
+        return self.request('is_output_folder_default')
+
+    def reset_shot_output_folder(self):
+        """Reset the shot output folder to the default path"""
+        return self.request('reset_shot_output_folder')
 
 _default_client = Client()
 
@@ -104,6 +132,13 @@ set_view_shots = _default_client.set_view_shots
 get_shuffle = _default_client.get_shuffle
 set_shuffle = _default_client.set_shuffle
 n_shots = _default_client.n_shots
+get_labscript_file = _default_client.get_labscript_file
+set_labscript_file = _default_client.set_labscript_file
+get_shot_output_folder = _default_client.get_shot_output_folder
+set_shot_output_folder = _default_client.set_shot_output_folder
+error_in_globals = _default_client.error_in_globals
+is_output_folder_default = _default_client.is_output_folder_default
+reset_shot_output_folder = _default_client.reset_shot_output_folder
 
 if __name__ == '__main__':
     # Test

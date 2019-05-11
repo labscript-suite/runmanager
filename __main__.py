@@ -604,6 +604,9 @@ class GroupTab(object):
             self.ui.treeView_globals.setColumnWidth(self.GLOBALS_COL_EXPANSION, 100)
         self.ui.treeView_globals.resizeColumnToContents(self.GLOBALS_COL_DELETE)
 
+        # Error state of tab
+        self.tab_contains_errors = False
+
     def connect_signals(self):
         self.ui.treeView_globals.leftClicked.connect(self.on_treeView_globals_leftClicked)
         self.ui.treeView_globals.customContextMenuRequested.connect(self.on_treeView_globals_context_menu_requested)
@@ -1128,7 +1131,7 @@ class GroupTab(object):
     def update_parse_indication(self, active_groups, sequence_globals, evaled_globals):
         # Check that we are an active group:
         if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
-            tab_contains_errors = False
+            self.tab_contains_errors = False
             # for global_name, value in evaled_globals[self.group_name].items():
             for i in range(self.globals_model.rowCount()):
                 name_item = self.globals_model.item(i, self.GLOBALS_COL_NAME)
@@ -1165,7 +1168,7 @@ class GroupTab(object):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
                     tooltip = '%s: %s' % (value.__class__.__name__, str(value))
-                    tab_contains_errors = True
+                    self.tab_contains_errors = True
                 else:
                     if value_item.background().color().name().lower() != self.COLOR_OK.lower():
                         value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.COLOR_OK)))
@@ -1176,7 +1179,7 @@ class GroupTab(object):
                 if value_item.toolTip() != tooltip:
                     # logger.info('tooltip_changed')
                     value_item.setToolTip(tooltip)
-            if tab_contains_errors:
+            if self.tab_contains_errors:
                 self.set_tab_icon(':qtutils/fugue/exclamation')
             else:
                 self.set_tab_icon(None)
@@ -1341,6 +1344,7 @@ class RunManager(object):
         self.output_folder_update_required = threading.Event()
         self.previous_default_output_folder = self.get_default_output_folder()
         inthread(self.rollover_shot_output_folder)
+        self.non_default_folder = None
 
         # The data from the last time we saved the configuration, so we can
         # know if something's changed:
@@ -1676,11 +1680,11 @@ class RunManager(object):
         # Blank out the 'reset default output folder' button if the user is
         # already using the default output folder
         if text == self.get_default_output_folder():
-            non_default_folder = False
+            self.non_default_folder = False
         else:
-            non_default_folder = True
-        self.ui.toolButton_reset_shot_output_folder.setEnabled(non_default_folder)
-        self.ui.label_non_default_folder.setVisible(non_default_folder)
+            self.non_default_folder = True
+        self.ui.toolButton_reset_shot_output_folder.setEnabled(self.non_default_folder)
+        self.ui.label_non_default_folder.setVisible(self.non_default_folder)
         self.ui.lineEdit_shot_output_folder.setToolTip(text)
 
     def on_engage_clicked(self):
@@ -3527,6 +3531,34 @@ class RemoteServer(ZMQServer):
 
     def handle_n_shots(self):
         return app.n_shots
+
+    def handle_get_labscript_file(self):
+        labscript_file = app.ui.lineEdit_labscript_file.text()
+        return os.path.abspath(labscript_file)
+
+    def handle_set_labscript_file(self, value):
+        labscript_file = os.path.abspath(value)
+        app.ui.lineEdit_labscript_file.setText(labscript_file)
+
+    def handle_get_shot_output_folder(self):
+        shot_output_folder = app.ui.lineEdit_shot_output_folder.text()
+        return os.path.abspath(shot_output_folder)
+
+    def handle_set_shot_output_folder(self, value):
+        shot_output_folder = os.path.abspath(value)
+        app.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
+
+    def handle_error_in_globals(self):
+        for group_tab in app.currently_open_groups.values():
+            if group_tab.tab_contains_errors:
+                return True
+        return False
+
+    def handle_is_output_folder_default(self):
+        return not app.non_default_folder
+
+    def handle_reset_shot_output_folder(self):
+        app.on_reset_shot_output_folder_clicked(None)
 
     def handler(self, request_data):
         cmd, args, kwargs = request_data
