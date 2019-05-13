@@ -20,7 +20,6 @@ else:
 
 import os
 import sys
-import errno
 import labscript_utils.excepthook
 
 try:
@@ -39,7 +38,6 @@ import time
 import contextlib
 import subprocess
 import threading
-import socket
 import ast
 import pprint
 import traceback
@@ -65,12 +63,10 @@ check_version('pandas', '0.13', '2')
 from qtutils.qt import QtCore, QtGui, QtWidgets
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
-from zmq import ZMQError
-
 splash.update_text('importing labscript suite modules')
 check_version('labscript_utils', '2.11.0', '3')
 from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
-from labscript_utils.labconfig import LabConfig, config_prefix
+from labscript_utils.labconfig import LabConfig
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
 from labscript_utils import dedent
@@ -78,7 +74,14 @@ from zprocess import raise_exception_in_thread
 import runmanager
 import runmanager.remote
 
-from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
+from qtutils import (
+    inmain,
+    inmain_decorator,
+    UiLoader,
+    inthread,
+    DisconnectContextManager,
+    qtlock,
+)
 from labscript_utils.qtwidgets.outputbox import OutputBox
 import qtutils.icons
 
@@ -1309,9 +1312,11 @@ class RunManager(object):
         # show their values and any errors in the tabs they came from.
         self.preparse_globals_thread = threading.Thread(target=self.preparse_globals_loop)
         self.preparse_globals_thread.daemon = True
-        # A threading.Event to inform the preparser thread when globals have
-        # changed, and thus need parsing again:
-        self.preparse_globals_required = threading.Event()
+        # A Queue for informing the preparser thread when globals have changed, and thus
+        # need parsing again. It is a queue rather than a threading.Event() so that
+        # callers can call Queue.join() to wait for parsing to complete in a race-free
+        # way
+        self.preparse_globals_required = queue.Queue()
         self.preparse_globals_thread.start()
 
         # A flag telling the compilation thread to abort:
@@ -2372,11 +2377,10 @@ class RunManager(object):
 
     @inmain_decorator()
     def globals_changed(self):
-        """Called from either self or a GroupTab to inform runmanager that
-        something about globals has changed, and that they need parsing
-        again"""
+        """Called from either self, a GroupTab, or the RemoteServer to inform runmanager
+        that something about globals has changed, and that they need parsing again."""
         self.ui.pushButton_engage.setEnabled(False)
-        QtCore.QTimer.singleShot(1,self.preparse_globals_required.set)
+        self.preparse_globals_required.put(None)
 
     def update_axes_indentation(self):
         for i in range(self.axes_model.rowCount()):
@@ -2488,7 +2492,6 @@ class RunManager(object):
         self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, self.n_shots)
         self.update_axes_tab(expansions, dimensions)
 
-
     def preparse_globals_loop(self):
         """Runs in a thread, waiting on a threading.Event that tells us when
         some globals have changed, and calls parse_globals to evaluate them
@@ -2497,16 +2500,34 @@ class RunManager(object):
         while True:
             try:
                 # Wait until we're needed:
-                self.preparse_globals_required.wait()
-                self.preparse_globals_required.clear()
+                self.preparse_globals_required.get()
+                n_requests = 1
+                # Wait until the main thread is idle before clearing the queue of
+                # requests. This way if preparsing is triggered multiple times within
+                # the main thread before it becomes idle, we can respond to this all at
+                # once, once they are all done, rather than starting too early and
+                # having to preparse again.
+                with qtlock:
+                    try:
+                        self.preparse_globals_required.get(block=False)
+                        n_requests += 1
+                    except queue.Empty:
+                        pass
                 # Do some work:
                 self.preparse_globals()
+                # Tell any callers calling preparse_globals_required.join() that we are
+                # done with their request:
+                for _ in range(n_requests):
+                    self.preparse_globals_required.task_done()
             except Exception:
                 # Raise the error, but keep going so we don't take down the
                 # whole thread if there is a bug.
                 exc_info = sys.exc_info()
                 raise_exception_in_thread(exc_info)
-                continue
+
+    def wait_until_preparse_complete(self):
+        """Block until the preparse loop has finished pending work"""
+        self.preparse_globals_required.join()
 
     def get_group_item_by_name(self, globals_file, group_name, column, previous_name=None):
         """Returns an item from the row representing a globals group in the
@@ -2549,11 +2570,11 @@ class RunManager(object):
         self.ui.treeView_groups.sortByColumn(sort_column, sort_order)
 
     @inmain_decorator()  # Can be called from a non-main thread
-    def get_active_groups(self):
+    def get_active_groups(self, interactive=True):
         """Returns active groups in the format {group_name: globals_file}.
         Displays an error dialog and returns None if multiple groups of the
         same name are selected, this is invalid - selected groups must be
-        uniquely named."""
+        uniquely named. If interactive=False, raises the exception instead."""
         active_groups = {}
         for i in range(self.groups_model.rowCount()):
             file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
@@ -2564,9 +2585,14 @@ class RunManager(object):
                     group_name = group_name_item.text()
                     globals_file = file_name_item.text()
                     if group_name in active_groups:
-                        error_dialog('There are two active groups named %s. ' % group_name +
-                                     'Active groups must have unique names to be used together.')
-                        return
+                        msg = (
+                            'There are two active groups named %s. ' % group_name
+                            + 'Active groups must have unique names.'
+                        )
+                        if interactive:
+                            error_dialog(msg)
+                            return
+                        raise RuntimeError(msg)
                     active_groups[group_name] = globals_file
         return active_groups
 
@@ -3418,10 +3444,7 @@ class RemoteServer(ZMQServer):
         ZMQServer.__init__(self, port=port)
 
     def handle_get_globals(self, raw=False):
-        active_groups = app.get_active_groups()
-        if active_groups is None:
-            msg = "Error getting globals. Runmanager may be in an error state"
-            raise RuntimeError(msg)
+        active_groups = inmain(app.get_active_groups, interactive=False)
         sequence_globals = runmanager.get_globals(active_groups)
         all_globals = {}
         if raw:
@@ -3436,127 +3459,147 @@ class RemoteServer(ZMQServer):
                 all_globals.update(group_globals)
         return all_globals
 
-    # def handle_get_globals_full(self):
-    #     active_groups = app.get_active_groups()
-    #     if active_groups is None:
-    #         msg = "Error getting globals. Runmanager may be in an error state"
-    #         raise RuntimeError(msg)
-    #     return runmanager.get_globals(active_groups)
-
+    @inmain_decorator()
     def handle_set_globals(self, globals, raw=False):
-        active_groups = app.get_active_groups()
-        if active_groups is None:
-            msg = "Error setting globals. Runmanager may be in an error state"
-            raise RuntimeError(msg)
+        active_groups = app.get_active_groups(interactive=False)
         sequence_globals = runmanager.get_globals(active_groups)
+        try:
+            for global_name, new_value in globals.items():
+                # Unless raw=True, convert to str representation for saving to the GUI
+                # or file. If this does not result in an object the user can actually
+                # use, evaluation will error and the caller will find out about it later
+                if not raw:
+                    new_value = repr(new_value)
+                elif not isinstance(new_value, (str, bytes)):
+                    msg = "global %s must be a string if raw=True, not %s"
+                    raise TypeError(msg % (global_name, new_value.__class__.__name__))
 
-        for global_name, new_value in globals.items():
-            # Unless raw=True, convert to str representation for saving to the GUI or
-            # file. If this does not result in an object the user can actually use,
-            # evaluation will error and the caller will find out about it later
-            if not raw:
-                new_value = repr(new_value)
-            elif not isinstance(new_value, (str, bytes)):
-                msg = "global %s must be a string if raw=True, not %s"
-                raise TypeError(msg % (global_name, new_value.__class__.__name__))
-            # Find the group this global is in:
-            for group_name, group_globals in sequence_globals.items():
-                globals_file = active_groups[group_name]
-                if global_name in group_globals:
-                    # Confirm it's not also in another group:
-                    for other_name, other_globals in sequence_globals.items():
-                        if other_globals is not group_globals:
-                            if global_name in other_globals:
-                                msg = """Cannot set global %s, it is defined in multiple
-                                    active groups: %s and %s"""
-                                msg = msg % (global_name, group_name, other_name)
-                                raise RuntimeError(dedent(msg))
-                    previous_value, _, _ = sequence_globals[group_name][global_name]
+                # Find the group this global is in:
+                for group_name, group_globals in sequence_globals.items():
+                    globals_file = active_groups[group_name]
+                    if global_name in group_globals:
+                        # Confirm it's not also in another group:
+                        for other_name, other_globals in sequence_globals.items():
+                            if other_globals is not group_globals:
+                                if global_name in other_globals:
+                                    msg = """Cannot set global %s, it is defined in
+                                        multiple active groups: %s and %s"""
+                                    msg = msg % (global_name, group_name, other_name)
+                                    raise RuntimeError(dedent(msg))
+                        previous_value, _, _ = sequence_globals[group_name][global_name]
 
-                    # Append expression-final comments in the previous expression to the
-                    # new one:
-                    comments = runmanager.find_comments(previous_value)
-                    if comments:
-                        # Only the final comment
-                        comment_start, comment_end = comments[-1]
-                        # Only if the comment is the last thing in the expression:
-                        if comment_end == len(previous_value):
-                            new_value += previous_value[comment_start:comment_end]
-
-                    try:
-                        # Is the group open?
-                        group_tab = app.currently_open_groups[globals_file, group_name]
-                    except KeyError:
-                        # Group is not open. Change the global value on disk:
-                        runmanager.set_value(
-                            globals_file, group_name, global_name, new_value
-                        )
-                    else:
-                        # Group is open. Change the global value via the GUI:
-                        group_tab.change_global_value(
-                            global_name, previous_value, new_value, interactive=False
-                        )
-                    break
-            else:
-                # Global was not found.
-                msg = "Global %s not found in any active group" % global_name
-                raise ValueError(msg)
-
-    # def handle_set_globals_full(self, globals_full):
-    #     raise NotImplementedError
+                        # Append expression-final comments in the previous expression to
+                        # the new one:
+                        comments = runmanager.find_comments(previous_value)
+                        if comments:
+                            # Only the final comment
+                            comment_start, comment_end = comments[-1]
+                            # Only if the comment is the last thing in the expression:
+                            if comment_end == len(previous_value):
+                                new_value += previous_value[comment_start:comment_end]
+                        try:
+                            # Is the group open?
+                            group_tab = app.currently_open_groups[
+                                globals_file, group_name
+                            ]
+                        except KeyError:
+                            # Group is not open. Change the global value on disk:
+                            runmanager.set_value(
+                                globals_file, group_name, global_name, new_value
+                            )
+                        else:
+                            # Group is open. Change the global value via the GUI:
+                            group_tab.change_global_value(
+                                global_name,
+                                previous_value,
+                                new_value,
+                                interactive=False,
+                            )
+                        break
+                else:
+                    # Global was not found.
+                    msg = "Global %s not found in any active group" % global_name
+                    raise ValueError(msg)
+        finally:
+            # Trigger preparsing of globals to occur so that changes in globals not in
+            # open tabs are reflected in the GUI, such as n_shots, errors on other
+            # globals that depend on them, etc.
+            app.globals_changed()
 
     def handle_engage(self):
-        app.on_engage_clicked()
+        app.wait_until_preparse_complete()
+        inmain(app.on_engage_clicked)
 
+    @inmain_decorator()
     def handle_abort(self):
         app.on_abort_clicked()
 
+    @inmain_decorator()
     def handle_get_run_shots(self):
         return app.ui.checkBox_run_shots.isChecked()
 
+    @inmain_decorator()
     def handle_set_run_shots(self, value):
         app.ui.checkBox_run_shots.setChecked(value)
 
+    @inmain_decorator()
     def handle_get_view_shots(self):
         return app.ui.checkBox_view_shots.isChecked()
 
+    @inmain_decorator()
     def handle_set_view_shots(self, value):
         app.ui.checkBox_view_shots.setChecked(value)
 
+    @inmain_decorator()
     def handle_get_shuffle(self):
         return app.ui.pushButton_shuffle.isChecked()
 
+    @inmain_decorator()
     def handle_set_shuffle(self, value):
         app.ui.pushButton_shuffle.setChecked(value)
 
     def handle_n_shots(self):
+        # Wait until any current preparsing is done, to ensure this is not racy w.r.t
+        # previous remote calls:
+        app.wait_until_preparse_complete()
         return app.n_shots
 
+    @inmain_decorator()
     def handle_get_labscript_file(self):
         labscript_file = app.ui.lineEdit_labscript_file.text()
         return os.path.abspath(labscript_file)
 
+    @inmain_decorator()
     def handle_set_labscript_file(self, value):
         labscript_file = os.path.abspath(value)
         app.ui.lineEdit_labscript_file.setText(labscript_file)
 
+    @inmain_decorator()
     def handle_get_shot_output_folder(self):
         shot_output_folder = app.ui.lineEdit_shot_output_folder.text()
         return os.path.abspath(shot_output_folder)
 
+    @inmain_decorator()
     def handle_set_shot_output_folder(self, value):
         shot_output_folder = os.path.abspath(value)
         app.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
 
     def handle_error_in_globals(self):
-        for group_tab in app.currently_open_groups.values():
-            if group_tab.tab_contains_errors:
-                return True
+        try:
+            # This will raise an exception if there are multiple active groups of the
+            # same name:
+            active_groups = inmain(app.get_active_groups, interactive=False)
+            sequence_globals = runmanager.get_globals(active_groups)
+            # This will raise an exception if any of the globals can't be evaluated:
+            runmanager.evaluate_globals(sequence_globals, raise_exceptions=True)
+        except Exception:
+            return True
         return False
 
     def handle_is_output_folder_default(self):
         return not app.non_default_folder
 
+    @inmain_decorator()
     def handle_reset_shot_output_folder(self):
         app.on_reset_shot_output_folder_clicked(None)
 
@@ -3567,7 +3610,7 @@ class RemoteServer(ZMQServer):
         elif cmd == '__version__':
             return runmanager.__version__
         try:
-            return inmain(getattr(self, 'handle_' + cmd), *args, **kwargs)
+            return getattr(self, 'handle_' + cmd)(*args, **kwargs)
         except Exception as e:
             msg = traceback.format_exc()
             msg = "Runmanager server returned an exception:\n" + msg

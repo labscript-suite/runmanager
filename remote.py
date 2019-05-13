@@ -34,12 +34,6 @@ class Client(ZMQClient):
         evaluated as python objects and then returned."""
         return self.request('get_globals', raw=raw)
 
-    # def get_globals_full(self):
-    #     """Return all active globals and their details as a dict of the form:
-    #     {'<group_name>': {'<global_name>': ('<global_str>', '<units>', '<expansion>')}},
-    #     where global_str is the *unevaluated* string expression of the global."""
-    #     return self.request('get_globals_full')
-
     def set_globals(self, globals, raw=False):
         """For a dict of the form {'<global_name>': value}, set the given globals to the
         given values. If raw=True, then global values will be treated as the string
@@ -47,9 +41,6 @@ class Client(ZMQClient):
         written directly to the HDF5 file and runmanager GUI without calling repr() on
         them first."""
         return self.request('set_globals', globals, raw=raw)
-
-    # def set_globals_full(self, globals_full):
-    #     raise NotImplementedError
 
     def engage(self):
         """Trigger shot compilation/submission"""
@@ -146,7 +137,6 @@ if __name__ == '__main__':
 
     current = get_globals()
     print("get globals:", current)
-    # print("get globals full:", get_globals_full())
-    # Add 1 to test:
     print("set globals", set_globals({'test': current['test'] + 1}))
-    # assert get_globals()['test'] == current['test'] + '1'
+    assert get_globals()['test'] == current['test'] + 1
+    engage()
