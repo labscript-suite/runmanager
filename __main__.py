@@ -1320,7 +1320,6 @@ class RunManager(object):
 
         # Start a thread to monitor the time of day and create new shot output
         # folders for each day:
-        self.output_folder_update_required = threading.Event()
         self.previous_default_output_folder = self.get_default_output_folder()
         inthread(self.rollover_shot_output_folder)
 
@@ -1585,8 +1584,8 @@ class RunManager(object):
         self.last_opened_labscript_folder = os.path.dirname(labscript_file)
         # Write the file to the lineEdit:
         self.ui.lineEdit_labscript_file.setText(labscript_file)
-        # Tell the output folder thread that the output folder might need updating:
-        self.output_folder_update_required.set()
+        # Check if the output folder needs to be updated:
+        self.check_output_folder_update()
 
     def on_edit_labscript_file_clicked(self, checked):
         # get path to text editor
@@ -1627,22 +1626,15 @@ class RunManager(object):
         self.last_selected_shot_output_folder = os.path.dirname(shot_output_folder)
         # Write the file to the lineEdit:
         self.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
-        # Tell the output folder rollover thread to run an iteration, so that
-        # it notices this change (even though it won't do anything now - this
-        # is so it can respond correctly if anything else interesting happens
-        # within the next second):
-        self.output_folder_update_required.set()
+        # Update our knowledge about whether this is the default output folder or not:
+        self.check_output_folder_update()
 
     def on_reset_shot_output_folder_clicked(self, checked):
         current_default_output_folder = self.get_default_output_folder()
         if current_default_output_folder is None:
             return
         self.ui.lineEdit_shot_output_folder.setText(current_default_output_folder)
-        # Tell the output folder rollover thread to run an iteration, so that
-        # it notices this change (even though it won't do anything now - this
-        # is so it can respond correctly if anything else interesting happens
-        # within the next second):
-        self.output_folder_update_required.set()
+        self.check_output_folder_update()
 
     def on_labscript_file_text_changed(self, text):
         # Blank out the 'edit labscript file' button if no labscript file is
@@ -2317,17 +2309,19 @@ class RunManager(object):
         return default_output_folder
 
     def rollover_shot_output_folder(self):
-        """Runs in a thread, checking once a second if the default output folder has
-        changed, likely because the date has changed. If it is or has, sets the default
-        folder in which compiled shots will be put. Does not create the folder if it
-        does not already exists, this will be done at compile-time. Will run immediately
-        without waiting a full second if the threading.Event
-        self.output_folder_update_required is set() from anywhere."""
+        """Runs in a thread, checking every 30 seconds if the default output folder has
+        changed, likely because the date has changed, but also possible because another
+        instance of runmanager has incremented the sequence index. If the defaulr output
+        folder has changed, and if runmanager is configured to use the default output
+        folder, sets the folder in which compiled shots will be put. Does not create the
+        folder if it does not already exist, this will be done at compile-time."""
         while True:
-            # Wait up to one second, shorter if the Event() gets set() by someone:
-            self.output_folder_update_required.wait(30)
-            self.output_folder_update_required.clear()
-            self.check_output_folder_update()
+            time.sleep(30)
+            try:
+                self.check_output_folder_update()
+            except Exception as e:
+                # Don't stop the thread.
+                logger.exception("error checking default output folder")
 
     @inmain_decorator()
     def check_output_folder_update(self):
@@ -3325,7 +3319,7 @@ class RunManager(object):
             # obtained from new_sequence_details, as it is race-free, whereas the one
             # from the UI may be out of date since we only update it once a second.
             output_folder = default_output_dir
-        self.output_folder_update_required.set()
+        self.check_output_folder_update()
         run_files = runmanager.make_run_files(
             output_folder,
             sequence_globals,
