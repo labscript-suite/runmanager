@@ -48,7 +48,7 @@ from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
 process_tree = ProcessTree.instance()
 
-__version__ = '2.4.1'
+__version__ = '2.5.0'
 
 
 def _ensure_str(s):
