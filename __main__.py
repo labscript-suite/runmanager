@@ -85,7 +85,7 @@ from qtutils import (
 from labscript_utils.qtwidgets.outputbox import OutputBox
 import qtutils.icons
 
-GLOBAL_MONOSPACE_FONT = "Consolas" if os.name == 'nt' else "Ubuntu"
+GLOBAL_MONOSPACE_FONT = "Consolas" if os.name == 'nt' else "Ubuntu Mono"
 
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
