@@ -17,7 +17,7 @@ class Client(ZMQClient):
         self.port = port
 
     def request(self, command, *args, **kwargs):
-        return self.get(self.port, self.host, data=[command, args, kwargs], timeout=5)
+        return self.get(self.port, self.host, data=[command, args, kwargs], timeout=15)
 
     def say_hello(self):
         """Ping the runmanager server for a response"""

@@ -2647,11 +2647,12 @@ class RunManager(object):
                 # once, once they are all done, rather than starting too early and
                 # having to preparse again.
                 with qtlock:
-                    try:
-                        self.preparse_globals_required.get(block=False)
-                        n_requests += 1
-                    except queue.Empty:
-                        pass
+                    while True:
+                        try:
+                            self.preparse_globals_required.get(block=False)
+                            n_requests += 1
+                        except queue.Empty:
+                            break
                 # Do some work:
                 self.preparse_globals()
                 # Tell any callers calling preparse_globals_required.join() that we are
