@@ -85,6 +85,8 @@ from qtutils import (
 from labscript_utils.qtwidgets.outputbox import OutputBox
 import qtutils.icons
 
+GLOBAL_MONOSPACE_FONT = "Consolas" if os.name == 'nt' else "Ubuntu Mono"
+
 # Set working directory to runmanager folder, resolving symlinks
 runmanager_dir = os.path.dirname(os.path.realpath(__file__))
 os.chdir(runmanager_dir)
@@ -809,7 +811,7 @@ class GroupTab(object):
         dummy_delete_item.setToolTip('Click to add global')
 
         dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
-        dummy_name_item.setFont(QtGui.QFont("Ubuntu Mono"))
+        dummy_name_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
         dummy_name_item.setToolTip('Click to add global')
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -853,13 +855,13 @@ class GroupTab(object):
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
-        name_item.setFont(QtGui.QFont("Ubuntu Mono"))
+        name_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
 
         value_item = QtGui.QStandardItem(value)
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
         value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
-        value_item.setFont(QtGui.QFont("Ubuntu Mono"))
+        value_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
 
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
