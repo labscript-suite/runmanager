@@ -2038,10 +2038,10 @@ class RunManager(object):
             self.ui.pushButton_shuffle.setTristate(False)
             self.ui.pushButton_shuffle.setCheckState(QtCore.Qt.Checked)
         else:
-            # No axes. Clear if partially checked, otherwise else leave it alone:
+            # No axes. Set if partially checked, otherwise else leave it alone:
             if self.ui.pushButton_shuffle.checkState() == QtCore.Qt.PartiallyChecked:
                 self.ui.pushButton_shuffle.setTristate(False)
-                self.ui.pushButton_shuffle.setCheckState(QtCore.Qt.Unchecked)
+                self.ui.pushButton_shuffle.setCheckState(QtCore.Qt.Checked)
 
 
     def on_master_shuffle_clicked(self, state):
