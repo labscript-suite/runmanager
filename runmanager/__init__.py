@@ -737,17 +737,47 @@ def make_run_files(
     created at some point, simply convert the returned generator to a list. The
     filenames the run files are given is simply the sequence_id with increasing integers
     appended."""
-    basename = os.path.join(output_folder, filename_prefix)
-    nruns = len(shots)
-    ndigits = int(np.ceil(np.log10(nruns)))
     if shuffle:
         random.shuffle(shots)
-    for i, shot_globals in enumerate(shots):
-        runfilename = ('%s_%0' + str(ndigits) + 'd.h5') % (basename, i)
+    run_filenames = make_run_filenames(output_folder, filename_prefix, len(shots))
+    for run_no, (filename, shot_globals) in enumerate(zip(run_filenames, shots)):
         make_single_run_file(
-            runfilename, sequence_globals, shot_globals, sequence_attrs, i, nruns
+            filename, sequence_globals, shot_globals, sequence_attrs, run_no, len(shots)
         )
-        yield runfilename
+        yield filename
+
+
+def make_run_filenames(output_folder, filename_prefix, nruns):
+    """Like make_run_files(), but return the filenames instead of creating the the files
+    (and instead of creating a generator that creates them). These filenames can then be
+    passed to make_single_run_file(). So instead of:
+
+    run_files = make_run_files(
+        output_folder,
+        sequence_globals,
+        shots,
+        sequence_attrs,
+        filename_prefix,
+        shuffle,
+    )
+
+    You may do:
+
+    if shuffle:
+        random.shuffle(shots)
+    run_filenames = make_run_filenames(output_folder, filename_prefix, len(shots))
+    for run_no, (filename, shot_globals) in enumerate(zip(run_filenames, shots)):
+        make_single_run_file(
+            filename, sequence_globals, shot_globals, sequence_attrs, run_no, len(shots)
+        )
+    """
+    basename = os.path.join(output_folder, filename_prefix)
+    ndigits = int(np.ceil(np.log10(nruns)))
+    filenames = []
+    for i in range(nruns):
+        filename = ('%s_%0' + str(ndigits) + 'd.h5') % (basename, i)
+        filenames.append(filename)
+    return filenames
 
 
 def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, run_no, n_runs):
