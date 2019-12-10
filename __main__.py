@@ -2132,10 +2132,18 @@ class RunManager(object):
 
     def on_groups_open_selected_triggered(self):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
+        selected_items = [self.groups_model.itemFromIndex(index) for index in selected_indexes]
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is not None]
+
+        # Include all grous of selected globals files:
+        for item in selected_items:
+            if item.parent() is None:
+                children = [item.child(i) for i in range(item.rowCount())]
+                # Exclude <add new group> item, which is not selectable
+                name_items += [child for child in children if child.isSelectable() ]
+
         filenames = set(item.parent().text() for item in name_items)
         for item in name_items:
             globals_file = item.parent().text()
