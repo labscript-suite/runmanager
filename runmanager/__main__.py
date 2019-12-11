@@ -1386,6 +1386,10 @@ class RunManager(object):
 
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
 
+        # An event to tell the compilation queue to check if the next queued shot (if
+        # any) can be compiled:
+        self.compilation_potentially_required = threading.Event()
+
         # Add a 'pop-out' button to the output tab:
         output_tab_index = self.ui.tabWidget.indexOf(self.ui.tab_output)
         self.output_popout_button = TabToolButton(self.ui.tabWidget.parent())
@@ -1449,13 +1453,10 @@ class RunManager(object):
         # The prospective number of shots resulting from compilation
         self.n_shots = None
 
-        # An event to tell the compilation queue to check if the next queued shot (if
-        # any) can be compiled:
-        self.compilation_potentially_required = threading.Event()
-
         # Create data structures for the compilation queue and start the compilation
         # thread:
         self.queued_shots = {}
+        self.BLACS_shots_remaining_events = queue.Queue()
         self.queue_repeat_mode = self.REPEAT_ALL
         self.compile_queue_thread = threading.Thread(target=self.compile_loop)
         self.compile_queue_thread.daemon = True
@@ -1660,6 +1661,8 @@ class RunManager(object):
 
         # Queue tab:
         self.ui.queue_pause_button.toggled.connect(self.on_queue_paused_toggled)
+        self.ui.button_delay_compilation.toggled.connect(self.on_delay_compilation_toggled)
+        self.ui.spinBox_delayed_num_shots.valueChanged.connect(self.compilation_potentially_required.set)
         self.action_repeat_all.triggered.connect(
             lambda: self.set_queue_repeat_mode(self.REPEAT_ALL)
         )
@@ -3275,9 +3278,29 @@ class RunManager(object):
     def next_queued_shot(self):
         """Get the details of the next shot to be compiled, removing it from the
         queue"""
-        if not self.queue_model.rowCount() or self.ui.queue_pause_button.isChecked():
+        BLACS_shots_remaining = None
+        while True:
+            # If multiple events, get only the most recent:
+            try:
+                BLACS_shots_remaining = self.BLACS_shots_remaining_events.get_nowait()
+            except queue.Empty:
+                break
+        if self.ui.button_delay_compilation.isChecked():
+            if (
+                BLACS_shots_remaining is None
+                or BLACS_shots_remaining > self.ui.spinBox_delayed_num_shots.value()
+            ):
+                # TODO: set a status saying "waiting for BLACS queue to reach target" or
+                # similar
+                return None, None
+        if not self.queue_model.rowCount():
+            # TODO: Set a status saying "idle"
+            return None, None
+        if self.ui.queue_pause_button.isChecked():
+            # TODO:Set a status label to "paused"
             return None, None
         elif self.compilation_aborted.is_set():
+            # TODO: Pause the queue
             self.output_box.output('Compilation aborted.\n\n', red=True)
             return None, None
         self.ui.pushButton_abort.setEnabled(True)
@@ -3335,7 +3358,6 @@ class RunManager(object):
                     # go on:
                     run_file, shot_details = self.next_queued_shot()
                     if run_file is None:
-                        self.output_box.output('Ready.\n\n')
                         break
                     shot_globals = shot_details['shot_globals']
                     labscript_file = shot_details['labscript_file']
@@ -3377,9 +3399,9 @@ class RunManager(object):
                         if not success:
                             self.compilation_aborted.set()
                             # TODO: can probably think of something more sensible here,
-                            # like prepending to the queue unless the user deletes the
-                            # shot:
-                            self.queue_model.clear()
+                            # like prepending to the queue and pausing it, unless the
+                            # user deletes the shot:
+                            inmain(self.queue_model.clear)
                             self.queued_shots.clear()
                             continue
                         self.check_repeat(run_file, shot_details)
@@ -3591,6 +3613,10 @@ class RunManager(object):
         self.update_queue_tab_label()
         if not paused:
             self.compilation_potentially_required.set()
+
+    def on_delay_compilation_toggled(self, delay):
+        self.ui.delay_compilation_options.setVisible(delay)
+        self.compilation_potentially_required.set()
 
     def set_queue_repeat_mode(self, mode):
         if mode == self.REPEAT_ALL:
@@ -3913,6 +3939,10 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_reset_shot_output_folder(self):
         app.on_reset_shot_output_folder_clicked(None)
+
+    def advise_BLACS_shots_remaining(self, value):
+        app.BLACS_shots_remaining_events.put(value)
+        app.compilation_potentially_required.set()
 
     def handler(self, request_data):
         cmd, args, kwargs = request_data

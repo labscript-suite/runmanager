@@ -113,6 +113,13 @@ class Client(ZMQClient):
         """Reset the shot output folder to the default path"""
         return self.request('reset_shot_output_folder')
 
+    def advise_BLACS_shots_remaining(self, value):
+        """Tell runmanager how many shots BLACS has left before its queue is empty -
+        that is, the number of shots in its queue, plus one if a shot has been removed
+        from the queue but has not finished running. This is so that if runmanager's
+        compilation queue is configured for just-in-time compilation, it can compile and
+        submit the next shot when BLACS has a certain number of shots left."""
+        return self.request('advise_BLACS_queue_size', value)
 
 _default_client = Client()
 
