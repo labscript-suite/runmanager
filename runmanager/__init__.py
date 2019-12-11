@@ -780,7 +780,9 @@ def make_run_filenames(output_folder, filename_prefix, nruns):
     return filenames
 
 
-def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, run_no, n_runs):
+def make_single_run_file(
+    filename, sequenceglobals, runglobals, sequence_attrs, run_no, n_runs, rep_no=0
+):
     """Does what it says. runglobals is a dict of this run's globals, the format being
     the same as that of one element of the list returned by expand_globals.
     sequence_globals is a nested dictionary of the type returned by get_globals.
@@ -793,6 +795,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
         f.attrs.update(sequence_attrs)
         f.attrs['run number'] = run_no
         f.attrs['n_runs'] = n_runs
+        f.attrs['run repeat'] = rep_no
         f.create_group('globals')
         if sequenceglobals is not None:
             for groupname, groupvars in sequenceglobals.items():
@@ -1126,3 +1129,29 @@ def globals_diff_shots(file1, file2, max_cols=100):
 
     print('Globals diff between:\n%s\n%s\n\n' % (file1, file2))
     return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
+
+
+def new_rep_name(h5_filepath):
+    """Extract the rep number, if any, from the filepath of the given shot file, and
+    return a filepath for a repetition of that shot, using the lowest rep number greater
+    than it, not already corresponding to a file on the filesystem. Create an empty file
+    with that filepath such that it then exists in the filesystem, such that making
+    multiple calls to this funciton by different applications is race-free. Return the
+    filepath of the new file, and the rep number as an integer. The file should be
+    overwritten by opening a h5 file with that path in 'w' mode, which will truncate the
+    original file. Otherwise it should be deleted, as it is not a valid HDF5 file."""
+    path, ext = os.path.splitext(h5_filepath)
+    if '_rep' in path and ext == '.h5':
+        repno = path.split('_rep')[-1]
+        try:
+            repno = int(repno)
+        except ValueError:
+            # not a rep
+            repno = 0
+    else:
+        repno = 0
+    while True:
+        new_path = path.rsplit('_rep', 1)[0] + '_rep%05d.h5' % (repno + 1)
+        if not os.path.exists(new_path):
+            return new_path, repno
+        repno += 1
