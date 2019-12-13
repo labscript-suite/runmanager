@@ -22,8 +22,9 @@ class Client(ZMQClient):
         self.timeout = timeout
 
     def request(self, command, *args, **kwargs):
+        timeout = kwargs.pop('timeout', self.timeout)
         return self.get(
-            self.port, self.host, data=[command, args, kwargs], timeout=self.timeout
+            self.port, self.host, data=[command, args, kwargs], timeout=timeout
         )
 
     def say_hello(self):
@@ -119,7 +120,7 @@ class Client(ZMQClient):
         from the queue but has not finished running. This is so that if runmanager's
         compilation queue is configured for just-in-time compilation, it can compile and
         submit the next shot when BLACS has a certain number of shots left."""
-        return self.request('advise_BLACS_queue_size', value)
+        return self.request('advise_BLACS_shots_remaining', value)
 
 _default_client = Client()
 
@@ -145,6 +146,7 @@ set_shot_output_folder = _default_client.set_shot_output_folder
 error_in_globals = _default_client.error_in_globals
 is_output_folder_default = _default_client.is_output_folder_default
 reset_shot_output_folder = _default_client.reset_shot_output_folder
+advise_BLACS_shots_remaining = _default_client.advise_BLACS_shots_remaining
 
 if __name__ == '__main__':
     # Test

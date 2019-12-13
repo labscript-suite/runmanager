@@ -1571,7 +1571,11 @@ class RunManager(object):
         self.action_repeat_last = QtWidgets.QAction(
             QtGui.QIcon(self.ICON_REPEAT_LAST), 'Repeat last', self.ui
         )
-        
+
+        # Hide this initially, TODO remove this line once we are restoring from settings
+        # whether delayed compilation is enabled or not.
+        self.ui.delay_compilation_options.setVisible(False)
+
         self.repeat_mode_menu.addAction(self.action_repeat_all)
         self.repeat_mode_menu.addAction(self.action_repeat_last)
         self.ui.repeat_mode_select_button.setMenu(self.repeat_mode_menu)
@@ -3412,6 +3416,11 @@ class RunManager(object):
                     except Exception:
                         self.output_box.output(traceback.format_exc() + '\n', red=True)
                         self.compilation_aborted.set()
+                        # TODO: can probably think of something more sensible here,
+                        # like prepending to the queue and pausing it, unless the
+                        # user deletes the shot:
+                        inmain(self.queue_model.clear)
+                        self.queued_shots.clear()
                 inmain(self.ui.pushButton_abort.setEnabled, False)
                 self.compilation_aborted.clear()
             except Exception:
@@ -3940,7 +3949,8 @@ class RemoteServer(ZMQServer):
     def handle_reset_shot_output_folder(self):
         app.on_reset_shot_output_folder_clicked(None)
 
-    def advise_BLACS_shots_remaining(self, value):
+    def handle_advise_BLACS_shots_remaining(self, value):
+        print("BLACS said how many shots it has:", value)
         app.BLACS_shots_remaining_events.put(value)
         app.compilation_potentially_required.set()
 
