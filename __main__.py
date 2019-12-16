@@ -3240,7 +3240,6 @@ class RunManager(object):
             pass
         else:
             if is_using_default_shot_output_folder:
-                print("at load time, yes is using defalt output folder")
                 default_output_folder = self.get_default_output_folder()
                 self.ui.lineEdit_shot_output_folder.setText(default_output_folder)
                 self.last_selected_shot_output_folder = os.path.dirname(default_output_folder)
