@@ -1490,9 +1490,11 @@ class RunManager(object):
             'batch_compiler.py', output_redirection_port=self.output_box.port
         )
 
+        # Is blank until a labscript file is selected:
+        self.previous_default_output_folder = ''
+
         # Start a thread to monitor the time of day and create new shot output
         # folders for each day:
-        self.previous_default_output_folder = self.get_default_output_folder()
         inthread(self.rollover_shot_output_folder)
         self.non_default_folder = None
 
@@ -1819,6 +1821,7 @@ class RunManager(object):
         # file is selected:
         self.ui.toolButton_select_shot_output_folder.setEnabled(enabled)
         self.ui.lineEdit_labscript_file.setToolTip(text)
+        self.previous_default_output_folder = self.get_default_output_folder()
 
     def on_shot_output_folder_text_changed(self, text):
         # Blank out the 'reset default output folder' button if the user is
