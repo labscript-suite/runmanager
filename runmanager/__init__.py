@@ -48,7 +48,11 @@ from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
 process_tree = ProcessTree.instance()
 
-from .__version__ import __version__
+from labscript_utils.versions import get_version, NoVersionInfo
+from pathlib import Path
+__version__ = get_version(__name__, import_path=Path(__file__).parent.parent)
+if __version__ is NoVersionInfo:
+    __version__ = None
 
 
 def _ensure_str(s):
