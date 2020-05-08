@@ -51,6 +51,7 @@ INSTALL_REQUIRES = [
     "labscript_utils >=2.12.5",
     "qtutils >=2.2.2",
     "pandas >=0.13",
+    "desktop-app",
 ]
 
 setup(
@@ -64,6 +65,10 @@ setup(
     url='http://labscriptsuite.org',
     license="BSD",
     packages=["runmanager"],
+    entry_points={
+        'console_scripts': ['runmanager = desktop_app:entry_point'],
+        'gui_scripts': ["runmanager-gui = desktop_app:entry_point"],
+    },
     zip_safe=False,
     setup_requires=['setuptools', 'setuptools_scm'],
     include_package_data=True,
