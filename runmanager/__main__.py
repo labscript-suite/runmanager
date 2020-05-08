@@ -3780,7 +3780,9 @@ if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
-    qapplication = QtWidgets.QApplication(sys.argv)
+    qapplication = QtWidgets.QApplication.instance()
+    if qapplication is None:
+        qapplication = QtWidgets.QApplication(sys.argv)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
     splash.update_text('Starting remote server')
