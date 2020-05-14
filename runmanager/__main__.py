@@ -28,6 +28,11 @@ except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
 check_version('labscript_utils', '2.10.0', '3')
+
+# Associate app windows with OS menu shortcuts:
+import desktop_app
+desktop_app.set_process_appid('runmanager')
+
 # Splash screen
 from labscript_utils.splash import Splash
 splash = Splash(os.path.join(os.path.dirname(__file__), 'runmanager.svg'))
@@ -126,17 +131,6 @@ def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
     g = (a1 * g1 + (1 - a1) * a0 * g0) / a
     b = (a1 * b1 + (1 - a1) * a0 * b0) / a
     return [int(round(x)) for x in (r, g, b, 255 * a)]
-
-
-def set_win_appusermodel(window_id):
-    from labscript_utils.winshell import set_appusermodel, appids, app_descriptions
-    icon_path = os.path.abspath('runmanager.ico')
-    executable = sys.executable.lower()
-    if not executable.endswith('w.exe'):
-        executable = executable.replace('.exe', 'w.exe')
-    relaunch_command = executable + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
-    relaunch_display_name = app_descriptions['runmanager']
-    set_appusermodel(window_id, appids['runmanager'], icon_path, relaunch_command, relaunch_display_name)
 
 
 @inmain_decorator()
@@ -1347,8 +1341,6 @@ class GroupTab(object):
 class RunmanagerMainWindow(QtWidgets.QMainWindow):
     # A signal to show that the window is shown and painted.
     firstPaint = Signal()
-    # A signal for when the window manager has created a new window for this widget:
-    newWindow = Signal(int)
 
     def __init__(self, *args, **kwargs):
         QtWidgets.QMainWindow.__init__(self, *args, **kwargs)
@@ -1360,12 +1352,6 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
         else:
             event.ignore()
 
-    def event(self, event):
-        result = QtWidgets.QMainWindow.event(self, event)
-        if event.type() == QtCore.QEvent.WinIdChange:
-            self.newWindow.emit(self.effectiveWinId())
-        return result
-
     def paintEvent(self, event):
         result = QtWidgets.QMainWindow.paintEvent(self, event)
         if not self._previously_painted:
@@ -1375,17 +1361,9 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
 
 
 class PoppedOutOutputBoxWindow(QtWidgets.QDialog):
-    # A signal for when the window manager has created a new window for this widget:
-    newWindow = Signal(int)
 
     def closeEvent(self, event):
         app.on_output_popout_button_clicked()
-
-    def event(self, event):
-        result = QtWidgets.QDialog.event(self, event)
-        if event.type() == QtCore.QEvent.WinIdChange:
-            self.newWindow.emit(self.effectiveWinId())
-        return result
 
 
 class RunManager(object):
@@ -1695,11 +1673,6 @@ class RunManager(object):
         QtWidgets.QShortcut('ctrl+W', self.ui, self.close_current_tab)
         QtWidgets.QShortcut('ctrl+Tab', self.ui, lambda: self.switch_tabs(+1))
         QtWidgets.QShortcut('ctrl+shift+Tab', self.ui, lambda: self.switch_tabs(-1))
-
-        # Tell Windows how to handle our windows in the the taskbar, making pinning work properly and stuff:
-        if os.name == 'nt':
-            self.ui.newWindow.connect(set_win_appusermodel)
-            self.output_box_window.newWindow.connect(set_win_appusermodel)
 
     def on_close_event(self):
         save_data = self.get_save_data()
