@@ -10,10 +10,6 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 
 from labscript_utils.ls_zprocess import ProcessTree
 process_tree = ProcessTree.connect_to_parent()
@@ -75,7 +71,7 @@ class BatchProcessor(object):
                     )
                     exec(code, self.script_module.__dict__)
             return True
-        except:
+        except Exception:
             traceback_lines = traceback.format_exception(*sys.exc_info())
             del traceback_lines[1:2]
             message = ''.join(traceback_lines)

@@ -11,16 +11,6 @@
 #                                                                   #
 #####################################################################
 
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
-
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-
 import itertools
 import os
 import sys
@@ -34,16 +24,12 @@ import datetime
 import errno
 import json
 import tokenize
-if PY2:
-    import StringIO as io
-else:
-    import io
+import io
 
 import labscript_utils.h5_lock
 import h5py
 import numpy as np
 
-check_version('labscript_utils', '2.12.5', '3')
 from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
 process_tree = ProcessTree.instance()
@@ -56,22 +42,7 @@ def _ensure_str(s):
     return s.decode() if isinstance(s, bytes) else str(s)
 
 
-def mkdir_p(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
-
-            
 def is_valid_python_identifier(name):
-    import tokenize
-    if PY2:
-        import StringIO as io
-    else:
-        import io
     # No whitespace allowed. Do this check here because an actual newline in the source
     # is not easily distinguished from a NEWLINE token in the produced tokens, which is
     # produced even when there is no newline character in the string. So since we ignore
@@ -485,7 +456,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             if raise_exceptions:
                 message = 'Error parsing globals:\n'
                 for global_name, exception in errors:
-                    message += '%s: %s: %s\n' % (global_name, exception.__class__.__name__, exception.message if PY2 else str(exception))
+                    message += '%s: %s: %s\n' % (global_name, exception.__class__.__name__, str(exception))
                 raise Exception(message)
             else:
                 for global_name, exception in errors:
@@ -638,7 +609,7 @@ def next_sequence_index(shot_basedir, dt, increment=True):
             sequence_index = 0
         if increment:
             # Write the new file with the incremented sequence index
-            mkdir_p(os.path.dirname(sequence_index_file))
+            os.makedirs(os.path.dirname(sequence_index_file), exist_ok=True)
             with open(sequence_index_file, 'w') as f:
                 json.dump([dt.strftime(DATE_FORMAT), sequence_index + 1], f)
         return sequence_index
@@ -751,7 +722,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
     new_sequence_details. run_no and n_runs must be provided, if this run file is part
     of a sequence, then they should reflect how many run files are being generated in
     this sequence, all of which must have identical sequence_attrs."""
-    mkdir_p(os.path.dirname(filename))
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     with h5py.File(filename, 'w') as f:
         f.attrs.update(sequence_attrs)
         f.attrs['run number'] = run_no
@@ -776,7 +747,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
                 message = ('Global %s cannot be saved as an hdf5 attribute. ' % name +
                            'Globals can only have relatively simple datatypes, with no nested structures. ' +
                            'Original error was:\n' +
-                           '%s: %s' % (e.__class__.__name__, e.message if PY2 else str(e)))
+                           '%s: %s' % (e.__class__.__name__, str(e)))
                 raise ValueError(message)
 
 
