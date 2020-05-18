@@ -371,7 +371,7 @@ subprocess</string>
            </property>
            <property name="icon">
             <iconset>
-             <normaloff>:/qtutils/fugue/document--pencil.png</normaloff>:/qtutils/fugue/document--pencil.png</iconset>
+             <normaloff>:/qtutils/custom/python-document.png</normaloff>:/qtutils/custom/python-document.png</iconset>
            </property>
           </widget>
          </item>
@@ -555,7 +555,7 @@ QToolButton:hover {
               </property>
               <property name="icon">
                <iconset>
-                <normaloff>:/qtutils/custom/python-document.png</normaloff>:/qtutils/custom/python-document.png</iconset>
+                <normaloff>:/qtutils/fugue/folder-open-document-text.png</normaloff>:/qtutils/fugue/folder-open-document-text.png</iconset>
               </property>
              </widget>
             </item>
