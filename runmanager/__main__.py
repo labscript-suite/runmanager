@@ -47,6 +47,8 @@ import ast
 import pprint
 import traceback
 import signal
+from pathlib import Path
+
 splash.update_text('importing matplotlib')
 # Evaluation of globals happens in a thread with the pylab module imported.
 # Although we don't care about plotting, importing pylab makes Qt calls. We
@@ -88,9 +90,7 @@ import qtutils.icons
 
 GLOBAL_MONOSPACE_FONT = "Consolas" if os.name == 'nt' else "Ubuntu Mono"
 
-# Set working directory to runmanager folder, resolving symlinks
-runmanager_dir = os.path.dirname(os.path.realpath(__file__))
-os.chdir(runmanager_dir)
+runmanager_dir = Path(__file__).absolute().parent
 
 process_tree = ProcessTree.instance()
 
@@ -693,7 +693,7 @@ class GroupTab(object):
 
         loader = UiLoader()
         loader.registerCustomWidget(TableView)
-        self.ui = loader.load('group.ui')
+        self.ui = loader.load(os.path.join(runmanager_dir, 'group.ui'))
 
         # Add the ui to the parent tabWidget:
         self.tabWidget.addTab(self.ui, group_name, closable=True)
@@ -1386,7 +1386,9 @@ class RunManager(object):
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
         loader.registerCustomWidget(TreeView)
-        self.ui = loader.load('main.ui', RunmanagerMainWindow())
+        self.ui = loader.load(
+            os.path.join(runmanager_dir, 'main.ui'), RunmanagerMainWindow()
+        )
 
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
 
@@ -1461,7 +1463,8 @@ class RunManager(object):
         splash.update_text('starting compiler subprocess')
         # Start the compiler subprocess:
         self.to_child, self.from_child, self.child = process_tree.subprocess(
-            'batch_compiler.py', output_redirection_port=self.output_box.port
+            os.path.join(runmanager_dir, 'batch_compiler.py'),
+            output_redirection_port=self.output_box.port,
         )
 
         # Is blank until a labscript file is selected:
