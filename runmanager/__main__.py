@@ -46,7 +46,7 @@ import threading
 import ast
 import pprint
 import traceback
-
+import signal
 splash.update_text('importing matplotlib')
 # Evaluation of globals happens in a thread with the pylab module imported.
 # Although we don't care about plotting, importing pylab makes Qt calls. We
@@ -54,10 +54,6 @@ splash.update_text('importing matplotlib')
 # GUI integration:
 import matplotlib
 matplotlib.use('Agg')
-
-import signal
-# Quit on ctrl-c
-signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 splash.update_text('importing Qt')
 check_version('qtutils', '2.2.2', '3.0.0')
@@ -3761,5 +3757,13 @@ if __name__ == "__main__":
     splash.update_text('Starting remote server')
     remote_server = RemoteServer()
     splash.hide()
+
+    # Let the interpreter run every 500ms so it sees Ctrl-C interrupts:
+    timer = QtCore.QTimer()
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
+    # Upon seeing a ctrl-c interrupt, quit the event loop
+    signal.signal(signal.SIGINT, lambda *args: qapplication.exit())
+
     qapplication.exec_()
     remote_server.shutdown()
