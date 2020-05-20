@@ -157,8 +157,8 @@ QToolButton:hover:checked {
            </property>
            <property name="styleSheet">
             <string notr="true">QPushButton {
-	 background-color: rgb(238,96,96,192);
-     border: 1px solid rgb(238,96,96,128);
+	 background-color: rgba(238,96,96,192);
+     border: 1px solid rgba(238,96,96,128);
 	  border-radius: 3px;
      padding: 4px;
  }
