@@ -10,24 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
-    import Queue as queue
-else:
-    import queue
-
+import queue
 import os
 import sys
 import labscript_utils.excepthook
-
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-
-check_version('labscript_utils', '2.10.0', '3')
 
 # Associate app windows with OS menu shortcuts:
 import desktop_app
@@ -57,17 +43,10 @@ splash.update_text('importing matplotlib')
 import matplotlib
 matplotlib.use('Agg')
 
-splash.update_text('importing Qt')
-check_version('qtutils', '2.2.2', '3.0.0')
-
-splash.update_text('importing pandas')
-check_version('pandas', '0.13', '2')
-
 from qtutils.qt import QtCore, QtGui, QtWidgets
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
 splash.update_text('importing labscript suite modules')
-check_version('labscript_utils', '2.11.0', '3')
 from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
 from labscript_utils.labconfig import LabConfig
 from labscript_utils.setup_logging import setup_logging
