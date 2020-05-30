@@ -48,7 +48,7 @@ from qtutils.qt.QtCore import pyqtSignal as Signal
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
-from labscript_utils.labconfig import LabConfig
+from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
 from labscript_utils import dedent
@@ -3040,10 +3040,10 @@ class RunManager(object):
             shot_output_folder = ''
 
         # Get the server hostnames:
-        BLACS_host = self.ui.lineEdit_BLACS_hostname.text()
+        blacs_host = self.ui.lineEdit_BLACS_hostname.text()
 
         send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
-        send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
+        send_to_blacs = self.ui.checkBox_run_shots.isChecked()
         shuffle = self.ui.pushButton_shuffle.isChecked()
 
         # axes tab information
@@ -3062,19 +3062,17 @@ class RunManager(object):
                      'shot_output_folder': shot_output_folder,
                      'is_using_default_shot_output_folder': is_using_default_shot_output_folder,
                      'send_to_runviewer': send_to_runviewer,
-                     'send_to_BLACS': send_to_BLACS,
+                     'send_to_blacs': send_to_blacs,
                      'shuffle': shuffle,
                      'axes': axes,
-                     'BLACS_host': BLACS_host}
+                     'blacs_host': blacs_host}
         return save_data
 
     def save_configuration(self, save_file):
-        runmanager_config = LabConfig(save_file)
         save_data = self.get_save_data()
         self.last_save_config_file = save_file
         self.last_save_data = save_data
-        for key, value in save_data.items():
-            runmanager_config.set('runmanager_state', key, pprint.pformat(value))
+        save_appconfig(save_file, {'runmanager_state': save_data})
 
     def on_load_configuration_triggered(self):
         save_data = self.get_save_data()
@@ -3117,7 +3115,7 @@ class RunManager(object):
             self.close_globals_file(globals_file, confirm=False)
         # Ensure folder exists, if this was opened programmatically we are
         # creating the file, so the directory had better exist!
-        runmanager_config = LabConfig(filename)
+        runmanager_config = load_appconfig(filename).get('runmanager_state', {})
 
         has_been_a_warning = [False]
         def warning(message):
@@ -3126,118 +3124,82 @@ class RunManager(object):
                 self.output_box.output('\n')
             self.output_box.output('Warning: %s\n' % message, red=True)
 
-        try:
-            h5_files_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'h5_files_open'))
-        except Exception:
-            pass
-        else:
-            for globals_file in h5_files_open:
-                if os.path.exists(globals_file):
-                    try:
-                        self.open_globals_file(globals_file)
-                        self.last_opened_globals_folder = os.path.dirname(globals_file)
-                    except Exception:
-                        raise_exception_in_thread(sys.exc_info())
-                        continue
-                else:
-                    self.output_box.output('\nWarning: globals file %s no longer exists\n' % globals_file, red=True)
-        try:
-            active_groups = ast.literal_eval(runmanager_config.get('runmanager_state', 'active_groups'))
-        except Exception:
-            pass
-        else:
-            for globals_file, group_name in active_groups:
+        for globals_file in runmanager_config.get('h5_files_open', []):
+            if os.path.exists(globals_file):
                 try:
-                    group_active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
-                    group_active_item.setCheckState(QtCore.Qt.Checked)
-                except LookupError:
-                    warning("previously active group '%s' in %s no longer exists" % (group_name, globals_file))
-        try:
-            groups_open = ast.literal_eval(runmanager_config.get('runmanager_state', 'groups_open'))
-        except Exception:
-            pass
-        else:
-            for globals_file, group_name in groups_open:
-                # First check if it exists:
-                try:
-                    self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
-                except LookupError:
-                    warning("previously open group '%s' in %s no longer exists" % (group_name, globals_file))
-                else:
-                    self.open_group(globals_file, group_name)
+                    self.open_globals_file(globals_file)
+                    self.last_opened_globals_folder = os.path.dirname(globals_file)
+                except Exception:
+                    raise_exception_in_thread(sys.exc_info())
+                    continue
+            else:
+                self.output_box.output('\nWarning: globals file %s no longer exists\n' % globals_file, red=True)
 
-        try:
-            current_labscript_file = ast.literal_eval(
-                runmanager_config.get('runmanager_state', 'current_labscript_file'))
-        except Exception:
-            pass
-        else:
+        for globals_file, group_name in runmanager_config.get('active_groups', []):
+            try:
+                group_active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
+                group_active_item.setCheckState(QtCore.Qt.Checked)
+            except LookupError:
+                warning("previously active group '%s' in %s no longer exists" % (group_name, globals_file))
+
+        for globals_file, group_name in runmanager_config.get('groups_open', []):
+            # First check if it exists:
+            try:
+                self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
+            except LookupError:
+                warning("previously open group '%s' in %s no longer exists" % (group_name, globals_file))
+            else:
+                self.open_group(globals_file, group_name)
+
+        current_labscript_file = runmanager_config.get('current_labscript_file')
+        if current_labscript_file is not None:
             if os.path.exists(current_labscript_file):
                 self.ui.lineEdit_labscript_file.setText(current_labscript_file)
                 self.last_opened_labscript_folder = os.path.dirname(current_labscript_file)
             elif current_labscript_file:
                 warning('previously selected labscript file %s no longer exists' % current_labscript_file)
-        try:
-            shot_output_folder = ast.literal_eval(runmanager_config.get('runmanager_state', 'shot_output_folder'))
-        except Exception:
-            pass
-        else:
+
+        shot_output_folder = runmanager_config.get('shot_output_folder')
+        if shot_output_folder is not None:
             self.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
             self.last_selected_shot_output_folder = os.path.dirname(shot_output_folder)
-        try:
-            is_using_default_shot_output_folder = ast.literal_eval(
-                runmanager_config.get('runmanager_state', 'is_using_default_shot_output_folder'))
-        except Exception:
-            pass
-        else:
-            if is_using_default_shot_output_folder:
-                default_output_folder = self.get_default_output_folder()
-                self.ui.lineEdit_shot_output_folder.setText(default_output_folder)
-                self.last_selected_shot_output_folder = os.path.dirname(default_output_folder)
-        try:
-            send_to_runviewer = ast.literal_eval(runmanager_config.get('runmanager_state', 'send_to_runviewer'))
-        except Exception:
-            pass
-        else:
+
+        if runmanager_config.get('is_using_default_shot_output_folder', False):
+            default_output_folder = self.get_default_output_folder()
+            self.ui.lineEdit_shot_output_folder.setText(default_output_folder)
+            self.last_selected_shot_output_folder = os.path.dirname(default_output_folder)
+
+        send_to_runviewer = runmanager_config.get('send_to_runviewer')
+        if send_to_runviewer is not None:
             self.ui.checkBox_view_shots.setChecked(send_to_runviewer)
-        try:
-            send_to_BLACS = ast.literal_eval(runmanager_config.get('runmanager_state', 'send_to_BLACS'))
-        except Exception:
-            pass
-        else:
-            self.ui.checkBox_run_shots.setChecked(send_to_BLACS)
+
+        send_to_blacs = runmanager_config.get('send_to_blacs')
+        if send_to_blacs is not None:
+            self.ui.checkBox_run_shots.setChecked(send_to_blacs)
         
         # clear the axes model first
         if self.axes_model.rowCount():
             self.axes_model.removeRows(0, self.axes_model.rowCount())
+
         # set the state of the global shuffle button. This ensure that if no axes items get loaded afterwards
         # (e.g. because the globals in the .ini file are no longer expansion globals), then we still have 
         # an approximate state for the shuffle button that will apply to whatever globals are to be expanded.
-        try:
-            shuffle = ast.literal_eval(runmanager_config.get('runmanager_state', 'shuffle'))
-        except Exception:
-            pass
-        else:
-            if shuffle:
-                self.ui.pushButton_shuffle.setChecked(True)
+        if runmanager_config.get('shuffle', False):
+            self.ui.pushButton_shuffle.setChecked(True)
+
         # Now load the axes states (order and shuffle). This will also ensure the shuffle button matches the 
         # state of these items (since we don't save/restore the tri-state nature of the global shuffle button
-        try:
-            axes = ast.literal_eval(runmanager_config.get('runmanager_state', 'axes'))
-        except Exception:
-            pass
-        else:
-            if isinstance(axes, list):
-                # clear model
-                for name, shuffle in axes:
-                    self.add_item_to_axes_model(name, shuffle)
-                self.update_axes_indentation() 
-        try:
-            BLACS_host = ast.literal_eval(runmanager_config.get('runmanager_state', 'BLACS_host'))
-        except Exception:
-            pass
-        else:
-            self.ui.lineEdit_BLACS_hostname.setText(BLACS_host)
+        axes = runmanager_config.get('axes')
+        if axes is not None and isinstance(axes, list):
+            # clear model
+            for name, shuffle in axes:
+                self.add_item_to_axes_model(name, shuffle)
+            self.update_axes_indentation() 
+
+        blacs_host = runmanager_config.get('blacs_host')
+        if blacs_host is not None:
+            self.ui.lineEdit_BLACS_hostname.setText(blacs_host)
+
         # Set as self.last_save_data:
         save_data = self.get_save_data()
         self.last_save_data = save_data
