@@ -1486,7 +1486,7 @@ class RunManager(object):
         self.ui.show()
 
     def setup_config(self):
-        required_config_params = {"DEFAULT": ["experiment_name"],
+        required_config_params = {"DEFAULT": ["apparatus_name"],
                                   "programs": ["text_editor",
                                                "text_editor_arguments",
                                                ],
