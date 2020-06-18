@@ -1,0 +1,25 @@
+.. runmanager documentation master file, created by
+   sphinx-quickstart on Thu Jun 18 17:05:42 2020.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+runmanager
+==========
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+
+   api-reference/index
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+   :caption: LINKS
+
+   components
+   Home Page <http://labscriptsuite.org>
+   Source Code <https://github.com/labscript-suite/labscript-suite>
+   BitBucket Archive <http://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_utils>
+
+
