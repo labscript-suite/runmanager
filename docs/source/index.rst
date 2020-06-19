@@ -9,6 +9,7 @@ runmanager
 .. toctree::
    :maxdepth: 2
    :hidden:
+   :caption: DOCUMENTATION
 
    api-reference/index
 
@@ -26,6 +27,8 @@ runmanager
 
    Home Page <http://labscriptsuite.org>
    Source Code <https://github.com/labscript-suite/runmanager>
+   PyPI <https://pypi.org/project/runmanager/>
+   Anaconda Cloud <https://anaconda.org/labscript-suite/runmanager>
    BitBucket Archive <http://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/runmanager>
 
 .. todolist::
