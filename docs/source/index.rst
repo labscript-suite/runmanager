@@ -15,11 +15,17 @@ runmanager
 .. toctree::
    :maxdepth: 2
    :hidden:
-   :caption: LINKS
+   :caption: FURTHER DOCUMENTATION
 
    components
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+   :caption: LINKS
+
    Home Page <http://labscriptsuite.org>
-   Source Code <https://github.com/labscript-suite/labscript-suite>
-   BitBucket Archive <http://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_utils>
+   Source Code <https://github.com/labscript-suite/runmanager>
+   BitBucket Archive <http://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/runmanager>
 
 
