@@ -23,7 +23,7 @@ copyright = "2020, labscript suite"
 author = "labscript suite contributors"
 
 # The full version, including alpha/beta/rc tags
-from labscript_utils import __version__ as version  # noqa: E402
+from runmanager import __version__ as version  # noqa: E402
 
 release = version
 
