@@ -11,7 +11,7 @@ runmanager
    :hidden:
    :caption: DOCUMENTATION
 
-   api-reference/index
+   api/index
 
 .. toctree::
    :maxdepth: 2
