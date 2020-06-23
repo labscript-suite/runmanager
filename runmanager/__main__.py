@@ -1711,8 +1711,6 @@ class RunManager(object):
         self.last_opened_labscript_folder = os.path.dirname(labscript_file)
         # Write the file to the lineEdit:
         self.ui.lineEdit_labscript_file.setText(labscript_file)
-        # Check if the output folder needs to be updated:
-        self.check_output_folder_update()
 
     def on_edit_labscript_file_clicked(self, checked):
         # get path to text editor
@@ -1772,7 +1770,8 @@ class RunManager(object):
         # file is selected:
         self.ui.toolButton_select_shot_output_folder.setEnabled(enabled)
         self.ui.lineEdit_labscript_file.setToolTip(text)
-        self.previous_default_output_folder = self.get_default_output_folder()
+        # Check if the output folder needs to be updated:
+        self.check_output_folder_update()
 
     def on_shot_output_folder_text_changed(self, text):
         # Blank out the 'reset default output folder' button if the user is
