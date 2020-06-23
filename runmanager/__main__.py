@@ -1855,7 +1855,8 @@ class RunManager(object):
             self.output_box.output('done.\n')
         self.output_box.output('Spawning new compiler subprocess...')
         self.to_child, self.from_child, self.child = process_tree.subprocess(
-            'batch_compiler.py', output_redirection_port=self.output_box.port
+            os.path.join(runmanager_dir, 'batch_compiler.py'),
+            output_redirection_port=self.output_box.port,
         )
         self.output_box.output('done.\n')
         self.output_box.output('Ready.\n\n')
