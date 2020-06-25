@@ -3483,7 +3483,8 @@ class RunManager(object):
             # Runviewer not running, start it:
             if os.name == 'nt':
                 creationflags = 0x00000008  # DETACHED_PROCESS from the win32 API
-                subprocess.Popen([sys.executable, '-m', 'runviewer'],
+                scripts_dir = desktop_app.environment.get_scripts_dir('runviewer')
+                subprocess.Popen([str(scripts_dir / 'runviewer-gui')],
                                  creationflags=creationflags, stdout=None, stderr=None,
                                  close_fds=True)
             else:
