@@ -1711,8 +1711,6 @@ class RunManager(object):
         self.last_opened_labscript_folder = os.path.dirname(labscript_file)
         # Write the file to the lineEdit:
         self.ui.lineEdit_labscript_file.setText(labscript_file)
-        # Check if the output folder needs to be updated:
-        self.check_output_folder_update()
 
     def on_edit_labscript_file_clicked(self, checked):
         # get path to text editor
@@ -1772,7 +1770,8 @@ class RunManager(object):
         # file is selected:
         self.ui.toolButton_select_shot_output_folder.setEnabled(enabled)
         self.ui.lineEdit_labscript_file.setToolTip(text)
-        self.previous_default_output_folder = self.get_default_output_folder()
+        # Check if the output folder needs to be updated:
+        self.check_output_folder_update()
 
     def on_shot_output_folder_text_changed(self, text):
         # Blank out the 'reset default output folder' button if the user is
@@ -1855,7 +1854,8 @@ class RunManager(object):
             self.output_box.output('done.\n')
         self.output_box.output('Spawning new compiler subprocess...')
         self.to_child, self.from_child, self.child = process_tree.subprocess(
-            'batch_compiler.py', output_redirection_port=self.output_box.port
+            os.path.join(runmanager_dir, 'batch_compiler.py'),
+            output_redirection_port=self.output_box.port,
         )
         self.output_box.output('done.\n')
         self.output_box.output('Ready.\n\n')
@@ -3483,7 +3483,8 @@ class RunManager(object):
             # Runviewer not running, start it:
             if os.name == 'nt':
                 creationflags = 0x00000008  # DETACHED_PROCESS from the win32 API
-                subprocess.Popen([sys.executable, '-m', 'runviewer'],
+                scripts_dir = desktop_app.environment.get_scripts_dir('runviewer')
+                subprocess.Popen([str(scripts_dir / 'runviewer-gui')],
                                  creationflags=creationflags, stdout=None, stderr=None,
                                  close_fds=True)
             else:
