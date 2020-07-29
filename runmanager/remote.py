@@ -7,17 +7,24 @@ from labscript_utils.labconfig import LabConfig
 class Client(ZMQClient):
     """A ZMQClient for communication with runmanager"""
 
-    def __init__(self, host=None, port=None):
+    def __init__(self, host=None, port=None, timeout=None):
         ZMQClient.__init__(self)
         if host is None:
             host = LabConfig().get('servers', 'runmanager', fallback='localhost')
         if port is None:
             port = LabConfig().getint('ports', 'runmanager', fallback=DEFAULT_PORT)
+        if timeout is None:
+            timeout = LabConfig().getfloat(
+                'timeouts', 'communication_timeout', fallback=60
+            )
         self.host = host
         self.port = port
+        self.timeout = timeout
 
     def request(self, command, *args, **kwargs):
-        return self.get(self.port, self.host, data=[command, args, kwargs], timeout=15)
+        return self.get(
+            self.port, self.host, data=[command, args, kwargs], timeout=self.timeout
+        )
 
     def say_hello(self):
         """Ping the runmanager server for a response"""
@@ -105,6 +112,7 @@ class Client(ZMQClient):
     def reset_shot_output_folder(self):
         """Reset the shot output folder to the default path"""
         return self.request('reset_shot_output_folder')
+
 
 _default_client = Client()
 
