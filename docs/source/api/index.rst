@@ -10,3 +10,4 @@ API Reference
     runmanager
     runmanager.functions
     runmanager.remote
+    runmanager.globals_diff
