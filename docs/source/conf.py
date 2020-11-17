@@ -49,6 +49,7 @@ extensions = [
 ]
 
 autodoc_typehints = 'description'
+numfig = True
 
 # Prefix each autosectionlabel with the name of the document it is in and a colon
 autosectionlabel_prefix_document = True
