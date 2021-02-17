@@ -61,6 +61,32 @@ def is_valid_python_identifier(name):
     return False
 
 
+def is_valid_hdf5_group_name(name):
+    """Ensure that a string is a valid name for an hdf5 group.
+
+    The names of hdf5 groups may only contain ASCII characters. Furthermore, the
+    characters "/" and "." are not allowed.
+
+    Args:
+        name (str): The potential name for an hdf5 group.
+
+    Returns:
+        bool: Whether or not `name` is a valid name for an hdf5 group. This will
+            be `True` if it is a valid name or `False` otherwise.
+    """    
+    # Ensure only ASCII characters are used.
+    for char in name:
+        if ord(char) >= 128:
+            return False
+    
+    # Ensure forbidden ASCII characters are not used.
+    forbidden_characters = ['.', '/']
+    for character in forbidden_characters:
+        if character in name:
+            return False
+    return True
+
+
 class ExpansionError(Exception):
 
     """An exception class so that error handling code can tell when a
@@ -140,6 +166,11 @@ def get_grouplist(filename):
 
 
 def new_group(filename, groupname):
+    if not is_valid_hdf5_group_name(groupname):
+        raise ValueError(
+            'Invalid group name. Group names must contain only ASCII '
+            'characters and cannot include "/" or ".".'
+        )
     with h5py.File(filename, 'a') as f:
         if groupname in f['globals']:
             raise Exception('Can\'t create group: target name already exists.')
@@ -185,6 +216,11 @@ def rename_group(filename, oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
         # No rename!
         return
+    if not is_valid_hdf5_group_name(newgroupname):
+        raise ValueError(
+            'Invalid group name. Group names must contain only ASCII '
+            'characters and cannot include "/" or ".".'
+        )
     with h5py.File(filename, 'a') as f:
         if newgroupname in f['globals']:
             raise Exception('Can\'t rename group: target name already exists.')
