@@ -3005,6 +3005,7 @@ class RunManager(object):
         # forward slashes:
         save_file = os.path.abspath(save_file)
         self.save_configuration(save_file)
+        self.ui.actionSave_configuration.setText('Save configuration %s'%save_file)
 
     def get_save_data(self):
         # Get the currently open files and active groups:
