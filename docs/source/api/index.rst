@@ -12,3 +12,4 @@ API Reference
     runmanager.remote
     runmanager.batch_compiler
     runmanager.globals_diff
+    runmanager.__main__

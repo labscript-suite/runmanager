@@ -53,6 +53,7 @@ extensions = [
 autodoc_typehints = 'description'
 autosummary_generate = True
 numfig = True
+autodoc_mock_imports = ['labscript_utils']
 
 
 # mock zprocess calls in batch_compiler
