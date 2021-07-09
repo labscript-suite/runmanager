@@ -12,4 +12,9 @@ API Reference
     runmanager.remote
     runmanager.batch_compiler
     runmanager.globals_diff
-    runmanager.__main__
+
+.. automodule:: runmanager.__main__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
