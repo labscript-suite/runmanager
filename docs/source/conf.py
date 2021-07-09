@@ -55,6 +55,22 @@ autosummary_generate = True
 numfig = True
 autodoc_mock_imports = ['labscript_utils']
 
+# mock missing site package methods
+import site
+mock_site_methods = {
+    # Format:
+    #   method name: return value
+    'getusersitepackages': '',
+    'getsitepackages': []
+}
+__fn = None
+for __name, __rval in mock_site_methods.items():
+    if not hasattr(site, __name):
+        __fn = lambda *args, __rval=copy.deepcopy(__rval), **kwargs: __rval
+        setattr(site, __name, __fn)
+del __name
+del __rval
+del __fn
 
 # mock zprocess calls in batch_compiler
 from labscript_utils.ls_zprocess import ProcessTree
