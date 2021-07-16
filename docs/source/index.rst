@@ -6,11 +6,15 @@
 runmanager
 ==========
 
+A graphical and remote interface to parameterized experiments.
+
 .. toctree::
    :maxdepth: 2
    :hidden:
    :caption: DOCUMENTATION
 
+   introduction
+   usage
    api/index
 
 .. toctree::
