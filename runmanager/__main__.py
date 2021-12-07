@@ -10,6 +10,9 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+"""Runmanager GUI and supporting code
+"""
+
 import queue
 import os
 import sys
@@ -2214,6 +2217,7 @@ class RunManager(object):
 
     def on_treeView_groups_leftClicked(self, index):
         """Here we respond to user clicks on the treeview. We do the following:
+
         - If the user clicks on the <click to add group> dummy row, we go into
           edit mode on it so they can enter the name of the new group they
           want.
@@ -3005,6 +3009,7 @@ class RunManager(object):
         # forward slashes:
         save_file = os.path.abspath(save_file)
         self.save_configuration(save_file)
+        self.ui.actionSave_configuration.setText('Save configuration {}'.format(save_file))
 
     def get_save_data(self):
         # Get the currently open files and active groups:
