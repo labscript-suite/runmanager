@@ -14,7 +14,7 @@
    <string>runmanager - the labscript suite</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+   <iconset resource="../../qtutils/icons/icons.qrc">
     <normaloff>:/qtutils/custom/runmanager.png</normaloff>:/qtutils/custom/runmanager.png</iconset>
   </property>
   <property name="styleSheet">
@@ -141,7 +141,7 @@ QToolButton:hover:checked {
             <string>Shuffle</string>
            </property>
            <property name="icon">
-            <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+            <iconset resource="../../qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-switch.png</normaloff>:/qtutils/fugue/arrow-switch.png</iconset>
            </property>
            <property name="checkable">
@@ -165,7 +165,7 @@ QToolButton:hover:checked {
 subprocess</string>
            </property>
            <property name="icon">
-            <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+            <iconset resource="../../qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-circle-135-left.png</normaloff>:/qtutils/fugue/arrow-circle-135-left.png</iconset>
            </property>
           </widget>
@@ -186,7 +186,7 @@ subprocess</string>
             <string>Abort</string>
            </property>
            <property name="icon">
-            <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+            <iconset resource="../../qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/cross-octagon.png</normaloff>:/qtutils/fugue/cross-octagon.png</iconset>
            </property>
           </widget>
@@ -231,7 +231,7 @@ QPushButton:hover {
             <string>Engage</string>
            </property>
            <property name="icon">
-            <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+            <iconset resource="../../qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/control.png</normaloff>:/qtutils/fugue/control.png</iconset>
            </property>
            <property name="autoDefault">
@@ -328,7 +328,7 @@ QPushButton:hover {
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+            <iconset resource="../../qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/document--pencil.png</normaloff>:/qtutils/fugue/document--pencil.png</iconset>
            </property>
           </widget>
@@ -431,7 +431,7 @@ QToolButton:hover {
                <string>...</string>
               </property>
               <property name="icon">
-               <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+               <iconset resource="../../qtutils/icons/icons.qrc">
                 <normaloff>:/qtutils/custom/python-document.png</normaloff>:/qtutils/custom/python-document.png</iconset>
               </property>
              </widget>
@@ -451,7 +451,7 @@ QToolButton:hover {
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+            <iconset resource="../../qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-turn-180-left.png</normaloff>:/qtutils/fugue/arrow-turn-180-left.png</iconset>
            </property>
           </widget>
@@ -520,7 +520,7 @@ QToolButton:hover {
                <string/>
               </property>
               <property name="pixmap">
-               <pixmap resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">:/qtutils/fugue/exclamation-white.png</pixmap>
+               <pixmap resource="../../qtutils/icons/icons.qrc">:/qtutils/fugue/exclamation-white.png</pixmap>
               </property>
              </widget>
             </item>
@@ -560,7 +560,7 @@ QToolButton:hover {
                <string>...</string>
               </property>
               <property name="icon">
-               <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+               <iconset resource="../../qtutils/icons/icons.qrc">
                 <normaloff>:/qtutils/fugue/folder-horizontal-open.png</normaloff>:/qtutils/fugue/folder-horizontal-open.png</iconset>
               </property>
              </widget>
@@ -634,7 +634,7 @@ QToolButton:hover {
       </property>
       <widget class="QWidget" name="tab_output">
        <attribute name="icon">
-        <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+        <iconset resource="../../qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/fugue/terminal.png</normaloff>:/qtutils/fugue/terminal.png</iconset>
        </attribute>
        <attribute name="title">
@@ -666,7 +666,7 @@ QToolButton:hover {
       </widget>
       <widget class="QWidget" name="tab_queue">
        <attribute name="icon">
-        <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+        <iconset resource="../../qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/fugue/edit-list-order.png</normaloff>:/qtutils/fugue/edit-list-order.png</iconset>
        </attribute>
        <attribute name="title">
@@ -712,7 +712,7 @@ QToolButton:hover {
                     <string>delay compilation</string>
                    </property>
                    <property name="icon">
-                    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                    <iconset resource="../../qtutils/icons/icons.qrc">
                      <normaloff>:/qtutils/fugue/alarm-clock--arrow.png</normaloff>:/qtutils/fugue/alarm-clock--arrow.png</iconset>
                    </property>
                    <property name="checkable">
@@ -881,7 +881,7 @@ QToolButton:hover {
                     <string>Pause</string>
                    </property>
                    <property name="icon">
-                    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                    <iconset resource="../../qtutils/icons/icons.qrc">
                      <normaloff>:/qtutils/fugue/control-pause.png</normaloff>:/qtutils/fugue/control-pause.png</iconset>
                    </property>
                    <property name="checkable">
@@ -912,7 +912,7 @@ QToolButton:hover {
                       <string>Repeat</string>
                      </property>
                      <property name="icon">
-                      <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                      <iconset resource="../../qtutils/icons/icons.qrc">
                        <normaloff>:/qtutils/fugue/arrow-repeat.png</normaloff>:/qtutils/fugue/arrow-repeat.png</iconset>
                      </property>
                      <property name="checkable">
@@ -929,7 +929,7 @@ QToolButton:hover {
                       <string/>
                      </property>
                      <property name="icon">
-                      <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                      <iconset resource="../../qtutils/icons/icons.qrc">
                        <normaloff>:/qtutils/fugue/control-270.png</normaloff>:/qtutils/fugue/control-270.png</iconset>
                      </property>
                      <property name="iconSize">
@@ -993,7 +993,7 @@ QToolButton:hover {
                  <string>...</string>
                 </property>
                 <property name="icon">
-                 <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                 <iconset resource="../../qtutils/icons/icons.qrc">
                   <normaloff>:/qtutils/fugue/minus.png</normaloff>:/qtutils/fugue/minus.png</iconset>
                 </property>
                </widget>
@@ -1020,7 +1020,7 @@ QToolButton:hover {
                  <string>...</string>
                 </property>
                 <property name="icon">
-                 <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                 <iconset resource="../../qtutils/icons/icons.qrc">
                   <normaloff>:/qtutils/fugue/arrow-stop-090.png</normaloff>:/qtutils/fugue/arrow-stop-090.png</iconset>
                 </property>
                </widget>
@@ -1034,7 +1034,7 @@ QToolButton:hover {
                  <string>...</string>
                 </property>
                 <property name="icon">
-                 <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                 <iconset resource="../../qtutils/icons/icons.qrc">
                   <normaloff>:/qtutils/fugue/arrow-090.png</normaloff>:/qtutils/fugue/arrow-090.png</iconset>
                 </property>
                </widget>
@@ -1048,7 +1048,7 @@ QToolButton:hover {
                  <string>...</string>
                 </property>
                 <property name="icon">
-                 <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                 <iconset resource="../../qtutils/icons/icons.qrc">
                   <normaloff>:/qtutils/fugue/arrow-270.png</normaloff>:/qtutils/fugue/arrow-270.png</iconset>
                 </property>
                </widget>
@@ -1062,7 +1062,7 @@ QToolButton:hover {
                  <string>...</string>
                 </property>
                 <property name="icon">
-                 <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+                 <iconset resource="../../qtutils/icons/icons.qrc">
                   <normaloff>:/qtutils/fugue/arrow-stop-270.png</normaloff>:/qtutils/fugue/arrow-stop-270.png</iconset>
                 </property>
                </widget>
@@ -1103,7 +1103,7 @@ QToolButton:hover {
       </widget>
       <widget class="QWidget" name="tab_axes">
        <attribute name="icon">
-        <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+        <iconset resource="../../qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/custom/outer.png</normaloff>:/qtutils/custom/outer.png</iconset>
        </attribute>
        <attribute name="title">
@@ -1161,7 +1161,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-stop-090.png</normaloff>:/qtutils/fugue/arrow-stop-090.png</iconset>
             </property>
            </widget>
@@ -1175,7 +1175,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-090.png</normaloff>:/qtutils/fugue/arrow-090.png</iconset>
             </property>
            </widget>
@@ -1189,7 +1189,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-270.png</normaloff>:/qtutils/fugue/arrow-270.png</iconset>
             </property>
            </widget>
@@ -1203,7 +1203,7 @@ QToolButton:hover {
              <string>...</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/arrow-stop-270.png</normaloff>:/qtutils/fugue/arrow-stop-270.png</iconset>
             </property>
            </widget>
@@ -1236,8 +1236,8 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>941</width>
-             <height>521</height>
+             <width>70</width>
+             <height>70</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_7">
@@ -1280,7 +1280,7 @@ QToolButton:hover {
       </widget>
       <widget class="QWidget" name="tab_groups">
        <attribute name="icon">
-        <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+        <iconset resource="../../qtutils/icons/icons.qrc">
          <normaloff>:/qtutils/fugue/tables-stacks.png</normaloff>:/qtutils/fugue/tables-stacks.png</iconset>
        </attribute>
        <attribute name="title">
@@ -1334,7 +1334,7 @@ QToolButton:hover {
              <string>Open globals file</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/folder-open-table.png</normaloff>:/qtutils/fugue/folder-open-table.png</iconset>
             </property>
            </widget>
@@ -1351,7 +1351,7 @@ QToolButton:hover {
              <string>New globals file</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/table--plus.png</normaloff>:/qtutils/fugue/table--plus.png</iconset>
             </property>
            </widget>
@@ -1368,7 +1368,7 @@ QToolButton:hover {
              <string>Diff globals file</string>
             </property>
             <property name="icon">
-             <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+             <iconset resource="../../qtutils/icons/icons.qrc">
               <normaloff>:/qtutils/fugue/tables.png</normaloff>:/qtutils/fugue/tables.png</iconset>
             </property>
            </widget>
@@ -1401,8 +1401,8 @@ QToolButton:hover {
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>970</width>
-             <height>490</height>
+             <width>86</width>
+             <height>70</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -1461,7 +1461,7 @@ QToolButton:hover {
   </widget>
   <action name="actionLoad_configuration">
    <property name="icon">
-    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+    <iconset resource="../../qtutils/icons/icons.qrc">
      <normaloff>:/qtutils/fugue/folder-open.png</normaloff>:/qtutils/fugue/folder-open.png</iconset>
    </property>
    <property name="text">
@@ -1476,7 +1476,7 @@ QToolButton:hover {
     <bool>false</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+    <iconset resource="../../qtutils/icons/icons.qrc">
      <normaloff>:/qtutils/fugue/disk--plus.png</normaloff>:/qtutils/fugue/disk--plus.png</iconset>
    </property>
    <property name="text">
@@ -1488,7 +1488,7 @@ QToolButton:hover {
   </action>
   <action name="actionQuit">
    <property name="icon">
-    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+    <iconset resource="../../qtutils/icons/icons.qrc">
      <normaloff>:/qtutils/fugue/cross-button.png</normaloff>:/qtutils/fugue/cross-button.png</iconset>
    </property>
    <property name="text">
@@ -1500,7 +1500,7 @@ QToolButton:hover {
   </action>
   <action name="actionSave_configuration">
    <property name="icon">
-    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+    <iconset resource="../../qtutils/icons/icons.qrc">
      <normaloff>:/qtutils/fugue/disk.png</normaloff>:/qtutils/fugue/disk.png</iconset>
    </property>
    <property name="text">
@@ -1515,7 +1515,7 @@ QToolButton:hover {
     <bool>false</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../clones/qtutils.git/qtutils/icons/icons.qrc">
+    <iconset resource="../../qtutils/icons/icons.qrc">
      <normaloff>:/qtutils/fugue/arrow-curve-180-left.png</normaloff>:/qtutils/fugue/arrow-curve-180-left.png</iconset>
    </property>
    <property name="text">
@@ -1562,7 +1562,7 @@ QToolButton:hover {
   <tabstop>scrollArea_2</tabstop>
  </tabstops>
  <resources>
-  <include location="../../clones/qtutils.git/qtutils/icons/icons.qrc"/>
+  <include location="../../qtutils/icons/icons.qrc"/>
  </resources>
  <connections/>
 </ui>
