@@ -692,7 +692,7 @@ QToolButton:hover {
             <item>
              <widget class="QFrame" name="frame_2">
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Delay shot compilation until BLACS has the given number of shots remaining. In this case, the values of the globals listed as &amp;quot;dynamic globals&amp;quot; will be determined from their values in runmanager at the time the shot is compiled (instead of being locked in when 'engage' was clicked). This allows feedback from analysis routines or FunctionRunner devices (or any other code) that may call the runmanager.remote.set_globals() function to influence the values of globals in shots yet to be compiled. This requires the BLACS delay_compilation plugin to be enabled, to send events to runmanager advising it of how many shots BLACS has remaining.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Delay shot compilation until BLACS has the given number of shots remaining. In this case, the values of the globals listed as &amp;quot;dynamic globals&amp;quot; will be determined from their values in runmanager at the time the shot is compiled (instead of being locked in when 'engage' was clicked). This allows feedback from analysis routines or FunctionRunner devices (or any other code) that may call the runmanager.remote.set_globals() function to influence the values of globals in shots yet to be compiled.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="frameShape">
                <enum>QFrame::StyledPanel</enum>
@@ -709,7 +709,7 @@ QToolButton:hover {
                  <item>
                   <widget class="QPushButton" name="button_delay_compilation">
                    <property name="text">
-                    <string>delay compilation</string>
+                    <string>Delay compilation</string>
                    </property>
                    <property name="icon">
                     <iconset resource="../../qtutils/icons/icons.qrc">
@@ -761,7 +761,7 @@ QToolButton:hover {
                     <item>
                      <widget class="QLabel" name="label_5">
                       <property name="text">
-                       <string>     until BLACS has</string>
+                       <string>     Until BLACS has</string>
                       </property>
                      </widget>
                     </item>
