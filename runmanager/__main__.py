@@ -1793,6 +1793,8 @@ class RunManager(object):
             send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
             send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
             labscript_file = self.ui.lineEdit_labscript_file.text()
+            lyse_host = self.ui.lineEdit_Lyse_hostname.text()
+            
             # even though we shuffle on a per global basis, if ALL of the globals are set to shuffle, then we may as well shuffle again. This helps shuffle shots more randomly than just shuffling within each level (because without this, you would still do all shots with the outer most variable the same, etc)
             shuffle = self.ui.pushButton_shuffle.checkState() == QtCore.Qt.Checked
             if not labscript_file:
@@ -1819,7 +1821,7 @@ class RunManager(object):
             labscript_file, run_files = self.make_h5_files(
                 labscript_file, output_folder, sequenceglobals, shots, shuffle)
             self.ui.pushButton_abort.setEnabled(True)
-            self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
+            self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer, lyse_host])
         except Exception as e:
             self.output_box.output('%s\n\n' % str(e), red=True)
         logger.info('end engage')
@@ -3044,8 +3046,11 @@ class RunManager(object):
         if is_using_default_shot_output_folder:
             shot_output_folder = ''
 
-        # Get the server hostnames:
+        # Get the BLACS server hostnames:
         blacs_host = self.ui.lineEdit_BLACS_hostname.text()
+
+        # Get the lyse server hostnames:
+        lyse_host = self.ui.lineEdit_Lyse_hostname.text()
 
         send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
         send_to_blacs = self.ui.checkBox_run_shots.isChecked()
@@ -3070,7 +3075,8 @@ class RunManager(object):
                      'send_to_blacs': send_to_blacs,
                      'shuffle': shuffle,
                      'axes': axes,
-                     'blacs_host': blacs_host}
+                     'blacs_host': blacs_host,
+                     'lyse_host': lyse_host}
         return save_data
 
     def save_configuration(self, save_file):
@@ -3205,6 +3211,10 @@ class RunManager(object):
         if blacs_host is not None:
             self.ui.lineEdit_BLACS_hostname.setText(blacs_host)
 
+        lyse_host = runmanager_config.get('lyse_host')
+        if blacs_host is not None:
+            self.ui.lineEdit_Lyse_hostname.setText(lyse_host)
+
         # Set as self.last_save_data:
         save_data = self.get_save_data()
         self.last_save_data = save_data
@@ -3214,7 +3224,7 @@ class RunManager(object):
     def compile_loop(self):
         while True:
             try:
-                labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer, lyse_host = self.compile_queue.get()
                 run_files = iter(run_files)  # Should already be in iterator but just in case
                 while True:
                     if self.compilation_aborted.is_set():
@@ -3230,7 +3240,7 @@ class RunManager(object):
                             self.output_box.output('Ready.\n\n')
                             break
                         else:
-                            self.to_child.put(['compile', [labscript_file, run_file]])
+                            self.to_child.put(['compile', [labscript_file, run_file, lyse_host]])
                             signal, success = self.from_child.get()
                             assert signal == 'done'
                             if not success:
