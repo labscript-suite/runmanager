@@ -33,7 +33,7 @@ import numpy as np
 
 from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
-import labscript_utils
+import labscript_utils.shot_utils
 process_tree = ProcessTree.instance()
 
 from .__version__ import __version__
