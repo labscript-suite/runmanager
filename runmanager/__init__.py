@@ -809,24 +809,6 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     )
     make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 1, 1)
 
-
-def compile_labscript(labscript_file, run_file):
-    """Compiles labscript_file with the run file, returning
-    the processes return code, stdout and stderr."""
-    proc = subprocess.Popen([sys.executable, labscript_file, run_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
-    return proc.returncode, stdout, stderr
-
-
-def compile_labscript_with_globals_files(labscript_file, globals_files, output_path):
-    """Creates a run file output_path, using all the globals from
-    globals_files. Compiles labscript_file with the run file, returning
-    the processes return code, stdout and stderr."""
-    make_run_file_from_globals_files(labscript_file, globals_files, output_path)
-    returncode, stdout, stderr = compile_labscript(labscript_file, output_path)
-    return returncode, stdout, stderr
-
-
 def compile_labscript_async(labscript_file, run_file, stream_port, done_callback):
     """Compiles labscript_file with run_file. This function is designed to be called in
     a thread.  The stdout and stderr from the compilation will be shovelled into
