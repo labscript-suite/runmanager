@@ -137,7 +137,7 @@ def add_expansion_groups(filename):
         requires_expansion_group = []
         for groupname in f['globals']:
             group = f['globals'][groupname]
-            if not 'expansion' in group:
+            if 'expansion' not in group:
                 requires_expansion_group.append(groupname)
     if requires_expansion_group:
         group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group]
@@ -512,7 +512,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
         for global_name in sequence_globals[group_name]:
             # Do not attempt to override exception objects already stored
             # as the result of multiply defined globals:
-            if not global_name in results[group_name]:
+            if global_name not in results[group_name]:
                 results[group_name][global_name] = evaled_globals[global_name]
 
     return results, global_hierarchy, expansions
