@@ -67,4 +67,4 @@ docs = [
 runmanager = "desktop_app:entry_point"
 
 [project.gui-scripts]
-runmanger-gui = "desktop_app:entry_point"
+runmanager-gui = "desktop_app:entry_point"
