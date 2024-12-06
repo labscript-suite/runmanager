@@ -118,6 +118,11 @@ class TraceDictionary(dict):
 
 
 def new_globals_file(filename):
+    """Creates a new globals h5 file.
+    
+    Creates a 'globals' group at the top level.
+    If file does not exist, a new h5 file is created.
+    """
     with h5py.File(filename, 'w') as f:
         f.create_group('globals')
 
@@ -132,7 +137,7 @@ def add_expansion_groups(filename):
         requires_expansion_group = []
         for groupname in f['globals']:
             group = f['globals'][groupname]
-            if not 'expansion' in group:
+            if 'expansion' not in group:
                 requires_expansion_group.append(groupname)
     if requires_expansion_group:
         group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group]
@@ -507,7 +512,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
         for global_name in sequence_globals[group_name]:
             # Do not attempt to override exception objects already stored
             # as the result of multiply defined globals:
-            if not global_name in results[group_name]:
+            if global_name not in results[group_name]:
                 results[group_name][global_name] = evaled_globals[global_name]
 
     return results, global_hierarchy, expansions
@@ -810,26 +815,12 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 1, 1)
 
 
-def compile_labscript(labscript_file, run_file):
-    """Compiles labscript_file with the run file, returning
-    the processes return code, stdout and stderr."""
-    proc = subprocess.Popen([sys.executable, labscript_file, run_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
-    return proc.returncode, stdout, stderr
-
-
-def compile_labscript_with_globals_files(labscript_file, globals_files, output_path):
-    """Creates a run file output_path, using all the globals from
-    globals_files. Compiles labscript_file with the run file, returning
-    the processes return code, stdout and stderr."""
-    make_run_file_from_globals_files(labscript_file, globals_files, output_path)
-    returncode, stdout, stderr = compile_labscript(labscript_file, output_path)
-    return returncode, stdout, stderr
-
-
-def compile_labscript_async(labscript_file, run_file, stream_port, done_callback):
-    """Compiles labscript_file with run_file. This function is designed to be called in
-    a thread.  The stdout and stderr from the compilation will be shovelled into
+def compile_labscript_async(labscript_file, run_file,
+                            stream_port=None, done_callback=None):
+    """Compiles labscript_file with run_file.
+    
+    This function is designed to be called in a thread. 
+    The stdout and stderr from the compilation will be shovelled into
     stream_port via zmq push as it spews forth, and when compilation is complete,
     done_callback will be called with a boolean argument indicating success. Note that
     the zmq communication will be encrypted, or not, according to security settings in
@@ -837,6 +828,17 @@ def compile_labscript_async(labscript_file, run_file, stream_port, done_callback
     socket created from a labscript_utils.ls_zprocess.Context, or using a
     labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured
     with the appropriate security settings and will be able to receive the messages.
+
+    Args:
+        labscript_file (str): Path to labscript file to be compiled
+        run_file (str): Path to h5 file where compilation output is stored.
+            This file must already exist with proper globals initialization.
+            See :func:`new_globals_file` for details.
+        stream_port (zmq.socket, optional): ZMQ socket to push stdout and stderr.
+            If None, defaults to calling process stdout/stderr. Default is None.
+        done_callback (function, optional): Callback function run when compilation finishes.
+            Takes a single boolean argument marking compilation success or failure.
+            If None, callback is skipped. Default is None.
     """
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = process_tree.subprocess(
@@ -849,22 +851,37 @@ def compile_labscript_async(labscript_file, run_file, stream_port, done_callback
             success = data
             to_child.put(['quit', None])
             child.communicate()
-            done_callback(success)
+            if done_callback is not None:
+                done_callback(success)
             break
         else:
             raise RuntimeError((signal, data))
 
 
-def compile_multishot_async(labscript_file, run_files, stream_port, done_callback):
-    """Compiles labscript_file with run_files. This function is designed to be called in
-    a thread.  The stdout and stderr from the compilation will be shovelled into
+def compile_multishot_async(labscript_file, run_files,
+                            stream_port=None, done_callback=None):
+    """Compiles labscript_file with multiple run_files (ie globals).
+    
+    This function is designed to be called in a thread.
+    The stdout and stderr from the compilation will be shovelled into
     stream_port via zmq push as it spews forth, and when each compilation is complete,
     done_callback will be called with a boolean argument indicating success. Compilation
     will stop after the first failure.  If you want to receive the data on a zmq socket,
     do so using a PULL socket created from a labscript_utils.ls_zprocess.Context, or
     using a labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be
     configured with the appropriate security settings and will be able to receive the
-    messages."""
+    messages.
+    
+    Args:
+        labscript_file (str): Path to labscript file to be compiled
+        run_files (list of str): Paths to h5 file where compilation output is stored.
+            These files must already exist with proper globals initialization.
+        stream_port (zmq.socket, optional): ZMQ socket to push stdout and stderr.
+            If None, defaults to calling process stdout/stderr. Default is None.
+        done_callback (function, optional): Callback function run when compilation finishes.
+            Takes a single boolean argument marking compilation success or failure.
+            If None, callback is skipped. Default is None.
+    """
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = process_tree.subprocess(
         compiler_path, output_redirection_port=stream_port
@@ -876,7 +893,8 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
                 signal, data = from_child.get()
                 if signal == 'done':
                     success = data
-                    done_callback(data)
+                    if done_callback is not None:
+                        done_callback(data)
                     break
             if not success:
                 break
@@ -890,16 +908,28 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
     child.communicate()
 
 
-def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path, stream_port, done_callback):
-    """Same as compile_labscript_with_globals_files, except it launches a thread to do
-    the work and does not return anything. Instead, stderr and stdout will be put to
+def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path,
+                                               stream_port, done_callback):
+    """Compiles labscript_file with multiple globals files into a directory.
+    
+    Instead, stderr and stdout will be put to
     stream_port via zmq push in the multipart message format ['stdout','hello, world\n']
     etc. When compilation is finished, the function done_callback will be called a
     boolean argument indicating success or failure.  If you want to receive the data on
     a zmq socket, do so using a PULL socket created from a
     labscript_utils.ls_zprocess.Context, or using a
     labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured with
-    the appropriate security settings and will be able to receive the messages."""
+    the appropriate security settings and will be able to receive the messages.
+    
+    Args:
+        labscript_file (str): Path to labscript file to be compiled
+        globals_files (list of str): Paths to h5 file where globals values to be used are stored.
+            See :func:`make_run_file_from_globals_files` for details.
+        output_path (str): Folder to save compiled h5 files to.
+        stream_port (zmq.socket): ZMQ socket to push stdout and stderr.
+        done_callback (function): Callback function run when compilation finishes.
+            Takes a single boolean argument marking compilation success or failure.
+    """
     try:
         make_run_file_from_globals_files(labscript_file, globals_files, output_path)
         thread = threading.Thread(
