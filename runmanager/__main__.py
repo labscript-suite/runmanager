@@ -204,7 +204,7 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
         if total_height > self.parent().height():
             # Don't paint over the top of the scroll buttons:
             scroll_buttons_area_height = 2*max(self.style().pixelMetric(QtWidgets.QStyle.PM_TabBarScrollButtonWidth),
-                                               qapplication.globalStrut().width())
+                                               self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutHorizontalSpacing))
             self.paint_clip = self.width(), self.parent().height() - scroll_buttons_area_height
         else:
             self.paint_clip = None
@@ -240,8 +240,9 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
 
     def tabSizeHint(self, index):
         fontmetrics = QtGui.QFontMetrics(self.font())
-        text_width = fontmetrics.width(self.tabText(index))
-        text_height = fontmetrics.height()
+        text_size = fontmetrics.size(QtCore.Qt.TextSingleLine, self.tabText(index))
+        text_width = text_size.width()
+        text_height = text_size.height()
         height = text_height + 15
         height = max(self.minheight, height)
         width = text_width + 15
@@ -366,7 +367,7 @@ class ItemView(object):
             p.setColor(
                 group,
                 QtGui.QPalette.HighlightedText,
-                p.color(QtGui.QPalette.Active, QtGui.QPalette.Foreground)
+                p.color(QtGui.QPalette.Active, QtGui.QPalette.WindowText)
             )
         self.setPalette(p)
 
@@ -976,7 +977,7 @@ class GroupTab(object):
         menu.addAction(self.action_globals_set_selected_true)
         menu.addAction(self.action_globals_set_selected_false)
         menu.addAction(self.action_globals_delete_selected)
-        menu.exec_(QtGui.QCursor.pos())
+        menu.exec(QtGui.QCursor.pos())
 
     def on_globals_delete_selected_triggered(self):
         selected_indexes = self.ui.tableView_globals.selectedIndexes()
@@ -1648,12 +1649,12 @@ class RunManager(object):
             self.groups_model.itemChanged, self.on_groups_model_item_changed)
         
         # Keyboard shortcuts:
-        engage_shortcut = QtWidgets.QShortcut('F5', self.ui,
+        engage_shortcut = QtGui.QShortcut('F5', self.ui,
             lambda: self.ui.pushButton_engage.clicked.emit(False))
         engage_shortcut.setAutoRepeat(False)
-        QtWidgets.QShortcut('ctrl+W', self.ui, self.close_current_tab)
-        QtWidgets.QShortcut('ctrl+Tab', self.ui, lambda: self.switch_tabs(+1))
-        QtWidgets.QShortcut('ctrl+shift+Tab', self.ui, lambda: self.switch_tabs(-1))
+        QtGui.QShortcut('ctrl+W', self.ui, self.close_current_tab)
+        QtGui.QShortcut('ctrl+Tab', self.ui, lambda: self.switch_tabs(+1))
+        QtGui.QShortcut('ctrl+shift+Tab', self.ui, lambda: self.switch_tabs(-1))
 
     def on_close_event(self):
         save_data = self.get_save_data()
@@ -1875,7 +1876,7 @@ class RunManager(object):
         # menu = QtWidgets.QMenu(self.ui)
         # menu.addAction(self.action_axes_check_selected)
         # menu.addAction(self.action_axes_uncheck_selected)
-        # menu.exec_(QtGui.QCursor.pos())
+        # menu.exec(QtGui.QCursor.pos())
         pass
 
     def on_axes_check_selected_triggered(self, *args):
@@ -2047,7 +2048,7 @@ class RunManager(object):
             copy_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath, False))
             move_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath, True))
 
-        menu.exec_(QtGui.QCursor.pos())
+        menu.exec(QtGui.QCursor.pos())
 
     def on_groups_copy_selected_groups_triggered(self, dest_globals_file=None, delete_source_group=False):
         selected_indexes = self.ui.treeView_groups.selectedIndexes()
@@ -3715,5 +3716,5 @@ if __name__ == "__main__":
     # Upon seeing a ctrl-c interrupt, quit the event loop
     signal.signal(signal.SIGINT, lambda *args: qapplication.exit())
 
-    qapplication.exec_()
+    qapplication.exec()
     remote_server.shutdown()
