@@ -16,7 +16,10 @@
 import queue
 import os
 import sys
+import shutil
+import re
 import labscript_utils.excepthook
+import importlib
 
 # Associate app windows with OS menu shortcuts:
 import desktop_app
@@ -1816,13 +1819,41 @@ class RunManager(object):
             except Exception as e:
                 raise Exception('Error parsing globals:\n%s\nCompilation aborted.' % str(e))
             logger.info('Making h5 files')
+            self.make_experiment_copy(output_folder, active_groups, labscript_file)
+
             labscript_file, run_files = self.make_h5_files(
-                labscript_file, output_folder, sequenceglobals, shots, shuffle)
+                labscript_file, output_folder, sequenceglobals, shots, shuffle, expansion_order)
             self.ui.pushButton_abort.setEnabled(True)
             self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
         except Exception as e:
             self.output_box.output('%s\n\n' % str(e), red=True)
         logger.info('end engage')
+
+    def make_experiment_copy(self,
+                             output_folder,
+                             active_groups,
+                             labscript_file):
+        """Makes copy of all the relevant files required to reproduce the experiment. This includes the labscript script, the connection table, and a config h5 file with all the parameters.
+        """
+        os.makedirs(output_folder, exist_ok=True)
+        shutil.copy2(labscript_file, os.path.join(output_folder, "script.py"))
+        with open(labscript_file, "r") as file:
+            scriptText = file.read()
+        
+        connectionTableRegex =  "import_or_reload\([',\"].+?[',\"]\)"
+        connectionTableStrings = re.findall(connectionTableRegex, scriptText)
+        connectionTableStrings = [s[18:-2] for s in connectionTableStrings]
+        assert len(connectionTableStrings) == len(set(connectionTableStrings)), "Each connection table can be only loaded once!"
+
+        connectionTableAddresses = [importlib.import_module(s).__file__ for s in connectionTableStrings]
+        for i, ct in enumerate(connectionTableAddresses):
+            newFile = os.path.join(output_folder, "connection_table_{0}.py".format(i))
+            with open(newFile, 'w') as nf:
+                with open(ct, "r") as of:
+                    content = of.read()
+                nf.write("# {0}\n{1}".format(connectionTableStrings[i], content))
+
+        runmanager.create_configs_copy(active_groups, output_folder)
 
     def on_abort_clicked(self):
         self.compilation_aborted.set()
@@ -2709,6 +2740,33 @@ class RunManager(object):
                         raise RuntimeError(msg)
                     active_groups[group_name] = globals_file
         return active_groups
+    
+    def deactivate_all_groups(self):
+        for i in range(self.groups_model.rowCount()):
+            file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
+            for j in range(file_name_item.rowCount()):
+                group_active_item = file_name_item.child(j, self.GROUPS_COL_ACTIVE)
+                group_active_item.setCheckState(QtCore.Qt.Unchecked)
+
+    def activate_group_by_filename(self, input_globals_file_name):
+        success_flag = False
+        for i in range(self.groups_model.rowCount()):
+            file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
+            globals_file = file_name_item.text()
+            
+            if globals_file != input_globals_file_name:
+                continue
+            
+            success_flag = True
+            
+            for j in range(file_name_item.rowCount() - 1):
+                group_active_item = file_name_item.child(j, self.GROUPS_COL_ACTIVE)
+                group_active_item.setCheckState(QtCore.Qt.Checked)
+            
+            if globals_file == input_globals_file_name:
+                break
+        
+        return success_flag
 
     def open_globals_file(self, globals_file):
         # Do nothing if this file is already open:
@@ -3236,6 +3294,7 @@ class RunManager(object):
                             if not success:
                                 self.compilation_aborted.set()
                                 continue
+                            
                             if send_to_BLACS:
                                 self.send_to_BLACS(run_file, BLACS_host)
                             if send_to_runviewer:
@@ -3440,16 +3499,18 @@ class RunManager(object):
 
         return expansion_types_changed
 
-    def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
+    def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle, expansion_order):
         sequence_attrs, default_output_dir, filename_prefix = runmanager.new_sequence_details(
             labscript_file, config=self.exp_config, increment_sequence_index=True
         )
         if output_folder == self.previous_default_output_folder:
-            # The user is using dthe efault output folder. Just in case the sequence
+            # The user is using the default output folder. Just in case the sequence
             # index has been updated or the date has changed, use the default_output dir
             # obtained from new_sequence_details, as it is race-free, whereas the one
             # from the UI may be out of date since we only update it once a second.
-            output_folder = default_output_dir
+            # output_folder = default_output_dir
+            pass
+
         self.check_output_folder_update()
         run_files = runmanager.make_run_files(
             output_folder,
@@ -3458,6 +3519,7 @@ class RunManager(object):
             sequence_attrs,
             filename_prefix,
             shuffle,
+            expansion_order
         )
         logger.debug(run_files)
         return labscript_file, run_files
@@ -3680,6 +3742,18 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_reset_shot_output_folder(self):
         app.on_reset_shot_output_folder_clicked(None)
+
+    @inmain_decorator()
+    def handle_get_active_groups(self):
+        return inmain(app.get_active_groups, interactive=False)
+
+    @inmain_decorator()
+    def handle_deactivate_all_groups(self):
+        inmain(app.deactivate_all_groups)
+
+    @inmain_decorator()
+    def handle_activate_group_by_filename(self, input_globals_file_name):
+        return inmain(app.activate_group_by_filename, input_globals_file_name = input_globals_file_name)
 
     def handler(self, request_data):
         cmd, args, kwargs = request_data

@@ -25,7 +25,6 @@ import errno
 import json
 import tokenize
 import io
-import warnings
 
 import labscript_utils.h5_lock
 import h5py
@@ -33,7 +32,6 @@ import numpy as np
 
 from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
-import labscript_utils.shot_utils
 process_tree = ProcessTree.instance()
 
 from .__version__ import __version__
@@ -118,11 +116,6 @@ class TraceDictionary(dict):
 
 
 def new_globals_file(filename):
-    """Creates a new globals h5 file.
-    
-    Creates a 'globals' group at the top level.
-    If file does not exist, a new h5 file is created.
-    """
     with h5py.File(filename, 'w') as f:
         f.create_group('globals')
 
@@ -137,7 +130,7 @@ def add_expansion_groups(filename):
         requires_expansion_group = []
         for groupname in f['globals']:
             group = f['globals'][groupname]
-            if 'expansion' not in group:
+            if not 'expansion' in group:
                 requires_expansion_group.append(groupname)
     if requires_expansion_group:
         group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group]
@@ -512,7 +505,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
         for global_name in sequence_globals[group_name]:
             # Do not attempt to override exception objects already stored
             # as the result of multiply defined globals:
-            if global_name not in results[group_name]:
+            if not global_name in results[group_name]:
                 results[group_name][global_name] = evaled_globals[global_name]
 
     return results, global_hierarchy, expansions
@@ -697,7 +690,7 @@ def new_sequence_details(script_path, config=None, increment_sequence_index=True
     # Format the output directory according to the current timestamp, sequence index and
     # sequence_timestamp, if present in the format string:
     subdir = now.strftime(subdir_format).format(
-        sequence_index=sequence_index, sequence_timestamp=sequence_timestamp
+        sequence_index=sequence_index, sequence_timestamp=sequence_timestamp,script_basename=script_basename
     )
     shot_output_dir = os.path.join(shot_basedir, subdir)
 
@@ -725,6 +718,7 @@ def make_run_files(
     sequence_attrs,
     filename_prefix,
     shuffle=False,
+    expansion_order = {}
 ):
     """Does what it says. sequence_globals and shots are of the datatypes returned by
     get_globals and get_shots, one is a nested dictionary with string values, and the
@@ -749,12 +743,76 @@ def make_run_files(
     ndigits = int(np.ceil(np.log10(nruns)))
     if shuffle:
         random.shuffle(shots)
+
+    make_master_run_file(basename, expansion_order, sequence_globals, shots)
+
     for i, shot_globals in enumerate(shots):
         runfilename = ('%s_%0' + str(ndigits) + 'd.h5') % (basename, i)
         make_single_run_file(
             runfilename, sequence_globals, shot_globals, sequence_attrs, i, nruns
         )
         yield runfilename
+
+def create_configs_copy(active_groups: dict,
+                        output_folder: str):
+    config_address = os.path.join(output_folder, "config.h5")
+    with h5py.File(config_address, "w") as f:
+        f.create_group("globals")
+    for group, address in active_groups.items():
+        copy_group(address, group, config_address)
+
+def make_master_run_file(basename: str, 
+                         expansion_order: dict,
+                         sequence_globals: dict,
+                         shots: list):
+    """
+    Makes a master h5 file which contains the sweeping parameters and the order in which they were shuffled.
+    """
+    filename = '%s_master.h5' % (basename)
+    if len(shots) == 0:
+        return
+    
+    zipToParamMap = {}
+    sweepingParamNames = []
+    for params in sequence_globals.values():
+        for n, v in params.items():
+            zipName = v[2]
+            if zipName == '':
+                continue
+            if zipToParamMap.get(zipName, None) is None:
+                zipToParamMap[zipName] = []
+
+            zipToParamMap[zipName] += [n]
+            sweepingParamNames += [n]
+    
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with h5py.File(filename, 'w') as f:
+        f.create_group("ordering")
+
+        for name, value in zipToParamMap.items():
+            f["ordering"].attrs[name] = value
+
+        for name, value in expansion_order.items():
+            modifiedName = name.split(" ")[1]
+            f["ordering"].create_group(modifiedName)
+            for n, v in value.items():
+                f["ordering"][modifiedName].attrs[n] = h5py.Reference() if v is None else v
+
+        f.create_group("shot_globals")
+        shot = shots[0]
+        for name, value in shot.items():
+            if name in sweepingParamNames:
+                continue
+            f["shot_globals"].attrs[name] = value
+
+        for i, shot in enumerate(shots):
+            f["shot_globals"].create_group(str(i))
+
+            ndigits = int(np.ceil(np.log10(len(shots))))
+            shot_name = os.path.basename(('%s_%0' + str(ndigits) + 'd.h5') % (basename, i)).split(".")[0]
+            f["shot_globals"][str(i)].attrs["shot_name"] = shot_name
+            for sweepingparam in sweepingParamNames:
+                f["shot_globals"][str(i)].attrs[sweepingparam] = shot[sweepingparam]
 
 
 def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, run_no, n_runs):
@@ -815,12 +873,26 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 1, 1)
 
 
-def compile_labscript_async(labscript_file, run_file,
-                            stream_port=None, done_callback=None):
-    """Compiles labscript_file with run_file.
-    
-    This function is designed to be called in a thread. 
-    The stdout and stderr from the compilation will be shovelled into
+def compile_labscript(labscript_file, run_file):
+    """Compiles labscript_file with the run file, returning
+    the processes return code, stdout and stderr."""
+    proc = subprocess.Popen([sys.executable, labscript_file, run_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
+    return proc.returncode, stdout, stderr
+
+
+def compile_labscript_with_globals_files(labscript_file, globals_files, output_path):
+    """Creates a run file output_path, using all the globals from
+    globals_files. Compiles labscript_file with the run file, returning
+    the processes return code, stdout and stderr."""
+    make_run_file_from_globals_files(labscript_file, globals_files, output_path)
+    returncode, stdout, stderr = compile_labscript(labscript_file, output_path)
+    return returncode, stdout, stderr
+
+
+def compile_labscript_async(labscript_file, run_file, stream_port, done_callback):
+    """Compiles labscript_file with run_file. This function is designed to be called in
+    a thread.  The stdout and stderr from the compilation will be shovelled into
     stream_port via zmq push as it spews forth, and when compilation is complete,
     done_callback will be called with a boolean argument indicating success. Note that
     the zmq communication will be encrypted, or not, according to security settings in
@@ -828,17 +900,6 @@ def compile_labscript_async(labscript_file, run_file,
     socket created from a labscript_utils.ls_zprocess.Context, or using a
     labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured
     with the appropriate security settings and will be able to receive the messages.
-
-    Args:
-        labscript_file (str): Path to labscript file to be compiled
-        run_file (str): Path to h5 file where compilation output is stored.
-            This file must already exist with proper globals initialization.
-            See :func:`new_globals_file` for details.
-        stream_port (zmq.socket, optional): ZMQ socket to push stdout and stderr.
-            If None, defaults to calling process stdout/stderr. Default is None.
-        done_callback (function, optional): Callback function run when compilation finishes.
-            Takes a single boolean argument marking compilation success or failure.
-            If None, callback is skipped. Default is None.
     """
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = process_tree.subprocess(
@@ -851,37 +912,22 @@ def compile_labscript_async(labscript_file, run_file,
             success = data
             to_child.put(['quit', None])
             child.communicate()
-            if done_callback is not None:
-                done_callback(success)
+            done_callback(success)
             break
         else:
             raise RuntimeError((signal, data))
 
 
-def compile_multishot_async(labscript_file, run_files,
-                            stream_port=None, done_callback=None):
-    """Compiles labscript_file with multiple run_files (ie globals).
-    
-    This function is designed to be called in a thread.
-    The stdout and stderr from the compilation will be shovelled into
+def compile_multishot_async(labscript_file, run_files, stream_port, done_callback):
+    """Compiles labscript_file with run_files. This function is designed to be called in
+    a thread.  The stdout and stderr from the compilation will be shovelled into
     stream_port via zmq push as it spews forth, and when each compilation is complete,
     done_callback will be called with a boolean argument indicating success. Compilation
     will stop after the first failure.  If you want to receive the data on a zmq socket,
     do so using a PULL socket created from a labscript_utils.ls_zprocess.Context, or
     using a labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be
     configured with the appropriate security settings and will be able to receive the
-    messages.
-    
-    Args:
-        labscript_file (str): Path to labscript file to be compiled
-        run_files (list of str): Paths to h5 file where compilation output is stored.
-            These files must already exist with proper globals initialization.
-        stream_port (zmq.socket, optional): ZMQ socket to push stdout and stderr.
-            If None, defaults to calling process stdout/stderr. Default is None.
-        done_callback (function, optional): Callback function run when compilation finishes.
-            Takes a single boolean argument marking compilation success or failure.
-            If None, callback is skipped. Default is None.
-    """
+    messages."""
     compiler_path = os.path.join(os.path.dirname(__file__), 'batch_compiler.py')
     to_child, from_child, child = process_tree.subprocess(
         compiler_path, output_redirection_port=stream_port
@@ -893,8 +939,7 @@ def compile_multishot_async(labscript_file, run_files,
                 signal, data = from_child.get()
                 if signal == 'done':
                     success = data
-                    if done_callback is not None:
-                        done_callback(data)
+                    done_callback(data)
                     break
             if not success:
                 break
@@ -908,28 +953,16 @@ def compile_multishot_async(labscript_file, run_files,
     child.communicate()
 
 
-def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path,
-                                               stream_port, done_callback):
-    """Compiles labscript_file with multiple globals files into a directory.
-    
-    Instead, stderr and stdout will be put to
+def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path, stream_port, done_callback):
+    """Same as compile_labscript_with_globals_files, except it launches a thread to do
+    the work and does not return anything. Instead, stderr and stdout will be put to
     stream_port via zmq push in the multipart message format ['stdout','hello, world\n']
     etc. When compilation is finished, the function done_callback will be called a
     boolean argument indicating success or failure.  If you want to receive the data on
     a zmq socket, do so using a PULL socket created from a
     labscript_utils.ls_zprocess.Context, or using a
     labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured with
-    the appropriate security settings and will be able to receive the messages.
-    
-    Args:
-        labscript_file (str): Path to labscript file to be compiled
-        globals_files (list of str): Paths to h5 file where globals values to be used are stored.
-            See :func:`make_run_file_from_globals_files` for details.
-        output_path (str): Folder to save compiled h5 files to.
-        stream_port (zmq.socket): ZMQ socket to push stdout and stderr.
-        done_callback (function): Callback function run when compilation finishes.
-            Takes a single boolean argument marking compilation success or failure.
-    """
+    the appropriate security settings and will be able to receive the messages."""
     try:
         make_run_file_from_globals_files(labscript_file, globals_files, output_path)
         thread = threading.Thread(
@@ -947,16 +980,24 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
 def get_shot_globals(filepath):
     """Returns the evaluated globals for a shot, for use by labscript or lyse.
     Simple dictionary access as in dict(h5py.File(filepath).attrs) would be fine
-    except we want to apply some hacks, so it's best to do that in one place.
-    
-    Deprecated: use identical function `labscript_utils.shot_utils.get_shot_globals`
-    """
-    
-    warnings.warn(
-        FutureWarning("get_shot_globals has moved to labscript_utils.shot_utils. "
-                      "Please update your code to import it from there."))
-
-    return labscript_utils.shot_utils.get_shot_globals(filepath)
+    except we want to apply some hacks, so it's best to do that in one place."""
+    params = {}
+    with h5py.File(filepath, 'r') as f:
+        for name, value in f['globals'].attrs.items():
+            # Convert numpy bools to normal bools:
+            if isinstance(value, np.bool_):
+                value = bool(value)
+            # Convert null HDF references to None:
+            if isinstance(value, h5py.Reference) and not value:
+                value = None
+            # Convert numpy strings to Python ones.
+            # DEPRECATED, for backward compat with old files.
+            if isinstance(value, np.str_):
+                value = str(value)
+            if isinstance(value, bytes):
+                value = value.decode()
+            params[name] = value
+    return params
 
 
 def dict_diff(dict1, dict2):
