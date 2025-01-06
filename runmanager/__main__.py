@@ -20,6 +20,7 @@ import shutil
 import re
 import labscript_utils.excepthook
 import importlib
+import json
 
 # Associate app windows with OS menu shortcuts:
 import desktop_app
@@ -1940,7 +1941,7 @@ class RunManager(object):
 
     def on_axis_up_clicked(self, checked):
         # Get the selection model from the treeview
-        selection_model = self.ui.treeView_axes.selectionModel()    
+        selection_model = self.ui.treeView_axes.selectionModel()
         # Create a list of select row indices
         selected_row_list = [index.row() for index in sorted(selection_model.selectedRows())]
         # For each row selected
@@ -2740,6 +2741,20 @@ class RunManager(object):
                         raise RuntimeError(msg)
                     active_groups[group_name] = globals_file
         return active_groups
+    
+    def set_axes_order(self, order_str):
+        order_list = json.loads(order_str)
+        items = [app.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
+                 for i in range(app.axes_model.rowCount())]
+
+        sorted_items = sorted(items, key = lambda item : 
+                              next((i for i, key in enumerate(order_list) 
+                                    if key == item), float('inf')))
+        for i, si in enumerate(sorted_items):
+            app.axes_model.item(i, self.AXES_COL_NAME).setText(si)
+        
+        app.update_axes_indentation()
+        return True
     
     def deactivate_all_groups(self):
         for i in range(self.groups_model.rowCount()):
@@ -3723,6 +3738,10 @@ class RemoteServer(ZMQServer):
     def handle_set_shot_output_folder(self, value):
         shot_output_folder = os.path.abspath(value)
         app.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
+
+    @inmain_decorator()
+    def handle_set_axes_order(self, order_str):
+        return inmain(app.set_axes_order, order_str)
 
     def handle_error_in_globals(self):
         try:
