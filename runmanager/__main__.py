@@ -2742,6 +2742,7 @@ class RunManager(object):
                     active_groups[group_name] = globals_file
         return active_groups
     
+    @inmain_decorator()  # Can be called from a non-main thread
     def set_axes_order(self, order_str):
         order_list = json.loads(order_str)
         items = [app.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
@@ -2780,6 +2781,7 @@ class RunManager(object):
             
             if globals_file == input_globals_file_name:
                 break
+        self.preparse_globals()
         
         return success_flag
 
