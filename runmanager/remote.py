@@ -29,6 +29,9 @@ class Client(ZMQClient):
     def say_hello(self):
         """Ping the runmanager server for a response"""
         return self.request('hello')
+    
+    def activate_group_by_filename(self, value):
+        return self.request("activate_group_by_filename", input_globals_file_name = value)
 
     def get_version(self):
         """Return the version of runmanager the server is running in"""
@@ -138,6 +141,8 @@ set_shot_output_folder = _default_client.set_shot_output_folder
 error_in_globals = _default_client.error_in_globals
 is_output_folder_default = _default_client.is_output_folder_default
 reset_shot_output_folder = _default_client.reset_shot_output_folder
+activate_group_by_filename = _default_client.activate_group_by_filename
+
 
 if __name__ == '__main__':
     # Test
