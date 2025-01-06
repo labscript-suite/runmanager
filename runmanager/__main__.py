@@ -2742,6 +2742,20 @@ class RunManager(object):
                     active_groups[group_name] = globals_file
         return active_groups
     
+    def set_axes_order(self, order_str):
+        order_list = json.loads(order_str)
+        items = [app.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
+                 for i in range(app.axes_model.rowCount())]
+
+        sorted_items = sorted(items, key = lambda item : 
+                              next((i for i, key in enumerate(order_list) 
+                                    if key == item), float('inf')))
+        for i, si in enumerate(sorted_items):
+            app.axes_model.item(i, self.AXES_COL_NAME).setText(si)
+        
+        app.update_axes_indentation()
+        return True
+    
     def deactivate_all_groups(self):
         for i in range(self.groups_model.rowCount()):
             file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
@@ -3725,20 +3739,9 @@ class RemoteServer(ZMQServer):
         shot_output_folder = os.path.abspath(value)
         app.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
 
-    @inmain_decorator
+    @inmain_decorator()
     def handle_set_axes_order(self, order_str):
-        order_list = json.loads(order_str)
-        items = [app.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
-                 for i in range(app.axes_model.rowCount())]
-
-        sorted_items = sorted(items, key = lambda item : 
-                              next((i for i, key in enumerate(order_list) 
-                                    if key == item), float('inf')))
-        for i, si in enumerate(sorted_items):
-            app.axes_model.item(i, self.AXES_COL_NAME).setText(si)
-        
-        app.update_axes_indentation()
-        return True
+        return inmain(app.set_axes_order, order_str)
 
     def handle_error_in_globals(self):
         try:
@@ -3778,8 +3781,6 @@ class RemoteServer(ZMQServer):
         elif cmd == '__version__':
             return runmanager.__version__
         try:
-            if cmd == "set_axes_order":
-                return self.handle_set_axes_order("[]")
             return getattr(self, 'handle_' + cmd)(*args, **kwargs)
         except Exception as e:
             msg = traceback.format_exc()
