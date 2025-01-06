@@ -32,7 +32,7 @@ class Client(ZMQClient):
         return self.request('hello')
     
     def set_axes_order(self, order_list):
-        return self.request("set_axes_order", order_str=json.dumps(order_list))
+        return self.request("set_axes_order", json.dumps(order_list))
     
     def activate_group_by_filename(self, value):
         return self.request("activate_group_by_filename", input_globals_file_name = value)

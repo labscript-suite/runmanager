@@ -3728,16 +3728,16 @@ class RemoteServer(ZMQServer):
     @inmain_decorator
     def handle_set_axes_order(self, order_str):
         order_list = json.loads(order_str)
-        items = [self.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
-                 for i in range(self.axes_model.rowCount())]
+        items = [app.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
+                 for i in range(app.axes_model.rowCount())]
 
         sorted_items = sorted(items, key = lambda item : 
                               next((i for i, key in enumerate(order_list) 
                                     if key == item), float('inf')))
         for i, si in enumerate(sorted_items):
-            self.axes_model.item(i, self.AXES_COL_NAME).setText(si)
+            app.axes_model.item(i, self.AXES_COL_NAME).setText(si)
         
-        self.update_axes_indentation()
+        app.update_axes_indentation()
         return True
 
     def handle_error_in_globals(self):
@@ -3778,6 +3778,8 @@ class RemoteServer(ZMQServer):
         elif cmd == '__version__':
             return runmanager.__version__
         try:
+            if cmd == "set_axes_order":
+                return self.handle_set_axes_order("[]")
             return getattr(self, 'handle_' + cmd)(*args, **kwargs)
         except Exception as e:
             msg = traceback.format_exc()
