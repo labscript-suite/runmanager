@@ -32,6 +32,9 @@ class Client(ZMQClient):
     
     def activate_group_by_filename(self, value):
         return self.request("activate_group_by_filename", input_globals_file_name = value)
+    
+    def deactivate_all_groups(self):
+        return self.request("deactivate_all_groups")
 
     def get_version(self):
         """Return the version of runmanager the server is running in"""
@@ -142,6 +145,7 @@ error_in_globals = _default_client.error_in_globals
 is_output_folder_default = _default_client.is_output_folder_default
 reset_shot_output_folder = _default_client.reset_shot_output_folder
 activate_group_by_filename = _default_client.activate_group_by_filename
+deactivate_all_groups = _default_client.deactivate_all_groups
 
 
 if __name__ == '__main__':
