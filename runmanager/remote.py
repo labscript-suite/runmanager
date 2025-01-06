@@ -1,5 +1,6 @@
 DEFAULT_PORT = 42523
 
+import json
 from labscript_utils.ls_zprocess import ZMQClient
 from labscript_utils.labconfig import LabConfig
 
@@ -29,6 +30,9 @@ class Client(ZMQClient):
     def say_hello(self):
         """Ping the runmanager server for a response"""
         return self.request('hello')
+    
+    def set_axes_order(self, order_list):
+        return self.request("set_axes_order", json.dumps(order_list))
     
     def activate_group_by_filename(self, value):
         return self.request("activate_group_by_filename", input_globals_file_name = value)
@@ -146,6 +150,7 @@ is_output_folder_default = _default_client.is_output_folder_default
 reset_shot_output_folder = _default_client.reset_shot_output_folder
 activate_group_by_filename = _default_client.activate_group_by_filename
 deactivate_all_groups = _default_client.deactivate_all_groups
+set_axes_order = _default_client.set_axes_order
 
 
 if __name__ == '__main__':
