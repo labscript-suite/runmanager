@@ -2745,14 +2745,14 @@ class RunManager(object):
     @inmain_decorator()  # Can be called from a non-main thread
     def set_axes_order(self, order_str):
         order_list = json.loads(order_str)
-        items = [app.axes_model.item(i, self.AXES_COL_NAME).text().lstrip()
+        items = [app.axes_model.takeRow(0)
                  for i in range(app.axes_model.rowCount())]
-
+        
         sorted_items = sorted(items, key = lambda item : 
                               next((i for i, key in enumerate(order_list) 
-                                    if key == item), float('inf')))
+                                    if key == item[0].text().lstrip()), float('inf')))
         for i, si in enumerate(sorted_items):
-            app.axes_model.item(i, self.AXES_COL_NAME).setText(si)
+            app.axes_model.insertRow(i, si)
         
         app.update_axes_indentation()
         return True
