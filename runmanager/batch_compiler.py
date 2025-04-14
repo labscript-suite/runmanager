@@ -53,7 +53,7 @@ class BatchProcessor(object):
             else:
                 raise ValueError(signal)
                     
-    def compile(self, labscript_file, run_file):
+    def compile(self, labscript_file, run_file, lyse_host):
         self.script_module.__file__ = labscript_file
 
         # Save the current working directory before changing it to the location of the
@@ -64,7 +64,9 @@ class BatchProcessor(object):
         try:
             # Do not let the modulewatcher unload any modules whilst we're working:
             with kill_lock, module_watcher.lock:
-                labscript.labscript_init(run_file, labscript_file=labscript_file)
+                labscript.labscript_init(run_file, 
+                                         labscript_file=labscript_file,
+                                         lyse_host=lyse_host)
                 with open(labscript_file) as f:
                     code = compile(
                         f.read(), self.script_module.__file__, 'exec', dont_inherit=True
