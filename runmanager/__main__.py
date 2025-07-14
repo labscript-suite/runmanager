@@ -3247,7 +3247,7 @@ class RunManager(object):
                                 self.compilation_aborted.set()
                                 continue
                             if send_to_BLACS:
-                                self.send_to_BLACS(run_file, BLACS_host)
+                                self.send_to_BLACS(run_file, BLACS_host, lyse_host)
                             if send_to_runviewer:
                                 self.send_to_runviewer(run_file)
                     except Exception as e:
@@ -3472,12 +3472,14 @@ class RunManager(object):
         logger.debug(run_files)
         return labscript_file, run_files
 
-    def send_to_BLACS(self, run_file, BLACS_hostname):
+    def send_to_BLACS(self, run_file, BLACS_hostname, lyse_host):
         port = int(self.exp_config.get('ports', 'BLACS'))
         agnostic_path = shared_drive.path_to_agnostic(run_file)
         self.output_box.output('Submitting run file %s.\n' % os.path.basename(run_file))
         try:
-            response = zmq_get(port, BLACS_hostname, data=agnostic_path)
+            message = {"agnostic_path": agnostic_path,
+                       "lyse_host": lyse_host}
+            response = zmq_get(port, BLACS_hostname, data=message)
             if 'added successfully' in response:
                 self.output_box.output(response)
             else:

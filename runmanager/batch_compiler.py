@@ -65,8 +65,7 @@ class BatchProcessor(object):
             # Do not let the modulewatcher unload any modules whilst we're working:
             with kill_lock, module_watcher.lock:
                 labscript.labscript_init(run_file, 
-                                         labscript_file=labscript_file,
-                                         lyse_host=lyse_host)
+                                         labscript_file=labscript_file)
                 with open(labscript_file) as f:
                     code = compile(
                         f.read(), self.script_module.__file__, 'exec', dont_inherit=True
