@@ -825,8 +825,8 @@ def compile_labscript_async(labscript_file, run_file,
     done_callback will be called with a boolean argument indicating success. Note that
     the zmq communication will be encrypted, or not, according to security settings in
     labconfig. If you want to receive the data on a zmq socket, do so using a PULL
-    socket created from a labscript_utils.ls_zprocess.Context, or using a
-    labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured
+    socket created from a :class:`labscript_utils.ls_zprocess.Context`, or using a
+    :class:`labscript_utils.ls_zprocess.ZMQServer`. These subclasses will also be configured
     with the appropriate security settings and will be able to receive the messages.
 
     Args:
@@ -867,8 +867,8 @@ def compile_multishot_async(labscript_file, run_files,
     stream_port via zmq push as it spews forth, and when each compilation is complete,
     done_callback will be called with a boolean argument indicating success. Compilation
     will stop after the first failure.  If you want to receive the data on a zmq socket,
-    do so using a PULL socket created from a labscript_utils.ls_zprocess.Context, or
-    using a labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be
+    do so using a PULL socket created from a :class:`labscript_utils.ls_zprocess.Context`, or
+    using a :class:`labscript_utils.ls_zprocess.ZMQServer`. These subclasses will also be
     configured with the appropriate security settings and will be able to receive the
     messages.
     
@@ -913,12 +913,12 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
     """Compiles labscript_file with multiple globals files into a directory.
     
     Instead, stderr and stdout will be put to
-    stream_port via zmq push in the multipart message format ['stdout','hello, world\n']
+    stream_port via zmq push in the multipart message format `['stdout','hello, world\\n']`
     etc. When compilation is finished, the function done_callback will be called a
     boolean argument indicating success or failure.  If you want to receive the data on
     a zmq socket, do so using a PULL socket created from a
-    labscript_utils.ls_zprocess.Context, or using a
-    labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured with
+    :external:class:`labscript_utils.ls_zprocess.Context`, or using a
+    :external:class:`labscript_utils.ls_zprocess.ZMQServer`. These subclasses will also be configured with
     the appropriate security settings and will be able to receive the messages.
     
     Args:

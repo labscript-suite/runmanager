@@ -48,7 +48,7 @@ located in a always visible toolbar at the top of the runmanager interface. Thes
     into hardware instructions (see :doc:`labscript <labscript:index>`).
 #.  The shot output folder: The location to store the hdf5 shot files. By default, the
     location in specified by the combination of a value in the laboratory PC configuration
-    file (see :doc:`labconfig <labscript-suite:labconfig>`), the name of the experiment logic Python file and
+    file (see :doc:`labconfig <labscript-utils:labconfig>`), the name of the experiment logic Python file and
     the current date. The location automatically updates, at midnight, to a new folder
     for the day provided the folder location is left as the default.
 #.  The BLACS hostname: The network hostname of the PC the hdf5 shot files are to
