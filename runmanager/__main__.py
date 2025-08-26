@@ -37,6 +37,7 @@ import pprint
 import traceback
 import signal
 from pathlib import Path
+import random
 
 splash.update_text('importing matplotlib')
 # Evaluation of globals happens in a thread with the pylab module imported.
@@ -1352,6 +1353,12 @@ class RunManager(object):
     AXES_COL_SHUFFLE = 2
     AXES_ROLE_NAME = QtCore.Qt.UserRole + 1
 
+    # Constants for the model in the queue tab:
+    QUEUE_COL_NAME = 0
+    QUEUE_ROLE_FULL_FILENAME = QtCore.Qt.UserRole + 1
+    QUEUE_ROLE_FILENAME_PREFIX = QtCore.Qt.UserRole + 2
+    QUEUE_ROLE_OUTPUT_FOLDER = QtCore.Qt.UserRole + 3
+
     # Constants for the model in the groups tab:
     GROUPS_COL_NAME = 0
     GROUPS_COL_ACTIVE = 1
@@ -1363,6 +1370,11 @@ class RunManager(object):
     GROUPS_ROLE_GROUP_IS_OPEN = QtCore.Qt.UserRole + 4
     GROUPS_DUMMY_ROW_TEXT = '<Click to add group>'
 
+    REPEAT_ALL = 0
+    REPEAT_LAST = 1
+    ICON_REPEAT = ':qtutils/fugue/arrow-repeat'
+    ICON_REPEAT_LAST = ':qtutils/fugue/arrow-repeat-once'
+
     def __init__(self):
         splash.update_text('loading graphical interface')
         loader = UiLoader()
@@ -1373,6 +1385,10 @@ class RunManager(object):
         )
 
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
+
+        # An event to tell the compilation queue to check if the next queued shot (if
+        # any) can be compiled:
+        self.compilation_potentially_required = threading.Event()
 
         # Add a 'pop-out' button to the output tab:
         output_tab_index = self.ui.tabWidget.indexOf(self.ui.tab_output)
@@ -1393,6 +1409,7 @@ class RunManager(object):
         self.output_box_window.resize(800, 1000)
         self.setup_config()
         self.setup_axes_tab()
+        self.setup_queue_tab()
         self.setup_groups_tab()
         self.connect_signals()
 
@@ -1436,8 +1453,11 @@ class RunManager(object):
         # The prospective number of shots resulting from compilation
         self.n_shots = None
 
-        # Start the loop that allows compilations to be queued up:
-        self.compile_queue = queue.Queue()
+        # Create data structures for the compilation queue and start the compilation
+        # thread:
+        self.queued_shots = {}
+        self.BLACS_shots_remaining_events = queue.Queue()
+        self.queue_repeat_mode = self.REPEAT_ALL
         self.compile_queue_thread = threading.Thread(target=self.compile_loop)
         self.compile_queue_thread.daemon = True
         self.compile_queue_thread.start()
@@ -1532,6 +1552,36 @@ class RunManager(object):
         # setup header widths
         self.ui.treeView_axes.header().setStretchLastSection(False)
         self.ui.treeView_axes.header().setSectionResizeMode(self.AXES_COL_NAME, QtWidgets.QHeaderView.Stretch)
+
+    def setup_queue_tab(self):
+        self.queue_model = QtGui.QStandardItemModel()
+
+        # Setup the model columns and link to the treeview
+        name_header_item = QtGui.QStandardItem('Sequence id/filename')
+        name_header_item.setToolTip('The sequence id and filenames of shot files queued for compilation')
+        self.queue_model.setHorizontalHeaderItem(self.QUEUE_COL_NAME, name_header_item)
+        self.ui.treeView_queue.setModel(self.queue_model)
+        self.ui.treeView_queue.header().setStretchLastSection(True)
+
+        # Set up repeat mode button menu:
+        self.repeat_mode_menu = QtWidgets.QMenu(self.ui)
+        self.action_repeat_all = QtWidgets.QAction(
+            QtGui.QIcon(self.ICON_REPEAT), 'Repeat all', self.ui
+        )
+        self.action_repeat_last = QtWidgets.QAction(
+            QtGui.QIcon(self.ICON_REPEAT_LAST), 'Repeat last', self.ui
+        )
+
+        # Hide this initially, TODO remove this line once we are restoring from settings
+        # whether delayed compilation is enabled or not.
+        self.ui.delay_compilation_options.setVisible(False)
+
+        self.repeat_mode_menu.addAction(self.action_repeat_all)
+        self.repeat_mode_menu.addAction(self.action_repeat_last)
+        self.ui.repeat_mode_select_button.setMenu(self.repeat_mode_menu)
+
+        # The button already has an arrow indicating a menu, don't draw another one:
+        self.ui.repeat_mode_select_button.setStyleSheet("QToolButton::menu-indicator{width: 0;}")
                                                           
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
@@ -1612,6 +1662,17 @@ class RunManager(object):
 
         # Tab closebutton clicked:
         self.ui.tabWidget.tabCloseRequested.connect(self.on_tabCloseRequested)
+
+        # Queue tab:
+        self.ui.queue_pause_button.toggled.connect(self.on_queue_paused_toggled)
+        self.ui.button_delay_compilation.toggled.connect(self.on_delay_compilation_toggled)
+        self.ui.spinBox_delayed_num_shots.valueChanged.connect(self.compilation_potentially_required.set)
+        self.action_repeat_all.triggered.connect(
+            lambda: self.set_queue_repeat_mode(self.REPEAT_ALL)
+        )
+        self.action_repeat_last.triggered.connect(
+            lambda: self.set_queue_repeat_mode(self.REPEAT_LAST)
+        )
 
         # Axes tab; right click menu, menu actions, reordering
         # self.ui.treeView_axes.customContextMenuRequested.connect(self.on_treeView_axes_context_menu_requested)
@@ -1815,11 +1876,17 @@ class RunManager(object):
                 sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups, expansion_order=expansion_order)
             except Exception as e:
                 raise Exception('Error parsing globals:\n%s\nCompilation aborted.' % str(e))
-            logger.info('Making h5 files')
-            labscript_file, run_files = self.make_h5_files(
-                labscript_file, output_folder, sequenceglobals, shots, shuffle)
-            self.ui.pushButton_abort.setEnabled(True)
-            self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
+            logger.info('Queueing new sequence for compilation')
+            self.queue_new_sequence(
+                labscript_file,
+                output_folder,
+                sequenceglobals,
+                shots,
+                shuffle,
+                send_to_BLACS,
+                BLACS_host,
+                send_to_runviewer,
+            )
         except Exception as e:
             self.output_box.output('%s\n\n' % str(e), red=True)
         logger.info('end engage')
@@ -3211,38 +3278,149 @@ class RunManager(object):
         self.ui.actionSave_configuration_as.setEnabled(True)
         self.ui.actionRevert_configuration.setEnabled(True)
 
+    @inmain_decorator()
+    def next_queued_shot(self):
+        """Get the details of the next shot to be compiled, removing it from the
+        queue"""
+        BLACS_shots_remaining = None
+        while True:
+            # If multiple events, get only the most recent:
+            try:
+                BLACS_shots_remaining = self.BLACS_shots_remaining_events.get_nowait()
+            except queue.Empty:
+                break
+        if self.ui.button_delay_compilation.isChecked():
+            if (
+                BLACS_shots_remaining is None
+                or BLACS_shots_remaining > self.ui.spinBox_delayed_num_shots.value()
+            ):
+                # TODO: set a status saying "waiting for BLACS queue to reach target" or
+                # similar
+                return None, None
+        if not self.queue_model.rowCount():
+            # TODO: Set a status saying "idle"
+            return None, None
+        if self.ui.queue_pause_button.isChecked():
+            # TODO:Set a status label to "paused"
+            return None, None
+        elif self.compilation_aborted.is_set():
+            # TODO: Pause the queue
+            self.output_box.output('Compilation aborted.\n\n', red=True)
+            return None, None
+        self.ui.pushButton_abort.setEnabled(True)
+        sequence_item = self.queue_model.item(0, self.QUEUE_COL_NAME)
+        shot_item = sequence_item.takeRow(0)[self.QUEUE_COL_NAME]
+        filename = shot_item.data(self.QUEUE_ROLE_FULL_FILENAME)
+        details = self.queued_shots.pop(filename)
+        if not sequence_item.rowCount():
+            self.queue_model.takeRow(0)
+        else:
+            self.update_sequence_item_text(sequence_item)
+        self.update_queue_tab_label()
+        return filename, details
+
+    @inmain_decorator()
+    def check_repeat(self, run_file, shot_details):
+        """If we are in repeat-all mode, or repeat-last mode and the queue is empty,
+        create details of a new shot that is a rep of the given shot, and add it to the
+        queue. The shot file must already exist, as the lowest rep number not already
+        existing in the filesystem will be used for the rep shot's name"""
+        if self.ui.queue_repeat_button.isChecked() and (
+            self.queue_repeat_mode == self.REPEAT_ALL or not self.queue_model.rowCount()
+        ):
+            new_run_file, rep_no = runmanager.new_rep_name(run_file)
+            shot_details['rep_no'] = rep_no
+            self.queued_shots[new_run_file] = shot_details
+            filename_prefix = shot_details['filename_prefix']
+            output_folder = shot_details['output_folder']
+            # Use the existing sequence item in the model if it matches our filename
+            # prefix and output, otherwise make a new one:
+            n_seq = self.queue_model.rowCount()
+            sequence_item = None
+            if n_seq:
+                print(f"{n_seq=}")
+                item = self.queue_model.item(n_seq - 1)
+                prefix = item.data(self.QUEUE_ROLE_FILENAME_PREFIX)
+                folder = item.data(self.QUEUE_ROLE_OUTPUT_FOLDER)
+                if prefix == filename_prefix and folder == output_folder:
+                    sequence_item = item
+            if sequence_item is None:
+                sequence_item = self.append_sequence_item_to_queue(
+                    filename_prefix, output_folder
+                )
+            self.append_shot_item_to_queue(sequence_item, new_run_file)
+            self.update_queue_tab_label()
+
     def compile_loop(self):
         while True:
             try:
-                labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
-                run_files = iter(run_files)  # Should already be in iterator but just in case
+                self.compilation_potentially_required.wait()
+                self.compilation_potentially_required.clear()
                 while True:
-                    if self.compilation_aborted.is_set():
-                        self.output_box.output('Compilation aborted.\n\n', red=True)
+                    # If we're JIT and BLACS' queue isn't empty enough yet, also break.
+                    # Print to the output box that that's what you're doing. Otherwise,
+                    # go on:
+                    run_file, shot_details = self.next_queued_shot()
+                    if run_file is None:
                         break
+                    shot_globals = shot_details['shot_globals']
+                    labscript_file = shot_details['labscript_file']
+                    # TODO: likely remove this if the UI for this changes. Do we
+                    # want to store with the queued shot itself what the dynamic
+                    # globals should be? Do we want to store a copy of the shot
+                    # file...? Probably, yes. Complicated!
+                    dynamic = inmain(self.ui.lineEdit_dynamic_globals.text)
+                    dynamic = [s.strip() for s in dynamic.split(',') if s.strip()]
                     try:
-                        try:
-                            # We do next() instead of looping over run_files
-                            # so that if compilation is aborted we won't
-                            # create an extra file unnecessarily.
-                            run_file = next(run_files)
-                        except StopIteration:
-                            self.output_box.output('Ready.\n\n')
-                            break
-                        else:
-                            self.to_child.put(['compile', [labscript_file, run_file]])
-                            signal, success = self.from_child.get()
-                            assert signal == 'done'
-                            if not success:
-                                self.compilation_aborted.set()
-                                continue
-                            if send_to_BLACS:
-                                self.send_to_BLACS(run_file, BLACS_host)
-                            if send_to_runviewer:
-                                self.send_to_runviewer(run_file)
-                    except Exception as e:
-                        self.output_box.output(str(e) + '\n', red=True)
+                        if dynamic:
+                            active_groups = inmain(
+                                app.get_active_groups, interactive=False
+                            )
+                            all_globals = {}
+                            evaled_globals, _, _ = runmanager.evaluate_globals(
+                                runmanager.get_globals(active_groups),
+                                raise_exceptions=True,
+                            )
+                            for group_globals in evaled_globals.values():
+                                all_globals.update(group_globals)
+
+                            # Update the shot globals for this shot to the new values:
+                            for name in dynamic:
+                                shot_globals[name] = all_globals[name]
+
+                        runmanager.make_single_run_file(
+                            run_file,
+                            shot_details['sequence_globals'],
+                            shot_globals,
+                            shot_details['sequence_attrs'],
+                            shot_details['run_no'],
+                            shot_details['n_runs'],
+                            rep_no=shot_details['rep_no'],
+                        )
+                        self.to_child.put(['compile', [labscript_file, run_file]])
+                        signal, success = self.from_child.get()
+                        assert signal == 'done'
+                        if not success:
+                            self.compilation_aborted.set()
+                            # TODO: can probably think of something more sensible here,
+                            # like prepending to the queue and pausing it, unless the
+                            # user deletes the shot:
+                            inmain(self.queue_model.clear)
+                            self.queued_shots.clear()
+                            continue
+                        self.check_repeat(run_file, shot_details)
+                        if shot_details['send_to_BLACS']:
+                            self.send_to_BLACS(run_file, shot_details['BLACS_host'])
+                        if shot_details['send_to_runviewer']:
+                            self.send_to_runviewer(run_file)
+                    except Exception:
+                        self.output_box.output(traceback.format_exc() + '\n', red=True)
                         self.compilation_aborted.set()
+                        # TODO: can probably think of something more sensible here,
+                        # like prepending to the queue and pausing it, unless the
+                        # user deletes the shot:
+                        inmain(self.queue_model.clear)
+                        self.queued_shots.clear()
                 inmain(self.ui.pushButton_abort.setEnabled, False)
                 self.compilation_aborted.clear()
             except Exception:
@@ -3440,27 +3618,117 @@ class RunManager(object):
 
         return expansion_types_changed
 
-    def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
-        sequence_attrs, default_output_dir, filename_prefix = runmanager.new_sequence_details(
+    def on_queue_paused_toggled(self, paused):
+        self.update_queue_tab_label()
+        if not paused:
+            self.compilation_potentially_required.set()
+
+    def on_delay_compilation_toggled(self, delay):
+        self.ui.delay_compilation_options.setVisible(delay)
+        self.compilation_potentially_required.set()
+
+    def set_queue_repeat_mode(self, mode):
+        if mode == self.REPEAT_ALL:
+            self.ui.queue_repeat_button.setIcon(QtGui.QIcon(self.ICON_REPEAT))
+        elif mode == self.REPEAT_LAST:
+            self.ui.queue_repeat_button.setIcon(QtGui.QIcon(self.ICON_REPEAT_LAST))
+        else:
+            raise ValueError(mode)
+        self.queue_repeat_mode = mode
+
+    @inmain_decorator()
+    def update_queue_tab_label(self):
+        nsequences = self.queue_model.rowCount()
+        nshots = sum(self.queue_model.item(i).rowCount() for i in range(nsequences))
+        paused = ', paused' if self.ui.queue_pause_button.isChecked() else '' 
+        label = 'Queue (%d%s)' % (nshots, paused)
+        index = self.ui.tabWidget.indexOf(self.ui.tab_queue)
+        self.ui.tabWidget.setTabText(index, label)
+
+    def append_sequence_item_to_queue(self, filename_prefix, output_folder):
+        sequence_item = QtGui.QStandardItem(filename_prefix)
+        sequence_item.setToolTip(output_folder)
+        sequence_item.setData(filename_prefix, self.QUEUE_ROLE_FILENAME_PREFIX)
+        sequence_item.setData(output_folder, self.QUEUE_ROLE_OUTPUT_FOLDER)
+        sequence_item.setEditable(False)
+        self.queue_model.appendRow([sequence_item])
+        self.ui.treeView_queue.setExpanded(sequence_item.index(), True)
+        return sequence_item
+
+    def append_shot_item_to_queue(self, sequence_item, filename):
+        item = QtGui.QStandardItem(os.path.basename(filename))
+        item.setToolTip(filename)
+        item.setData(filename, self.QUEUE_ROLE_FULL_FILENAME)
+        item.setEditable(False)
+        sequence_item.appendRow([item])
+        self.update_sequence_item_text(sequence_item)
+
+    def update_sequence_item_text(self, sequence_item):
+        nshots = sequence_item.rowCount()
+        filename_prefix = sequence_item.data(self.QUEUE_ROLE_FILENAME_PREFIX)
+        sequence_item.setText(
+            filename_prefix + '  (%d shot%s)' % (nshots, 's' if nshots > 1 else '')
+        )
+
+    def queue_new_sequence(
+        self,
+        labscript_file,
+        output_folder,
+        sequence_globals,
+        shots,
+        shuffle,
+        send_to_BLACS,
+        BLACS_host,
+        send_to_runviewer,
+    ):
+        details = runmanager.new_sequence_details(
             labscript_file, config=self.exp_config, increment_sequence_index=True
         )
+        sequence_attrs, default_output_dir, filename_prefix = details
         if output_folder == self.previous_default_output_folder:
-            # The user is using dthe efault output folder. Just in case the sequence
+            # The user is using the default output folder. Just in case the sequence
             # index has been updated or the date has changed, use the default_output dir
             # obtained from new_sequence_details, as it is race-free, whereas the one
             # from the UI may be out of date since we only update it once a second.
             output_folder = default_output_dir
         self.check_output_folder_update()
-        run_files = runmanager.make_run_files(
-            output_folder,
-            sequence_globals,
-            shots,
-            sequence_attrs,
-            filename_prefix,
-            shuffle,
+
+        if shuffle:
+            random.shuffle(shots)
+
+        run_filenames = runmanager.make_run_filenames(
+            output_folder, filename_prefix, len(shots)
         )
-        logger.debug(run_files)
-        return labscript_file, run_files
+
+        sequence_item = self.append_sequence_item_to_queue(
+            filename_prefix, output_folder
+        )
+
+        for run_no, (filename, shot_globals) in enumerate(zip(run_filenames, shots)):
+
+            self.queued_shots[filename] = {
+                'labscript_file': labscript_file,
+                'sequence_globals': sequence_globals,
+                'shot_globals': shot_globals,
+                'sequence_attrs': sequence_attrs,
+                'run_no': run_no,
+                'n_runs': len(shots),
+                'rep_no': 0,
+                'send_to_BLACS': send_to_BLACS,
+                'BLACS_host': BLACS_host,
+                'send_to_runviewer': send_to_runviewer,
+                'filename_prefix': filename_prefix,
+                'output_folder': output_folder
+            }
+
+            self.append_shot_item_to_queue(sequence_item, filename)
+
+        logger.debug(run_filenames)
+
+        # Tell the compilation queue to wake up:
+        self.compilation_potentially_required.set()
+        self.update_queue_tab_label()
+
 
     def send_to_BLACS(self, run_file, BLACS_hostname):
         port = int(self.exp_config.get('ports', 'BLACS'))
@@ -3680,6 +3948,11 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_reset_shot_output_folder(self):
         app.on_reset_shot_output_folder_clicked(None)
+
+    def handle_advise_BLACS_shots_remaining(self, value):
+        print("BLACS said how many shots it has:", value)
+        app.BLACS_shots_remaining_events.put(value)
+        app.compilation_potentially_required.set()
 
     def handler(self, request_data):
         cmd, args, kwargs = request_data
