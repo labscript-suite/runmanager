@@ -32,7 +32,7 @@ dependencies = [
     "labscript>=3.0.0",
     "labscript_utils>=3.3.0",
     "pandas>=0.13",
-    "qtutils>=2.2.2",
+    "qtutils>=4.0",
     "matplotlib",
 ]
 dynamic = ["version"]
