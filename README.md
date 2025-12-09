@@ -4,7 +4,7 @@
 
 ### Graphical and remote interface to parameterized experiments
 
-[![Actions Status](https://github.com/labscript-suite/runmanager/workflows/Build%20and%20Release/badge.svg?branch=maintenance%2F3.0.x)](https://github.com/labscript-suite/runmanager/actions)
+[![Actions Status](https://github.com/labscript-suite/runmanager/workflows/Build%20and%20Release/badge.svg)](https://github.com/labscript-suite/runmanager/actions)
 [![License](https://img.shields.io/pypi/l/runmanager.svg)](https://github.com/labscript-suite/runmanager/raw/master/LICENSE.txt)
 [![Python Version](https://img.shields.io/pypi/pyversions/runmanager.svg)](https://python.org)
 [![PyPI](https://img.shields.io/pypi/v/runmanager.svg)](https://pypi.org/project/runmanager)
