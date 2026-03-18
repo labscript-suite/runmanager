@@ -185,8 +185,15 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
             if self.tabRect(index).contains(point):
                 return index
 
+    def mouseEventIndex(self, event):
+        if QT_ENV == 'PyQt5':
+            return self.indexAtPos(event.pos())
+        else:
+            # Qt6 position returns QPointF instead of QPoint
+            return self.indexAtPos(event.position().toPoint())
+
     def mousePressEvent(self, event):
-        index = self.indexAtPos(event.pos())
+        index = self.mouseEventIndex(event)
         if not self.tab_movable.get(index, self.isMovable()):
             QtWidgets.QTabBar.setMovable(self, False)  # disable dragging until they release the mouse
         return QtWidgets.QTabBar.mousePressEvent(self, event)
@@ -372,11 +379,18 @@ class ItemView(object):
             )
         self.setPalette(palette)
 
+    def mouseEventIndex(self, event):
+        if QT_ENV == 'PyQt5':
+            return self.indexAt(event.pos())
+        else:
+            # Qt6 returns QPointF instead of QPoint
+            return self.indexAt(event.position().toPoint())
+
     def mousePressEvent(self, event):
         result = super(ItemView, self).mousePressEvent(event)
-        index = self.indexAt(event.pos())
+        index = self.mouseEventIndex(event)
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
-            self._pressed_index = self.indexAt(event.pos())
+            self._pressed_index = self.mouseEventIndex(event)
         return result
 
     def leaveEvent(self, event):
@@ -389,15 +403,15 @@ class ItemView(object):
         # Ensure our left click event occurs regardless of whether it is the
         # second click in a double click or not
         result = super(ItemView, self).mouseDoubleClickEvent(event)
-        index = self.indexAt(event.pos())
+        index = self.mouseEventIndex(event)
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
-            self._pressed_index = self.indexAt(event.pos())
+            self._pressed_index = self.mouseEventIndex(event)
             self._double_click = True
         return result
 
     def mouseReleaseEvent(self, event):
         result = super(ItemView, self).mouseReleaseEvent(event)
-        index = self.indexAt(event.pos())
+        index = self.mouseEventIndex(event)
         if event.button() == QtCore.Qt.LeftButton and index.isValid() and index == self._pressed_index:
             self.leftClicked.emit(index)
             if self._double_click:
