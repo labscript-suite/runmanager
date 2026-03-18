@@ -2232,7 +2232,6 @@ class RunManager(object):
                 # Exclude <add new group> item, which is not selectable
                 name_items += [child for child in children if child.isSelectable() ]
 
-        filenames = set(item.parent().text() for item in name_items)
         for item in name_items:
             globals_file = item.parent().text()
             group_name = item.text()
@@ -2598,7 +2597,7 @@ class RunManager(object):
                 self.check_output_folder_update()
             except Exception as e:
                 # Don't stop the thread.
-                self.logger.exception("error checking default output folder")
+                self.logger.exception(f"error checking default output folder: {e}")
 
     @inmain_decorator()
     def check_output_folder_update(self):
@@ -3616,7 +3615,7 @@ class RunManager(object):
             response = zmq_get(runviewer_port, 'localhost', data='hello', timeout=1)
             if 'hello' not in response:
                 raise Exception(response)
-        except Exception as e:
+        except Exception:
             self.logger.info('runviewer not running, attempting to start...')
             # Runviewer not running, start it:
             if os.name == 'nt':
