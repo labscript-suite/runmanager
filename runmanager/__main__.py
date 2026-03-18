@@ -1414,7 +1414,7 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
     def changeEvent(self, event):
         
         # theme update only for PySide6
-        if QT_ENV == 'PySide6' and event.type() == QtCore.QEvent.Type.ThemeChange:
+        if QT_ENV.endswith('6') and event.type() == QtCore.QEvent.Type.ThemeChange:
             self.logger.info('Theme change event')
             # update group tab color themes
             RunmanagerColors().update_colors_from_scheme()
