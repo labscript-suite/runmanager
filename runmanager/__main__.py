@@ -97,7 +97,7 @@ def log_if_global(g, g_list, message):
         g_list = [] # add global options here
     
     if g in g_list:
-        logger.info(message)  # uses global `logger` instance defined in __main__
+        logger.info(message)  # uses global `logger` instance defined in __main__ script section
 
 
 def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
@@ -667,6 +667,17 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         model.setData(index, editor.toPlainText())
 
 class RunmanagerColors(object):
+    """Singleton class that globally defines various colors for the globals view
+    
+    Colors are saved to class attributes as hex strings.
+    Available colors are:
+
+    :ivar COLOR_HIGHLIGHT: Item selection highlight color, fixed to semitransparent blue
+    :ivar COLOR_ERROR: Item has runtime error color
+    :ivar COLOR_OK: Item is normal
+    :ivar COLOR_BOOL_ON: Item is bool = True
+    :ivar COLOR_BOOL_OFF: Item is bool = False
+    """
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -689,6 +700,11 @@ class RunmanagerColors(object):
             self._initialized = True
     
     def check_if_light(self):
+        """Helper method that return current light/dark theme state
+        
+        If using PyQt5, always returns True.
+        Otherwise, state is taken from `QGuiApplication` which follows OS.
+        """
         
         # pyqt5 defaults to light and doesn't have styleHints.colorScheme()
         if QT_ENV.lower() == 'pyqt5':
@@ -701,6 +717,7 @@ class RunmanagerColors(object):
             return True
         
     def update_colors_from_scheme(self):
+        """Method updates colors depending on current color scheme"""
 
         if self.check_if_light():
             self.logger.info('Setting custom light theme colors')
