@@ -734,7 +734,7 @@ class GroupTab(object):
 
     def __init__(self, tabWidget, globals_file, group_name):
 
-        self.logger = setup_logging('lyse.groupTab')
+        self.logger = setup_logging('runmanager.groupTab')
 
         self.tabWidget = tabWidget
         self.colorConfig = RunmanagerColors()
