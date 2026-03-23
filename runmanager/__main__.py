@@ -16,6 +16,7 @@
 import queue
 import os
 import sys
+import importlib.metadata
 import labscript_utils.excepthook
 
 # Associate app windows with OS menu shortcuts:
@@ -49,6 +50,7 @@ matplotlib.use('Agg')
 
 from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
 from qtutils.qt.QtCore import pyqtSignal as Signal
+PYQT_VERSION_STR = importlib.metadata.version(QT_ENV)
 
 splash.update_text('importing labscript suite modules')
 from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
@@ -1494,6 +1496,15 @@ class RunManager(object):
 
     def __init__(self):
         self.logger = logging.getLogger('runmanager')
+        # log dependency versions
+        self.logger.info(f'Python version: {sys.version}')
+        self.logger.info(f'Platform: {sys.platform}')
+        self.logger.info(f'Qt environment: {QT_ENV}')
+        self.logger.info(f'PySide/PyQt version: {PYQT_VERSION_STR}')
+        self.logger.info(f'Qt version: {QtCore.qVersion()}')
+        self.logger.info(f"qtutils version: {importlib.metadata.version('qtutils')}")
+        self.logger.info(f"runmanager version: {runmanager.__version__}")
+
         splash.update_text('loading graphical interface')
         loader = UiLoader()
         loader.registerCustomWidget(FingerTabWidget)
