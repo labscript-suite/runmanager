@@ -274,7 +274,7 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
 class TabToolButton(QtWidgets.QToolButton):
     def __init__(self, *args, **kwargs):
         QtWidgets.QToolButton.__init__(self, *args, **kwargs)
-        self.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
 
     def paintEvent(self, event):
         painter = QtWidgets.QStylePainter(self)
@@ -947,7 +947,7 @@ class GroupTab(object):
         return row
 
     def on_tableView_globals_leftClicked(self, index):
-        if qapplication.keyboardModifiers() != QtCore.Qt.KeyboardModifier.NoModifier:
+        if qapplication.keyboardModifiers() != QtCore.Qt.NoModifier:
             # Only handle mouseclicks with no keyboard modifiers.
             return
         item = self.globals_model.itemFromIndex(index)
@@ -2361,7 +2361,7 @@ class RunManager(object):
           method, which deletes it after confirmation, and closes it if it was
           open.
           """
-        if qapplication.keyboardModifiers() != QtCore.Qt.KeyboardModifier.NoModifier:
+        if qapplication.keyboardModifiers() != QtCore.Qt.NoModifier:
             # Only handle mouseclicks with no keyboard modifiers.
             return
         item = self.groups_model.itemFromIndex(index)
