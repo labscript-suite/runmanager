@@ -63,6 +63,7 @@ import runmanager
 import runmanager.remote
 import runmanager.compiler as compiler
 import runmanager.differ as differ
+import runmanager.tokenizer as tokenizer
 import runmanager.group_manager as group_manager
 from runmanager.exceptions import ExpansionError
 from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel
@@ -3053,14 +3054,15 @@ class RunManager(object):
 
 
 class RemoteServer(ZMQServer):
-    def __init__(self):
-        port = app.exp_config.getint(
+    def __init__(self, app):
+        self.app = app
+        port = self.app.exp_config.getint(
             'ports', 'runmanager', fallback=runmanager.remote.DEFAULT_PORT
         )
         ZMQServer.__init__(self, port=port)
 
     def handle_get_globals(self, raw=False):
-        active_groups = inmain(app.get_active_groups, interactive=False)
+        active_groups = inmain(self.app.get_active_groups, interactive=False)
         sequence_globals = group_manager.get_globals(active_groups)
         all_globals = {}
         if raw:
@@ -3077,7 +3079,7 @@ class RemoteServer(ZMQServer):
 
     @inmain_decorator()
     def handle_set_globals(self, globals, raw=False):
-        active_groups = app.get_active_groups(interactive=False)
+        active_groups = self.app.get_active_groups(interactive=False)
         sequence_globals = group_manager.get_globals(active_groups)
         try:
             for global_name, new_value in globals.items():
@@ -3106,7 +3108,7 @@ class RemoteServer(ZMQServer):
 
                         # Append expression-final comments in the previous expression to
                         # the new one:
-                        comments = runmanager.find_comments(previous_value)
+                        comments = tokenizer.find_comments(previous_value)
                         if comments:
                             # Only the final comment
                             comment_start, comment_end = comments[-1]
@@ -3115,7 +3117,7 @@ class RemoteServer(ZMQServer):
                                 new_value += previous_value[comment_start:comment_end]
                         try:
                             # Is the group open?
-                            group_tab = app.currently_open_groups[
+                            group_tab = self.app.currently_open_groups[
                                 globals_file, group_name
                             ]
                         except KeyError:
@@ -3140,71 +3142,71 @@ class RemoteServer(ZMQServer):
             # Trigger preparsing of globals to occur so that changes in globals not in
             # open tabs are reflected in the GUI, such as n_shots, errors on other
             # globals that depend on them, etc.
-            app.globals_changed()
+            self.app.globals_changed()
 
     def handle_engage(self):
-        app.wait_until_preparse_complete()
-        inmain(app.on_engage_clicked)
+        self.app.wait_until_preparse_complete()
+        inmain(self.app.on_engage_clicked)
 
     @inmain_decorator()
     def handle_abort(self):
-        app.on_abort_clicked()
+        self.app.on_abort_clicked()
 
     @inmain_decorator()
     def handle_get_run_shots(self):
-        return app.ui.checkBox_run_shots.isChecked()
+        return self.app.ui.checkBox_run_shots.isChecked()
 
     @inmain_decorator()
     def handle_set_run_shots(self, value):
-        app.ui.checkBox_run_shots.setChecked(value)
+        self.app.ui.checkBox_run_shots.setChecked(value)
 
     @inmain_decorator()
     def handle_get_view_shots(self):
-        return app.ui.checkBox_view_shots.isChecked()
+        return self.app.ui.checkBox_view_shots.isChecked()
 
     @inmain_decorator()
     def handle_set_view_shots(self, value):
-        app.ui.checkBox_view_shots.setChecked(value)
+        self.app.ui.checkBox_view_shots.setChecked(value)
 
     @inmain_decorator()
     def handle_get_shuffle(self):
-        return app.ui.pushButton_shuffle.isChecked()
+        return self.app.ui.pushButton_shuffle.isChecked()
 
     @inmain_decorator()
     def handle_set_shuffle(self, value):
-        app.ui.pushButton_shuffle.setChecked(value)
+        self.app.ui.pushButton_shuffle.setChecked(value)
 
     def handle_n_shots(self):
         # Wait until any current preparsing is done, to ensure this is not racy w.r.t
         # previous remote calls:
-        app.wait_until_preparse_complete()
-        return app.n_shots
+        self.app.wait_until_preparse_complete()
+        return self.app.n_shots
 
     @inmain_decorator()
     def handle_get_labscript_file(self):
-        labscript_file = app.ui.lineEdit_labscript_file.text()
+        labscript_file = self.app.ui.lineEdit_labscript_file.text()
         return os.path.abspath(labscript_file)
 
     @inmain_decorator()
     def handle_set_labscript_file(self, value):
         labscript_file = os.path.abspath(value)
-        app.ui.lineEdit_labscript_file.setText(labscript_file)
+        self.app.ui.lineEdit_labscript_file.setText(labscript_file)
 
     @inmain_decorator()
     def handle_get_shot_output_folder(self):
-        shot_output_folder = app.ui.lineEdit_shot_output_folder.text()
+        shot_output_folder = self.app.ui.lineEdit_shot_output_folder.text()
         return os.path.abspath(shot_output_folder)
 
     @inmain_decorator()
     def handle_set_shot_output_folder(self, value):
         shot_output_folder = os.path.abspath(value)
-        app.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
+        self.app.ui.lineEdit_shot_output_folder.setText(shot_output_folder)
 
     def handle_error_in_globals(self):
         try:
             # This will raise an exception if there are multiple active groups of the
             # same name:
-            active_groups = inmain(app.get_active_groups, interactive=False)
+            active_groups = inmain(self.app.get_active_groups, interactive=False)
             sequence_globals = group_manager.get_globals(active_groups)
             # This will raise an exception if any of the globals can't be evaluated:
             group_manager.evaluate_globals(sequence_globals, raise_exceptions=True)
@@ -3213,11 +3215,11 @@ class RemoteServer(ZMQServer):
         return False
 
     def handle_is_output_folder_default(self):
-        return not app.non_default_folder
+        return not self.app.non_default_folder
 
     @inmain_decorator()
     def handle_reset_shot_output_folder(self):
-        app.on_reset_shot_output_folder_clicked(None)
+        self.app.on_reset_shot_output_folder_clicked(None)
 
     def handler(self, request_data):
         cmd, args, kwargs = request_data
@@ -3243,7 +3245,7 @@ if __name__ == "__main__":
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
     splash.update_text('Starting remote server')
-    remote_server = RemoteServer()
+    remote_server = RemoteServer(app)
     splash.hide()
 
     # Let the interpreter run every 500ms so it sees Ctrl-C interrupts:
