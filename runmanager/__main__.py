@@ -62,6 +62,7 @@ from zprocess import raise_exception_in_thread
 import runmanager
 import runmanager.remote
 import runmanager.compiler as compiler
+import runmanager.differ as differ
 import runmanager.group_manager as group_manager
 from runmanager.exceptions import ExpansionError
 from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel
@@ -1746,7 +1747,7 @@ class RunManager(object):
         self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
 
         # Do the globals diff
-        globals_diff_table = runmanager.globals_diff_groups(active_groups, other_groups)
+        globals_diff_table = differ.globals_diff_groups(active_groups, other_groups)
         self.output_box.output(globals_diff_table)
         self.output_box.output('Ready.\n\n')
 

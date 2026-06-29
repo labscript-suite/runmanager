@@ -1,13 +1,13 @@
-"""Script that runs :meth:`runmanager.globals_diff_shots` between two shot files.
+"""Script that runs :meth:`runmanager.differ.globals_diff_shots` between two shot files.
 
 It is run from the command prompt::
 
-$ python runmanager.global_diffs(shot1,shot2)
+$ python runmanager.differ.global_diffs(shot1,shot2)
 
 
 """
 import sys
-from runmanager import globals_diff_shots
+from runmanager.differ import globals_diff_shots
 
 if __name__ == '__main__':
 
