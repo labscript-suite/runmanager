@@ -13,6 +13,7 @@
 """Functions for reading, writing, and modifying globals groups.
 """
 
+import io
 import h5py
 import numpy as np
 import tokenize

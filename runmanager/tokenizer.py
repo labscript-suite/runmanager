@@ -13,6 +13,7 @@
 """Functions for parsing global expressions, especially for comments.
 """
 
+import io
 import tokenize
 
 def find_comments(src):
