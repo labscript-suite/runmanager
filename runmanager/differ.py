@@ -13,8 +13,11 @@
 """Functions for comparing two globals groups.
 """
 
+import numpy as np
+
 from runmanager.evaluator import evaluate_globals
 from runmanager.tokenizer import remove_comments_and_tokenify
+from runmanager.group_manager import get_all_groups, get_globals
 
 def flatten_globals(sequence_globals, evaluated=False):
     """Flattens the data structure of the globals. If evaluated=False,
@@ -29,6 +32,35 @@ def flatten_globals(sequence_globals, evaluated=False):
                 value_expression, units, expansion = value
                 flattened_sequence_globals[name] = value_expression
     return flattened_sequence_globals
+
+
+def dict_diff(dict1, dict2):
+    """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
+    Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
+    diff_keys = []
+    common_keys = np.intersect1d(list(dict1.keys()), list(dict2.keys()))
+    for key in common_keys:
+        if np.iterable(dict1[key]) or np.iterable(dict2[key]):
+            if not np.array_equal(dict1[key], dict2[key]):
+                diff_keys.append(key)
+        else:
+            if dict1[key] != dict2[key]:
+                diff_keys.append(key)
+
+    dict1_unique = [key for key in dict1.keys() if key not in common_keys]
+    dict2_unique = [key for key in dict2.keys() if key not in common_keys]
+
+    diff = {}
+    for key in diff_keys:
+        diff[key] = [dict1[key], dict2[key]]
+
+    for key in dict1_unique:
+        diff[key] = [dict1[key], '-']
+
+    for key in dict2_unique:
+        diff[key] = ['-', dict2[key]]
+
+    return diff
 
 
 def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_string=True):

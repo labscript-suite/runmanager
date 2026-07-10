@@ -16,7 +16,6 @@ import sys
 import warnings
 
 import labscript_utils.h5_lock
-import numpy as np
 
 from .__version__ import __version__
 
@@ -36,32 +35,3 @@ def iterator_to_tuple(iterator, max_length=1000000):
                              'If you really want an iterator longer than %d, ' % max_length +
                              'please modify runmanager.iterator_to_tuple and increase max_length.')
     return tuple(temp_list)
-
-
-def dict_diff(dict1, dict2):
-    """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
-    Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
-    diff_keys = []
-    common_keys = np.intersect1d(list(dict1.keys()), list(dict2.keys()))
-    for key in common_keys:
-        if np.iterable(dict1[key]) or np.iterable(dict2[key]):
-            if not np.array_equal(dict1[key], dict2[key]):
-                diff_keys.append(key)
-        else:
-            if dict1[key] != dict2[key]:
-                diff_keys.append(key)
-
-    dict1_unique = [key for key in dict1.keys() if key not in common_keys]
-    dict2_unique = [key for key in dict2.keys() if key not in common_keys]
-
-    diff = {}
-    for key in diff_keys:
-        diff[key] = [dict1[key], dict2[key]]
-
-    for key in dict1_unique:
-        diff[key] = [dict1[key], '-']
-
-    for key in dict2_unique:
-        diff[key] = ['-', dict2[key]]
-
-    return diff
