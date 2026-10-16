@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-import labscript_utils.h5_lock
+import labscript_utils.h5_lock # noqa: F401 (needed to ensure lock initializes properly)
 
 # Used in BLACS
 from runmanager.compiler import compile_labscript_with_globals_files_async
