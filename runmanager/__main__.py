@@ -48,6 +48,7 @@ matplotlib.use('Agg')
 
 from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
 from qtutils.qt.QtCore import pyqtSignal as Signal
+import qtutils.icons # noqa: F401 (registers the icon resources)
 PYQT_VERSION_STR = importlib.metadata.version(QT_ENV)
 
 splash.update_text('importing labscript suite modules')
@@ -60,6 +61,8 @@ import runmanager
 import runmanager.remote
 from runmanager import compiler
 from runmanager import differ
+from runmanager import evaluator
+from runmanager import expander
 from runmanager import tokenizer
 from runmanager import group_manager
 from runmanager.exceptions import ExpansionError
@@ -2771,13 +2774,13 @@ class RunManager:
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True, expansion_order = None, return_dimensions = False):
         sequence_globals = group_manager.get_globals(active_groups)
         #logger.info('got sequence globals')
-        evaled_globals, global_hierarchy, expansions = group_manager.evaluate_globals(sequence_globals, raise_exceptions)
+        evaled_globals, global_hierarchy, expansions = evaluator.evaluate_globals(sequence_globals, raise_exceptions)
         #logger.info('evaluated sequence globals')
         if expand_globals:
             if return_dimensions:
-                shots, dimensions = compiler.expand_globals(sequence_globals, evaled_globals, expansion_order, return_dimensions=return_dimensions)
+                shots, dimensions = expander.expand_globals(sequence_globals, evaled_globals, expansion_order, return_dimensions=return_dimensions)
             else:
-                shots = compiler.expand_globals(sequence_globals, evaled_globals, expansion_order)
+                shots = expander.expand_globals(sequence_globals, evaled_globals, expansion_order)
         else:
             shots = []
             dimensions = {}
@@ -3047,7 +3050,7 @@ class RemoteServer(ZMQServer):
                 values_only = {name: val for name, (val, _, _) in group_globals.items()}
                 all_globals.update(values_only)
         else:
-            evaled_globals, _, _ = group_manager.evaluate_globals(
+            evaled_globals, _, _ = evaluator.evaluate_globals(
                 sequence_globals, raise_exceptions=False
             )
             for group_globals in evaled_globals.values():
@@ -3184,7 +3187,7 @@ class RemoteServer(ZMQServer):
             active_groups = inmain(self.app.get_active_groups, interactive=False)
             sequence_globals = group_manager.get_globals(active_groups)
             # This will raise an exception if any of the globals can't be evaluated:
-            group_manager.evaluate_globals(sequence_globals, raise_exceptions=True)
+            evaluator.evaluate_globals(sequence_globals, raise_exceptions=True)
         except Exception: # noqa: BLE001 convert all exceptions to a boolean
             return True
         return False

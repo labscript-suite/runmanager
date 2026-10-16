@@ -205,7 +205,7 @@ def get_globalslist(filename, groupname):
 
 def new_global(filename, groupname, globalname):
     if not is_valid_python_identifier(globalname):
-        raise ValueError('{globalname} is not a valid Python variable name')
+        raise ValueError(f'{globalname} is not a valid Python variable name')
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         if globalname in group.attrs:
