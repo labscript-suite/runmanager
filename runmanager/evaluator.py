@@ -105,8 +105,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     evaled_globals = {}
     # we use a "TraceDictionary" to track which globals another global depends on
     sandbox = TraceDictionary()
-    exec('from pylab import *', sandbox, sandbox)
-    exec('from runmanager.functions import *', sandbox, sandbox)
+    exec('from pylab import *', sandbox, sandbox) # noqa: S102
+    exec('from runmanager.functions import *', sandbox, sandbox) # noqa: S102
     globals_to_eval = all_globals.copy()
     previous_errors = -1
     while globals_to_eval:

@@ -71,7 +71,7 @@ class BatchProcessor:
                     code = compile(
                         f.read(), self.script_module.__file__, 'exec', dont_inherit=True
                     )
-                    exec(code, self.script_module.__dict__)
+                    exec(code, self.script_module.__dict__) # noqa: S102
             return True
         except Exception:
             traceback_lines = traceback.format_exception(*sys.exc_info())

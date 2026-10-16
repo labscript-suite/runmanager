@@ -61,3 +61,6 @@ runmanager = "desktop_app:entry_point"
 
 [project.gui-scripts]
 runmanager-gui = "desktop_app:entry_point"
+
+[tool.ruff.lint]
+ignore = ["DTZ005", "I001"]
