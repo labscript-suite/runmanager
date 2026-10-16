@@ -94,7 +94,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 for other_group_name in groups_with_same_global:
                     results[other_group_name][global_name] = exception
                 multiply_defined_globals.add(global_name)
-            all_globals[global_name], units, expansion = sequence_globals[group_name][global_name]
+            all_globals[global_name], _, expansion = sequence_globals[group_name][global_name]
             expansions[global_name] = expansion
 
     # Do not attempt to evaluate globals which are multiply defined:

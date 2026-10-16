@@ -209,7 +209,7 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     labscript_file to determine the sequence_attrs only"""
     groups = group_manager.get_all_groups(globals_files)
     sequence_globals = group_manager.get_globals(groups)
-    evaled_globals, global_hierarchy, expansions = evaluator.evaluate_globals(sequence_globals)
+    evaled_globals, _, expansions = evaluator.evaluate_globals(sequence_globals)
     shots = expander.expand_globals(sequence_globals, evaled_globals)
     if len(shots) > 1:
         scanning_globals = []

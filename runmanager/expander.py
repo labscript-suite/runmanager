@@ -38,7 +38,7 @@ def expand_globals(sequence_globals, evaled_globals, expansion_config = None, re
     expansions = {}
     for group_name in sequence_globals:
         for global_name in sequence_globals[group_name]:
-            expression, units, expansion = sequence_globals[group_name][global_name]
+            _, _, expansion = sequence_globals[group_name][global_name]
             value = evaled_globals[group_name][global_name]
             values[global_name] = value
             expansions[global_name] = expansion

@@ -105,7 +105,7 @@ def add_expansion_groups(filename):
                     subgroup.attrs[name] = ''
         groups = {group_name: filename for group_name in get_grouplist(filename)}
         sequence_globals = get_globals(groups)
-        evaled_globals, global_hierarchy, expansions = evaluate_globals(sequence_globals, raise_exceptions=False)
+        evaled_globals, _, _ = evaluate_globals(sequence_globals, raise_exceptions=False)
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
                 value = evaled_globals[group_name][global_name]

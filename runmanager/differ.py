@@ -30,7 +30,7 @@ def flatten_globals(sequence_globals, evaluated=False):
             if evaluated:
                 flattened_sequence_globals[name] = value
             else:
-                value_expression, units, expansion = value
+                value_expression, _, _ = value
                 flattened_sequence_globals[name] = value_expression
     return flattened_sequence_globals
 

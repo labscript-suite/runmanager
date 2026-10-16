@@ -752,7 +752,7 @@ class GroupTab:
                 global_name = name_item.text()
                 value = evaled_globals[self.group_name][global_name]
 
-                ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
+                _, _, expansion = sequence_globals[self.group_name][global_name]
                 # Temporarily disconnect the item_changed signal on the model
                 # so that we can set the expansion type without triggering
                 # another preparse - the parsing has already been done with
@@ -1336,7 +1336,7 @@ class RunManager:
                 expansion_order[name] = {'order':i, 'shuffle':shuffle_item.checkState()}
             
             try:
-                sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups, expansion_order=expansion_order)
+                sequenceglobals, shots, _, _, _ = self.parse_globals(active_groups, expansion_order=expansion_order)
             except Exception as e:
                 raise Exception(f'Error parsing globals:\n{e!s}\nCompilation aborted.')
             self.logger.info('Making h5 files')
@@ -3047,7 +3047,7 @@ class RemoteServer(ZMQServer):
                 values_only = {name: val for name, (val, _, _) in group_globals.items()}
                 all_globals.update(values_only)
         else:
-            evaled_globals, global_hierarchy, expansions = group_manager.evaluate_globals(
+            evaled_globals, _, _ = group_manager.evaluate_globals(
                 sequence_globals, raise_exceptions=False
             )
             for group_globals in evaled_globals.values():
