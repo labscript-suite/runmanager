@@ -141,7 +141,6 @@ reset_shot_output_folder = _default_client.reset_shot_output_folder
 
 if __name__ == '__main__':
     # Test
-    import time
 
     current = get_globals()
     print("get globals:", current)
