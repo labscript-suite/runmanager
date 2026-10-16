@@ -48,8 +48,8 @@ def dict_diff(dict1, dict2):
             if dict1[key] != dict2[key]:
                 diff_keys.append(key)
 
-    dict1_unique = [key for key in dict1.keys() if key not in common_keys]
-    dict2_unique = [key for key in dict2.keys() if key not in common_keys]
+    dict1_unique = [key for key in dict1 if key not in common_keys]
+    dict2_unique = [key for key in dict2 if key not in common_keys]
 
     diff = {}
     for key in diff_keys:
