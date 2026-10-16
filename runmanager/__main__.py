@@ -34,8 +34,6 @@ import contextlib
 import subprocess
 import threading
 import logging
-import ast
-import pprint
 import traceback
 import signal
 from pathlib import Path
@@ -56,15 +54,14 @@ splash.update_text('importing labscript suite modules')
 from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.setup_logging import setup_logging
-import labscript_utils.shared_drive as shared_drive
-from labscript_utils import dedent
+from labscript_utils import shared_drive
 from zprocess import raise_exception_in_thread
 import runmanager
 import runmanager.remote
-import runmanager.compiler as compiler
-import runmanager.differ as differ
-import runmanager.tokenizer as tokenizer
-import runmanager.group_manager as group_manager
+from runmanager import compiler
+from runmanager import differ
+from runmanager import tokenizer
+from runmanager import group_manager
 from runmanager.exceptions import ExpansionError
 from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel
 
@@ -77,7 +74,6 @@ from qtutils import (
     qtlock,
 )
 from labscript_utils.qtwidgets.outputbox import OutputBox
-import qtutils.icons
 
 GLOBAL_MONOSPACE_FONT = "Consolas" if os.name == 'nt' else "Ubuntu Mono"
 
