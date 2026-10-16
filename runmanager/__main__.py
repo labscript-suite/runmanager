@@ -540,7 +540,7 @@ class GroupTab:
                                             previous_name=self.GLOBALS_DUMMY_ROW_TEXT)
         try:
             group_manager.new_global(self.globals_file, self.group_name, global_name)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
         else:
             # Insert the newly created global into the model:
@@ -567,7 +567,7 @@ class GroupTab:
                                             previous_name=previous_global_name)
         try:
             group_manager.rename_global(self.globals_file, self.group_name, previous_global_name, new_global_name)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
             # Set the item text back to the old name, since the rename failed:
             item.setText(previous_global_name)
@@ -645,7 +645,7 @@ class GroupTab:
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
         try:
             group_manager.set_units(self.globals_file, self.group_name, global_name, new_units)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
             # Set the item text back to the old units, since the change failed:
             item.setText(previous_units)
@@ -661,7 +661,7 @@ class GroupTab:
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
         try:
             group_manager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
             # Set the item text back to the old units, since the change failed:
             item.setText(previous_expansion)
@@ -1002,7 +1002,7 @@ class RunManager:
                 try:
                     self.load_configuration(autoload_config_file)
                     self.output_box.output('done.\n')
-                except Exception as e:
+                except Exception as e: # noqa: BLE001 send all errors to output box
                     self.output_box.output(f'\nCould not load config file: {e.__class__.__name__}: {e!s}\n\n', red=True)
                 else:
                     self.output_box.output('Ready.\n\n')
@@ -1263,7 +1263,7 @@ class RunManager:
             editor_args = [current_labscript_file] + editor_args.split()
         try:
             subprocess.Popen([editor_path] + editor_args)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(f"Unable to launch text editor specified in {self.exp_config.config_path}. Error was: {e!s}")
 
     def on_select_shot_output_folder_clicked(self, checked):
@@ -1348,7 +1348,7 @@ class RunManager:
                 labscript_file, output_folder, sequenceglobals, shots, shuffle)
             self.ui.pushButton_abort.setEnabled(True)
             self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'{e!s}\n\n', red=True)
         self.logger.info('end engage')
 
@@ -2155,7 +2155,7 @@ class RunManager:
                 # done with their request:
                 for _ in range(n_requests):
                     self.preparse_globals_required.task_done()
-            except Exception:
+            except Exception: # noqa: BLE001
                 # Raise the error, but keep going so we don't take down the
                 # whole thread if there is a bug.
                 exc_info = sys.exc_info()
@@ -2369,7 +2369,7 @@ class RunManager:
             return
         try:
             dest_group_name = group_manager.copy_group(source_globals_file, source_group_name, dest_globals_file, delete_source_group)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
         else:
             # Insert the newly created globals group into the model, as a
@@ -2407,7 +2407,7 @@ class RunManager:
                                            previous_name=self.GROUPS_DUMMY_ROW_TEXT)
         try:
             group_manager.new_group(globals_file, group_name)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
         else:
             # Insert the newly created globals group into the model, as a
@@ -2452,7 +2452,7 @@ class RunManager:
                                            previous_name=previous_group_name)
         try:
             group_manager.rename_group(globals_file, previous_group_name, new_group_name)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
             # Set the item text back to the old name, since the rename failed:
             item.setText(previous_group_name)
@@ -2654,7 +2654,7 @@ class RunManager:
                 try:
                     self.open_globals_file(globals_file)
                     self.last_opened_globals_folder = os.path.dirname(globals_file)
-                except Exception:
+                except Exception: # noqa: BLE001 redirect all exceptions to appropriate thread
                     raise_exception_in_thread(sys.exc_info())
                     continue
             else:
@@ -2760,12 +2760,12 @@ class RunManager:
                                 self.send_to_BLACS(run_file, BLACS_host)
                             if send_to_runviewer:
                                 self.send_to_runviewer(run_file)
-                    except Exception as e:
+                    except Exception as e: # noqa: BLE001 send all errors to dialog box
                         self.output_box.output(str(e) + '\n', red=True)
                         self.compilation_aborted.set()
                 inmain(self.ui.pushButton_abort.setEnabled, False)
                 self.compilation_aborted.clear()
-            except Exception:
+            except Exception: # noqa: BLE001
                 # Raise it so whatever bug it is gets seen, but keep going so
                 # the thread keeps functioning:
                 exc_info = sys.exc_info()
@@ -2942,7 +2942,7 @@ class RunManager:
                 expansion_types_changed = True
 
         # Now check everything that has an expansion type not equal to outer.
-        # If it has one, but is not iteratble, remove it from teh zip group
+        # If it has one, but is not iteratble, remove it from the zip group
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
                 if expansions[global_name] and expansions[global_name] != 'outer':
@@ -2992,7 +2992,7 @@ class RunManager:
                 self.output_box.output(response)
             else:
                 raise Exception(response)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'Couldn\'t submit job to control server: {e!s}\n', red=True)
             self.compilation_aborted.set()
 
@@ -3021,7 +3021,7 @@ class RunManager:
                     os._exit(0)
             try:
                 zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
-            except Exception as e:
+            except Exception as e: # noqa: BLE001 send all errors to dialog box
                 self.output_box.output(f'Couldn\'t submit shot to runviewer: {e!s}\n\n', red=True)
 
         try:
@@ -3030,7 +3030,7 @@ class RunManager:
                 raise Exception(response)
             else:
                 self.output_box.output(f'Shot {os.path.basename(run_file)} sent to runviewer.\n')
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'Couldn\'t submit shot to runviewer: {e!s}\n\n', red=True)
 
 
@@ -3189,7 +3189,7 @@ class RemoteServer(ZMQServer):
             sequence_globals = group_manager.get_globals(active_groups)
             # This will raise an exception if any of the globals can't be evaluated:
             group_manager.evaluate_globals(sequence_globals, raise_exceptions=True)
-        except Exception:
+        except Exception: # noqa: BLE001 convert all exceptions to a boolean
             return True
         return False
 
@@ -3208,7 +3208,7 @@ class RemoteServer(ZMQServer):
             return runmanager.__version__
         try:
             return getattr(self, 'handle_' + cmd)(*args, **kwargs)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 send all exceptions back to caller
             msg = traceback.format_exc()
             msg = "Runmanager server returned an exception:\n" + msg
             return e.__class__(msg)

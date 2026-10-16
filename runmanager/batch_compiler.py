@@ -73,7 +73,7 @@ class BatchProcessor:
                     )
                     exec(code, self.script_module.__dict__) # noqa: S102
             return True
-        except Exception:
+        except Exception: # noqa: BLE001 print errors for any exception and return failure
             traceback_lines = traceback.format_exception(*sys.exc_info())
             del traceback_lines[1:2]
             message = ''.join(traceback_lines)

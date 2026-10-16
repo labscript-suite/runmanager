@@ -196,7 +196,7 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
                 value = h5py.Reference()
             try:
                 f['globals'].attrs[name] = value
-            except Exception as e:
+            except Exception as e: # noqa: BLE001 all global exceptions are value errors
                 message = (f'Global {name} cannot be saved as an hdf5 attribute. ' +
                            'Globals can only have relatively simple datatypes, with no nested structures. ' +
                            'Original error was:\n' +
@@ -346,7 +346,7 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
             target=compile_labscript_async, args=[labscript_file, output_path, stream_port, done_callback])
         thread.daemon = True
         thread.start()
-    except Exception:
+    except Exception: # noqa: BLE001 return all errors over zmq
         error = traceback.format_exc()
         zmq_push_multipart(stream_port, data=[b'stderr', error.encode('utf-8')])
         t = threading.Thread(target=done_callback, args=(False,))

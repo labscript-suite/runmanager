@@ -125,9 +125,10 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 if expansions[global_name] == 'outer':
                     try:
                         iter(value)
-                    except Exception as e:
+                    except Exception as e: # noqa: BLE001
+                        # Any error here is an expansion error
                         raise ExpansionError(str(e))
-            except Exception as e:
+            except Exception as e: # noqa: BLE001
                 # Don't raise, just append the error to a list, we'll display them all later.
                 errors.append((global_name, e))
                 sandbox.stop_trace()
