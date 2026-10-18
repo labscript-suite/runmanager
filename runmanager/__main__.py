@@ -2841,24 +2841,15 @@ class RunManager:
                 try:
                     previous_value = self.previous_evaled_globals[group_name][global_name]
                 except KeyError:
-                    # This variable is used to guess the expansion type
-                    # 
-                    # If we already have an expansion specified for this, but
-                    # don't have a previous value, then we should use the 
-                    # new_value for the guess as we are likely loading from HDF5
-                    # file for the first time (and either way, don't want to 
-                    # overwrite what the user has put in the expansion type)
-                    #
-                    # If we don't have an expansion...
-                    # then we set it to '0' which will result in an
-                    # expansion type guess of '' (emptys string) This will
-                    # either result in nothing being done to the expansion
-                    # type or the expansion type being found to be 'outer',
-                    # which will then make it go through the machinery below
-                    if expansions.get(global_name):
-                        previous_value = new_value
-                    else:
+                    if group_name in self.previous_evaled_globals:
+                        # The global was created since the previous parse. A previous
+                        # value of 0 gives a previous guess of '', so that the
+                        # expansion type is guessed from the new value.
                         previous_value = 0
+                    else:
+                        # The group has just been loaded or activated, and the
+                        # expansion types stored in the globals file are kept.
+                        previous_value = new_value
 
                 new_guess = group_manager.guess_expansion_type(new_value)
                 previous_guess = group_manager.guess_expansion_type(previous_value)
