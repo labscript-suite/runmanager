@@ -2966,6 +2966,8 @@ class RunManager:
         return expansion_types_changed
 
     def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
+        if not shots:
+            raise ValueError('No shots to compile: a global that is expanded over has no values.')
         sequence_attrs, default_output_dir, filename_prefix = compiler.new_sequence_details(
             labscript_file, config=self.exp_config, increment_sequence_index=True
         )
