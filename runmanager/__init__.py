@@ -42,7 +42,7 @@ from runmanager.group_manager import (
     get_shot_globals,
 )
 from runmanager.evaluator import TraceDictionary, iterator_to_tuple, evaluate_globals
-from runmanager.expander import expand_globals
+from runmanager.expander import expand_globals, count_shots
 from runmanager.compiler import (
     next_sequence_index,
     new_sequence_details,
@@ -85,6 +85,7 @@ __all__ = [
     'iterator_to_tuple',
     'evaluate_globals',
     'expand_globals',
+    'count_shots',
     'next_sequence_index',
     'new_sequence_details',
     'make_run_files',
