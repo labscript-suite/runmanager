@@ -13,6 +13,7 @@
 """Functions for reading, writing, and modifying globals groups.
 """
 
+import contextlib
 import io
 import tokenize
 import warnings
@@ -146,30 +147,31 @@ def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_
         to dest_globals_file and renames the new group so that there is no name
         collision. If delete_source_group is False the copyied files have
         a suffix '_copy'."""
-    with h5py.File(source_globals_file, 'a') as source_f:
+    with contextlib.ExitStack() as stack:
+        source_f = stack.enter_context(h5py.File(source_globals_file, 'a'))
         # check if group exists
         if source_groupname not in source_f['globals']:
             raise Exception(f'Can\'t copy there is no group "{source_groupname}"!')
 
         # Are we coping from one file to another?
         if dest_globals_file is not None and source_globals_file != dest_globals_file:
-            dest_f = h5py.File(dest_globals_file, 'a')  # yes -> open dest_globals_file
+            dest_f = stack.enter_context(h5py.File(dest_globals_file, 'a'))
         else:
             dest_f = source_f  # no -> dest files is source file
 
-        # rename Group until there is no name collisions
-        i = 0 if not delete_source_group else 1
+        # Rename the group until there is no name collision: g, g_copy, g_copy(1),
+        # g_copy(2), ... for a copy and g, g(1), g(2), ... for a move
         dest_groupname = source_groupname
+        if dest_groupname in dest_f['globals'] and not delete_source_group:
+            dest_groupname = f"{source_groupname}_copy"
+        base_groupname = dest_groupname
+        i = 1
         while dest_groupname in dest_f['globals']:
-            dest_groupname = f"{dest_groupname}({i})" if i > 0 else f"{dest_groupname}_copy"
+            dest_groupname = f"{base_groupname}({i})"
             i += 1
 
         # copy group
         dest_f.copy(source_f['globals'][source_groupname], f'/globals/{dest_groupname}')
-
-        # close opend file
-        if dest_f != source_f:
-            dest_f.close()
 
     return dest_groupname
 
@@ -282,6 +284,9 @@ def delete_global(filename, groupname, globalname):
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
+        for subgroup in ['units', 'expansion']:
+            if globalname in group[subgroup].attrs:
+                del group[subgroup].attrs[globalname]
 
 
 def guess_expansion_type(value):

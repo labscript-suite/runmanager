@@ -231,7 +231,7 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     sequence_attrs, _, _ = new_sequence_details(
         labscript_file, config=config, increment_sequence_index=True
     )
-    make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 1, 1)
+    make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 0, 1)
 
 
 def compile_labscript_async(labscript_file, run_file,

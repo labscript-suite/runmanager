@@ -1266,6 +1266,7 @@ class RunManager:
             return
         if not editor_path:
             error_dialog("No editor specified in the labconfig.")
+            return
         if '{file}' in editor_args:
             # Split the args on spaces into a list, replacing {file} with the labscript file
             editor_args = [arg if arg != '{file}' else current_labscript_file for arg in editor_args.split()]
@@ -1565,16 +1566,17 @@ class RunManager:
             filepath = self.groups_model.item(index, self.GROUPS_COL_NAME).text()
             filenames[filepath] = filepath.split(os.sep)[-1]
 
-        # expand duplicate filenames until there is nomore duplicates
-        new_filename = {}
+        # Add parent directories to duplicate filenames until there are no more
+        # duplicates
         i = 2
-        while new_filename != filenames:
-            for filepath, filename in filenames.items():
-                if list(filenames.values()).count(filename) > 1:
-                    new_filename[filepath] = os.sep.join(filepath.split(os.sep)[-i:])
-                else:
-                    new_filename[filepath] = filename
-            filenames = new_filename
+        while True:
+            all_filenames = list(filenames.values())
+            duplicates = [filepath for filepath, filename in filenames.items()
+                          if all_filenames.count(filename) > 1]
+            if not duplicates:
+                break
+            for filepath in duplicates:
+                filenames[filepath] = os.sep.join(filepath.split(os.sep)[-i:])
             i += 1
 
         # add all filenames to the copy and move submenu
@@ -3020,12 +3022,9 @@ class RunManager:
                                  creationflags=creationflags, stdout=None, stderr=None,
                                  close_fds=True)
             else:
-                devnull = open(os.devnull, 'w')
-                if not os.fork():
-                    os.setsid()
-                    subprocess.Popen([sys.executable, '-m', 'runviewer'],
-                                     stdin=devnull, stdout=devnull, stderr=devnull, close_fds=True)
-                    os._exit(0)
+                subprocess.Popen([sys.executable, '-m', 'runviewer'],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
             try:
                 zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
             except Exception as e: # noqa: BLE001 send all errors to dialog box
@@ -3173,6 +3172,8 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_get_labscript_file(self):
         labscript_file = self.app.ui.lineEdit_labscript_file.text()
+        if not labscript_file:
+            return ''
         return os.path.abspath(labscript_file)
 
     @inmain_decorator()
@@ -3183,6 +3184,8 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_get_shot_output_folder(self):
         shot_output_folder = self.app.ui.lineEdit_shot_output_folder.text()
+        if not shot_output_folder:
+            return ''
         return os.path.abspath(shot_output_folder)
 
     @inmain_decorator()
@@ -3220,7 +3223,10 @@ class RemoteServer(ZMQServer):
         except Exception as e: # noqa: BLE001 send all exceptions back to caller
             msg = traceback.format_exc()
             msg = "Runmanager server returned an exception:\n" + msg
-            return e.__class__(msg)
+            try:
+                return e.__class__(msg)
+            except Exception: # noqa: BLE001 the class may need other constructor arguments
+                return Exception(msg)
 
 
 if __name__ == "__main__":
