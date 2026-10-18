@@ -3057,7 +3057,7 @@ class RemoteServer(ZMQServer):
         return all_globals
 
     @inmain_decorator()
-    def handle_set_globals(self, globals, raw=False):
+    def handle_set_globals(self, globals, raw=False, preserve_comments=True):
         active_groups = self.app.get_active_groups(interactive=False)
         sequence_globals = group_manager.get_globals(active_groups)
         try:
@@ -3083,15 +3083,16 @@ class RemoteServer(ZMQServer):
                                 raise RuntimeError(msg)
                         previous_value, _, _ = group_globals[global_name]
 
-                        # Append expression-final comments in the previous expression to
-                        # the new one:
-                        comments = tokenizer.find_comments(previous_value)
-                        if comments:
-                            # Only the final comment
-                            comment_start, comment_end = comments[-1]
-                            # Only if the comment is the last thing in the expression:
-                            if comment_end == len(previous_value):
-                                new_value += previous_value[comment_start:comment_end]
+                        if preserve_comments and not raw:
+                            # Append an expression-final comment in the previous
+                            # expression to the new one:
+                            comments = tokenizer.find_comments(previous_value)
+                            if comments:
+                                # Only the final comment
+                                comment_start, comment_end = comments[-1]
+                                # Only if the comment is the last thing in the expression:
+                                if comment_end == len(previous_value):
+                                    new_value += previous_value[comment_start:comment_end]
                         try:
                             # Is the group open?
                             group_tab = self.app.currently_open_groups[
