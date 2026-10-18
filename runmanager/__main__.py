@@ -875,6 +875,12 @@ class RunManager:
     GROUPS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
     GROUPS_ROLE_PREVIOUS_NAME = QtCore.Qt.UserRole + 2
     GROUPS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 3
+    # Sort data for the 'Active' column, by check state:
+    GROUPS_ACTIVE_SORT_DATA = {
+        QtCore.Qt.Unchecked: 0,
+        QtCore.Qt.PartiallyChecked: 1,
+        QtCore.Qt.Checked: 2,
+    }
     GROUPS_ROLE_GROUP_IS_OPEN = QtCore.Qt.UserRole + 4
     GROUPS_DUMMY_ROW_TEXT = '<Click to add group>'
 
@@ -1336,7 +1342,7 @@ class RunManager:
                 item = self.axes_model.item(i, self.AXES_COL_NAME)
                 shuffle_item = self.axes_model.item(i, self.AXES_COL_SHUFFLE)
                 name = item.data(self.AXES_ROLE_NAME)
-                expansion_order[name] = {'order':i, 'shuffle':shuffle_item.checkState()}
+                expansion_order[name] = {'order':i, 'shuffle':shuffle_item.checkState() == QtCore.Qt.Checked}
             
             try:
                 sequenceglobals, shots, _, _, _ = self.parse_globals(active_groups, expansion_order=expansion_order)
@@ -1524,6 +1530,7 @@ class RunManager:
 
 
     def on_master_shuffle_clicked(self, state):
+        state = QtCore.Qt.CheckState(state)
         if state in [QtCore.Qt.Checked, QtCore.Qt.Unchecked]:
             self.ui.pushButton_shuffle.setTristate(False)
             for i in range(self.axes_model.rowCount()):
@@ -1891,7 +1898,7 @@ class RunManager:
         try:
             check_state = item.checkState()
             # Ensure sort data matches active state:
-            item.setData(check_state, self.GROUPS_ROLE_SORT_DATA)
+            item.setData(self.GROUPS_ACTIVE_SORT_DATA[check_state], self.GROUPS_ROLE_SORT_DATA)
             if self.on_groups_model_active_changed_recursion_depth > 1:
                 # Prevent all below code from running in response to data changes
                 # initiated from within this method itself. The code above this
@@ -2248,7 +2255,7 @@ class RunManager:
         file_active_item = QtGui.QStandardItem()
         file_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated when checkstate changes:
-        file_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
+        file_active_item.setData(self.GROUPS_ACTIVE_SORT_DATA[QtCore.Qt.Unchecked], self.GROUPS_ROLE_SORT_DATA)
         file_active_item.setEditable(False)
         file_active_item.setToolTip('Check to set all the file\'s groups as active.')
 
@@ -2316,7 +2323,7 @@ class RunManager:
         group_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated whenever the
         # checkstate changes:
-        group_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
+        group_active_item.setData(self.GROUPS_ACTIVE_SORT_DATA[QtCore.Qt.Unchecked], self.GROUPS_ROLE_SORT_DATA)
         group_active_item.setEditable(False)
         group_active_item.setToolTip(
             'Whether or not the globals within this group should be used by runmanager for compilation.')
