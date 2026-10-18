@@ -1771,7 +1771,7 @@ class RunManager:
             # the new group:
             self.ui.treeView_groups.setCurrentIndex(name_index)
             self.ui.treeView_groups.edit(name_index)
-        if item.column() == self.GROUPS_COL_ACTIVE:
+        elif item.column() == self.GROUPS_COL_ACTIVE:
             # They clicked on the active column. Toggle the checkbox. We do
             # this manually because setting the item checkable means the model
             # changes before we catch the mouse click. This is a pain because
@@ -2071,7 +2071,7 @@ class RunManager:
         
         items = []
         
-        expansion_type, name = expansion_name.split()
+        expansion_type, name = expansion_name.split(None, 1)
         name_item = QtGui.QStandardItem(name)
         name_item.setData(expansion_name, self.AXES_ROLE_NAME)
         if expansion_type == 'outer':
@@ -2156,11 +2156,13 @@ class RunManager:
                             break
                 # Do some work:
                 self.logger.info(f'Pre-parsing globals with {n_requests:d} requests')
-                self.preparse_globals()
-                # Tell any callers calling preparse_globals_required.join() that we are
-                # done with their request:
-                for _ in range(n_requests):
-                    self.preparse_globals_required.task_done()
+                try:
+                    self.preparse_globals()
+                finally:
+                    # Tell any callers calling preparse_globals_required.join() that we
+                    # are done with their request:
+                    for _ in range(n_requests):
+                        self.preparse_globals_required.task_done()
             except Exception: # noqa: BLE001
                 # Raise the error, but keep going so we don't take down the
                 # whole thread if there is a bug.
