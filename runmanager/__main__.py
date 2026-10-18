@@ -753,6 +753,10 @@ class GroupTab:
                 # value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
                 # expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
                 global_name = name_item.text()
+                if global_name not in evaled_globals[self.group_name]:
+                    # Created or renamed after this parse started; the parse that
+                    # follows the change will update it.
+                    continue
                 value = evaled_globals[self.group_name][global_name]
 
                 _, _, expansion = sequence_globals[self.group_name][global_name]
