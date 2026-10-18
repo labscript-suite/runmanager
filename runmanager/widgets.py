@@ -372,13 +372,15 @@ class ItemView:
 
     def keyPressEvent(self, event):
         if event.key() in [QtCore.Qt.Key_Space, QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
-            item = self.model().itemFromIndex(self.currentIndex())
-            if item.isEditable():
-                # Space/enter edits editable items:
-                self.edit(self.currentIndex())
-            else:
-                # Space/enter on non-editable items simulates a left click:
-                self.leftClicked.emit(self.currentIndex())
+            index = self.currentIndex()
+            if index.isValid():
+                item = self.model().itemFromIndex(index)
+                if item.isEditable():
+                    # Space/enter edits editable items:
+                    self.edit(index)
+                else:
+                    # Space/enter on non-editable items simulates a left click:
+                    self.leftClicked.emit(index)
         return super().keyPressEvent(event)
 
     def moveCursor(self, cursor_action, keyboard_modifiers):

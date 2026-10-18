@@ -64,9 +64,14 @@ def dict_diff(dict1, dict2):
     return diff
 
 
+DIFF_COLUMNS = ['Prev (Eval)', 'Current (Eval)', 'Prev (Raw)', 'Current (Raw)']
+
+
 def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_string=True):
     """Given two sets of globals groups, perform a diff of the raw
-    and evaluated globals."""
+    and evaluated globals. If return_string is True, returns the diff as a
+    string. Otherwise prints it and returns it as a pandas DataFrame, which is
+    empty if there are no differences."""
     our_sequence_globals = get_globals(active_groups)
     other_sequence_globals = get_globals(other_groups)
 
@@ -102,16 +107,19 @@ def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_strin
         import pandas as pd
         df = pd.DataFrame.from_dict(filtered_differences, 'index')
         df = df.sort_index()
-        df.columns = ['Prev (Eval)', 'Current (Eval)', 'Prev (Raw)', 'Current (Raw)']
+        df.columns = DIFF_COLUMNS
         df_string = df.to_string(max_cols=max_cols)
         payload = df_string + '\n\n'
     else:
+        df = None
         payload = 'Evaluated globals are identical to those of selected file.\n'
     if return_string:
         return payload
-    else:
-        print(payload)
-        return df
+    print(payload)
+    if df is None:
+        import pandas as pd
+        df = pd.DataFrame(columns=DIFF_COLUMNS)
+    return df
 
 
 def globals_diff_shots(file1, file2, max_cols=100):

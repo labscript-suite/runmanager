@@ -21,6 +21,7 @@ import errno
 import json
 import os
 import random
+import sys
 import threading
 import traceback
 
@@ -153,7 +154,13 @@ def make_run_files(
     the event of failed compilation of labscripts. If you want all the run files to be
     created at some point, simply convert the returned generator to a list. The
     filenames the run files are given is simply the sequence_id with increasing integers
-    appended."""
+    appended. Raises ValueError if shots is empty."""
+    if not shots:
+        raise ValueError('No shots to compile: a global that is expanded over has no values.')
+    return _make_run_files(output_folder, sequence_globals, shots, sequence_attrs, filename_prefix, shuffle)
+
+
+def _make_run_files(output_folder, sequence_globals, shots, sequence_attrs, filename_prefix, shuffle):
     basename = os.path.join(output_folder, filename_prefix)
     nruns = len(shots)
     ndigits = int(np.ceil(np.log10(nruns)))
@@ -213,6 +220,8 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     sequence_globals = group_manager.get_globals(groups)
     evaled_globals, _, expansions = evaluator.evaluate_globals(sequence_globals)
     shots = expander.expand_globals(sequence_globals, evaled_globals)
+    if not shots:
+        raise ValueError('No shots to compile: a global that is expanded over has no values.')
     if len(shots) > 1:
         scanning_globals = []
         for global_name in expansions:
@@ -224,7 +233,7 @@ def make_run_file_from_globals_files(labscript_file, globals_files, output_path,
     sequence_attrs, _, _ = new_sequence_details(
         labscript_file, config=config, increment_sequence_index=True
     )
-    make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 1, 1)
+    make_single_run_file(output_path, sequence_globals, shots[0], sequence_attrs, 0, 1)
 
 
 def compile_labscript_async(labscript_file, run_file,
@@ -256,18 +265,17 @@ def compile_labscript_async(labscript_file, run_file,
     to_child, from_child, child = process_tree.subprocess(
         compiler_path, output_redirection_port=stream_port
     )
-    to_child.put(['compile', [labscript_file, run_file]])
-    while True:
+    try:
+        to_child.put(['compile', [labscript_file, run_file]])
         signal, data = from_child.get()
-        if signal == 'done':
-            success = data
-            to_child.put(['quit', None])
-            child.communicate()
-            if done_callback is not None:
-                done_callback(success)
-            break
-        else:
+        if signal != 'done':
             raise RuntimeError((signal, data))
+        success = data
+    finally:
+        to_child.put(['quit', None])
+        child.communicate()
+    if done_callback is not None:
+        done_callback(success)
 
 
 def compile_multishot_async(labscript_file, run_files,
@@ -301,23 +309,24 @@ def compile_multishot_async(labscript_file, run_files,
     try:
         for run_file in run_files:
             to_child.put(['compile', [labscript_file, run_file]])
-            while True:
-                signal, data = from_child.get()
-                if signal == 'done':
-                    success = data
-                    if done_callback is not None:
-                        done_callback(data)
-                    break
+            signal, data = from_child.get()
+            if signal != 'done':
+                raise RuntimeError((signal, data))
+            success = data
+            if done_callback is not None:
+                done_callback(success)
             if not success:
                 break
     except Exception:
         error = traceback.format_exc()
-        zmq_push_multipart(stream_port, data=[b'stderr', error.encode('utf-8')])
+        if stream_port is None:
+            sys.stderr.write(error)
+        else:
+            zmq_push_multipart(stream_port, data=[b'stderr', error.encode('utf-8')])
+        raise
+    finally:
         to_child.put(['quit', None])
         child.communicate()
-        raise
-    to_child.put(['quit', None])
-    child.communicate()
 
 
 def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path,

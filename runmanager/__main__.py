@@ -45,6 +45,7 @@ splash.update_text('importing matplotlib')
 # GUI integration:
 import matplotlib
 matplotlib.use('Agg')
+import numpy as np
 
 from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
 from qtutils.qt.QtCore import pyqtSignal as Signal
@@ -753,6 +754,10 @@ class GroupTab:
                 # value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
                 # expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
                 global_name = name_item.text()
+                if global_name not in evaled_globals[self.group_name]:
+                    # Created or renamed after this parse started; the parse that
+                    # follows the change will update it.
+                    continue
                 value = evaled_globals[self.group_name][global_name]
 
                 _, _, expansion = sequence_globals[self.group_name][global_name]
@@ -1208,6 +1213,7 @@ class RunManager:
         for (globals_file, group_name), tab in self.currently_open_groups.items():
             if tab.ui is current_tab_widget:
                 self.close_group(globals_file, group_name)
+                break
 
     def switch_tabs(self, change):
         current_index = self.ui.tabWidget.currentIndex()
@@ -1260,6 +1266,7 @@ class RunManager:
             return
         if not editor_path:
             error_dialog("No editor specified in the labconfig.")
+            return
         if '{file}' in editor_args:
             # Split the args on spaces into a list, replacing {file} with the labscript file
             editor_args = [arg if arg != '{file}' else current_labscript_file for arg in editor_args.split()]
@@ -1560,16 +1567,17 @@ class RunManager:
             filepath = self.groups_model.item(index, self.GROUPS_COL_NAME).text()
             filenames[filepath] = filepath.split(os.sep)[-1]
 
-        # expand duplicate filenames until there is nomore duplicates
-        new_filename = {}
+        # Add parent directories to duplicate filenames until there are no more
+        # duplicates
         i = 2
-        while new_filename != filenames:
-            for filepath, filename in filenames.items():
-                if list(filenames.values()).count(filename) > 1:
-                    new_filename[filepath] = os.sep.join(filepath.split(os.sep)[-i:])
-                else:
-                    new_filename[filepath] = filename
-            filenames = new_filename
+        while True:
+            all_filenames = list(filenames.values())
+            duplicates = [filepath for filepath, filename in filenames.items()
+                          if all_filenames.count(filename) > 1]
+            if not duplicates:
+                break
+            for filepath in duplicates:
+                filenames[filepath] = os.sep.join(filepath.split(os.sep)[-i:])
             i += 1
 
         # add all filenames to the copy and move submenu
@@ -2864,24 +2872,15 @@ class RunManager:
                 try:
                     previous_value = self.previous_evaled_globals[group_name][global_name]
                 except KeyError:
-                    # This variable is used to guess the expansion type
-                    # 
-                    # If we already have an expansion specified for this, but
-                    # don't have a previous value, then we should use the 
-                    # new_value for the guess as we are likely loading from HDF5
-                    # file for the first time (and either way, don't want to 
-                    # overwrite what the user has put in the expansion type)
-                    #
-                    # If we don't have an expansion...
-                    # then we set it to '0' which will result in an
-                    # expansion type guess of '' (emptys string) This will
-                    # either result in nothing being done to the expansion
-                    # type or the expansion type being found to be 'outer',
-                    # which will then make it go through the machinery below
-                    if expansions.get(global_name):
-                        previous_value = new_value
-                    else:
+                    if group_name in self.previous_evaled_globals:
+                        # The global was created since the previous parse. A previous
+                        # value of 0 gives a previous guess of '', so that the
+                        # expansion type is guessed from the new value.
                         previous_value = 0
+                    else:
+                        # The group has just been loaded or activated, and the
+                        # expansion types stored in the globals file are kept.
+                        previous_value = new_value
 
                 new_guess = group_manager.guess_expansion_type(new_value)
                 previous_guess = group_manager.guess_expansion_type(previous_value)
@@ -2996,6 +2995,8 @@ class RunManager:
         return expansion_types_changed
 
     def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
+        if not shots:
+            raise ValueError('No shots to compile: a global that is expanded over has no values.')
         sequence_attrs, default_output_dir, filename_prefix = compiler.new_sequence_details(
             labscript_file, config=self.exp_config, increment_sequence_index=True
         )
@@ -3048,12 +3049,9 @@ class RunManager:
                                  creationflags=creationflags, stdout=None, stderr=None,
                                  close_fds=True)
             else:
-                devnull = open(os.devnull, 'w')
-                if not os.fork():
-                    os.setsid()
-                    subprocess.Popen([sys.executable, '-m', 'runviewer'],
-                                     stdin=devnull, stdout=devnull, stderr=devnull, close_fds=True)
-                    os._exit(0)
+                subprocess.Popen([sys.executable, '-m', 'runviewer'],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
             try:
                 zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
             except Exception as e: # noqa: BLE001 send all errors to dialog box
@@ -3103,7 +3101,9 @@ class RemoteServer(ZMQServer):
                 # or file. If this does not result in an object the user can actually
                 # use, evaluation will error and the caller will find out about it later
                 if not raw:
-                    new_value = repr(new_value)
+                    # Arrays are written in full, not summarised with an ellipsis:
+                    with np.printoptions(threshold=sys.maxsize):
+                        new_value = repr(new_value)
                 elif not isinstance(new_value, (str, bytes)):
                     msg = "global %s must be a string if raw=True, not %s"
                     raise TypeError(msg % (global_name, new_value.__class__.__name__))
@@ -3200,6 +3200,8 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_get_labscript_file(self):
         labscript_file = self.app.ui.lineEdit_labscript_file.text()
+        if not labscript_file:
+            return ''
         return os.path.abspath(labscript_file)
 
     @inmain_decorator()
@@ -3210,6 +3212,8 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_get_shot_output_folder(self):
         shot_output_folder = self.app.ui.lineEdit_shot_output_folder.text()
+        if not shot_output_folder:
+            return ''
         return os.path.abspath(shot_output_folder)
 
     @inmain_decorator()
@@ -3247,7 +3251,10 @@ class RemoteServer(ZMQServer):
         except Exception as e: # noqa: BLE001 send all exceptions back to caller
             msg = traceback.format_exc()
             msg = "Runmanager server returned an exception:\n" + msg
-            return e.__class__(msg)
+            try:
+                return e.__class__(msg)
+            except Exception: # noqa: BLE001 the class may need other constructor arguments
+                return Exception(msg)
 
 
 if __name__ == "__main__":
