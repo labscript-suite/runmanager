@@ -1352,6 +1352,7 @@ class RunManager:
         self.logger.info('end engage')
 
     def on_abort_clicked(self):
+        self.discard_queued_sequences()
         self.compilation_aborted.set()
 
     def on_restart_subprocess_clicked(self):
@@ -2733,6 +2734,7 @@ class RunManager:
         while True:
             try:
                 labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                inmain(self.ui.pushButton_abort.setEnabled, True)
                 run_files = iter(run_files)  # Should already be in iterator but just in case
                 while True:
                     if self.compilation_aborted.is_set():
@@ -2761,7 +2763,8 @@ class RunManager:
                     except Exception as e: # noqa: BLE001 send all errors to dialog box
                         self.output_box.output(str(e) + '\n', red=True)
                         self.compilation_aborted.set()
-                inmain(self.ui.pushButton_abort.setEnabled, False)
+                if self.compile_queue.empty():
+                    inmain(self.ui.pushButton_abort.setEnabled, False)
                 self.compilation_aborted.clear()
             except Exception: # noqa: BLE001
                 # Raise it so whatever bug it is gets seen, but keep going so
@@ -2769,6 +2772,21 @@ class RunManager:
                 exc_info = sys.exc_info()
                 raise_exception_in_thread(exc_info)
                 continue
+
+    def discard_queued_sequences(self):
+        """Removes every sequence waiting in the compile queue and reports the number
+        removed in the output box."""
+        n_discarded = 0
+        while True:
+            try:
+                self.compile_queue.get_nowait()
+            except queue.Empty:
+                break
+            n_discarded += 1
+        if n_discarded == 1:
+            self.output_box.output('Discarded 1 queued sequence.\n', red=True)
+        elif n_discarded:
+            self.output_box.output(f'Discarded {n_discarded} queued sequences.\n', red=True)
 
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True, expansion_order = None, return_dimensions = False):
         sequence_globals = group_manager.get_globals(active_groups)
