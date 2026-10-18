@@ -1693,6 +1693,8 @@ class RunManager:
         if not globals_file:
             # User cancelled
             return
+        if not globals_file.lower().endswith('.h5'):
+            globals_file += '.h5'
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         globals_file = os.path.abspath(globals_file)
@@ -2524,6 +2526,8 @@ class RunManager:
         if not save_file:
             # User cancelled
             return
+        if not save_file.lower().endswith('.ini'):
+            save_file += '.ini'
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         save_file = os.path.abspath(save_file)
