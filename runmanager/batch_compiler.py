@@ -61,9 +61,9 @@ class BatchProcessor:
         # Save the current working directory before changing it to the location of the
         # user's script:
         cwd = os.getcwd()
-        os.chdir(os.path.dirname(labscript_file))
 
         try:
+            os.chdir(os.path.dirname(labscript_file))
             # Do not let the modulewatcher unload any modules whilst we're working:
             with kill_lock, module_watcher.lock:
                 labscript.labscript_init(run_file, labscript_file=labscript_file)
@@ -73,7 +73,7 @@ class BatchProcessor:
                     )
                     exec(code, self.script_module.__dict__) # noqa: S102
             return True
-        except Exception: # noqa: BLE001 print errors for any exception and return failure
+        except (Exception, SystemExit): # noqa: BLE001 print errors for any exception and return failure
             traceback_lines = traceback.format_exception(*sys.exc_info())
             del traceback_lines[1:2]
             message = ''.join(traceback_lines)
