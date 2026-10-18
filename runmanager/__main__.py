@@ -1346,7 +1346,7 @@ class RunManager:
             labscript_file, run_files = self.make_h5_files(
                 labscript_file, output_folder, sequenceglobals, shots, shuffle)
             self.ui.pushButton_abort.setEnabled(True)
-            self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
+            self.compile_queue.put([labscript_file, run_files, len(shots), send_to_BLACS, BLACS_host, send_to_runviewer])
         except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'{e!s}\n\n', red=True)
         self.logger.info('end engage')
@@ -2733,9 +2733,10 @@ class RunManager:
     def compile_loop(self):
         while True:
             try:
-                labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                labscript_file, run_files, n_shots, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
                 inmain(self.ui.pushButton_abort.setEnabled, True)
                 run_files = iter(run_files)  # Should already be in iterator but just in case
+                shot_number = 0
                 while True:
                     if self.compilation_aborted.is_set():
                         self.output_box.output('Compilation aborted.\n\n', red=True)
@@ -2750,6 +2751,11 @@ class RunManager:
                             self.output_box.output('Ready.\n\n')
                             break
                         else:
+                            shot_number += 1
+                            self.output_box.write(
+                                f'Compiling {os.path.basename(run_file)} (shot {shot_number} of {n_shots})\n',
+                                bold=True,
+                            )
                             self.to_child.put(['compile', [labscript_file, run_file]])
                             signal, success = self.from_child.get()
                             assert signal == 'done'
