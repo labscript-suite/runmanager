@@ -175,7 +175,9 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
     new_sequence_details. run_no and n_runs must be provided, if this run file is part
     of a sequence, then they should reflect how many run files are being generated in
     this sequence, all of which must have identical sequence_attrs."""
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    directory = os.path.dirname(filename)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     with h5py.File(filename, 'w') as f:
         f.attrs.update(sequence_attrs)
         f.attrs['run number'] = run_no

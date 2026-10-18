@@ -41,13 +41,19 @@ class Client(ZMQClient):
         evaluated as python objects and then returned."""
         return self.request('get_globals', raw=raw)
 
-    def set_globals(self, globals, raw=False):
+    def set_globals(self, globals, raw=False, preserve_comments=True):
         """For a dict of the form {'<global_name>': value}, set the given globals to the
         given values. If raw=True, then global values will be treated as the string
         representations of Python objects rather than the objects themselves, and
         written directly to the HDF5 file and runmanager GUI without calling repr() on
-        them first."""
-        return self.request('set_globals', globals, raw=raw)
+        them first. If preserve_comments=True and raw=False, a comment at the end of a
+        global's previous expression is appended to the new expression."""
+        kwargs = {'raw': raw}
+        # Only sent when False, so that the default call works with servers that do not
+        # accept it:
+        if not preserve_comments:
+            kwargs['preserve_comments'] = False
+        return self.request('set_globals', globals, **kwargs)
 
     def engage(self):
         """Trigger shot compilation/submission"""

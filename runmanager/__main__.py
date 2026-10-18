@@ -1346,12 +1346,13 @@ class RunManager:
             labscript_file, run_files = self.make_h5_files(
                 labscript_file, output_folder, sequenceglobals, shots, shuffle)
             self.ui.pushButton_abort.setEnabled(True)
-            self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
+            self.compile_queue.put([labscript_file, run_files, len(shots), send_to_BLACS, BLACS_host, send_to_runviewer])
         except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'{e!s}\n\n', red=True)
         self.logger.info('end engage')
 
     def on_abort_clicked(self):
+        self.discard_queued_sequences()
         self.compilation_aborted.set()
 
     def on_restart_subprocess_clicked(self):
@@ -1692,6 +1693,8 @@ class RunManager:
         if not globals_file:
             # User cancelled
             return
+        if not globals_file.lower().endswith('.h5'):
+            globals_file += '.h5'
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         globals_file = os.path.abspath(globals_file)
@@ -2108,18 +2111,17 @@ class RunManager:
         # type changes. If this occurs, we will have to parse again to
         # include the change:
         while True:
-            results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False, return_dimensions = True)
-            sequence_globals, shots, evaled_globals, global_hierarchy, expansions, dimensions = results
-            self.n_shots = len(shots)
+            results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False)
+            sequence_globals, _, evaled_globals, global_hierarchy, expansions = results
             expansions_changed = self.guess_expansion_modes(
                 active_groups, evaled_globals, global_hierarchy, expansions)
             if not expansions_changed:
-                # Now expand globals while parsing to calculate the number of shots.
-                # this must only be done after the expansion type guessing has been updated to avoid exceptions
-                # when changing a zip group from a list to a single value
-                results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=True, return_dimensions = True)
-                sequence_globals, shots, evaled_globals, global_hierarchy, expansions, dimensions = results
-                self.n_shots = len(shots)
+                # Count the shots without constructing them. This must only be done
+                # after the expansion type guessing has been updated, to avoid
+                # exceptions when changing a zip group from a list to a single value.
+                self.n_shots, dimensions = expander.count_shots(
+                    sequence_globals, evaled_globals, return_dimensions=True
+                )
                 break
         self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, self.n_shots)
         self.update_axes_tab(expansions, dimensions)
@@ -2524,6 +2526,8 @@ class RunManager:
         if not save_file:
             # User cancelled
             return
+        if not save_file.lower().endswith('.ini'):
+            save_file += '.ini'
         # Convert to standard platform specific path, otherwise Qt likes
         # forward slashes:
         save_file = os.path.abspath(save_file)
@@ -2733,8 +2737,10 @@ class RunManager:
     def compile_loop(self):
         while True:
             try:
-                labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                labscript_file, run_files, n_shots, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                inmain(self.ui.pushButton_abort.setEnabled, True)
                 run_files = iter(run_files)  # Should already be in iterator but just in case
+                shot_number = 0
                 while True:
                     if self.compilation_aborted.is_set():
                         self.output_box.output('Compilation aborted.\n\n', red=True)
@@ -2749,6 +2755,11 @@ class RunManager:
                             self.output_box.output('Ready.\n\n')
                             break
                         else:
+                            shot_number += 1
+                            self.output_box.write(
+                                f'Compiling {os.path.basename(run_file)} (shot {shot_number} of {n_shots})\n',
+                                bold=True,
+                            )
                             self.to_child.put(['compile', [labscript_file, run_file]])
                             signal, success = self.from_child.get()
                             assert signal == 'done'
@@ -2762,7 +2773,8 @@ class RunManager:
                     except Exception as e: # noqa: BLE001 send all errors to dialog box
                         self.output_box.output(str(e) + '\n', red=True)
                         self.compilation_aborted.set()
-                inmain(self.ui.pushButton_abort.setEnabled, False)
+                if self.compile_queue.empty():
+                    inmain(self.ui.pushButton_abort.setEnabled, False)
                 self.compilation_aborted.clear()
             except Exception: # noqa: BLE001
                 # Raise it so whatever bug it is gets seen, but keep going so
@@ -2770,6 +2782,21 @@ class RunManager:
                 exc_info = sys.exc_info()
                 raise_exception_in_thread(exc_info)
                 continue
+
+    def discard_queued_sequences(self):
+        """Removes every sequence waiting in the compile queue and reports the number
+        removed in the output box."""
+        n_discarded = 0
+        while True:
+            try:
+                self.compile_queue.get_nowait()
+            except queue.Empty:
+                break
+            n_discarded += 1
+        if n_discarded == 1:
+            self.output_box.output('Discarded 1 queued sequence.\n', red=True)
+        elif n_discarded:
+            self.output_box.output(f'Discarded {n_discarded} queued sequences.\n', red=True)
 
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True, expansion_order = None, return_dimensions = False):
         sequence_globals = group_manager.get_globals(active_groups)
@@ -3058,7 +3085,7 @@ class RemoteServer(ZMQServer):
         return all_globals
 
     @inmain_decorator()
-    def handle_set_globals(self, globals, raw=False):
+    def handle_set_globals(self, globals, raw=False, preserve_comments=True):
         active_groups = self.app.get_active_groups(interactive=False)
         sequence_globals = group_manager.get_globals(active_groups)
         try:
@@ -3084,15 +3111,16 @@ class RemoteServer(ZMQServer):
                                 raise RuntimeError(msg)
                         previous_value, _, _ = group_globals[global_name]
 
-                        # Append expression-final comments in the previous expression to
-                        # the new one:
-                        comments = tokenizer.find_comments(previous_value)
-                        if comments:
-                            # Only the final comment
-                            comment_start, comment_end = comments[-1]
-                            # Only if the comment is the last thing in the expression:
-                            if comment_end == len(previous_value):
-                                new_value += previous_value[comment_start:comment_end]
+                        if preserve_comments and not raw:
+                            # Append an expression-final comment in the previous
+                            # expression to the new one:
+                            comments = tokenizer.find_comments(previous_value)
+                            if comments:
+                                # Only the final comment
+                                comment_start, comment_end = comments[-1]
+                                # Only if the comment is the last thing in the expression:
+                                if comment_end == len(previous_value):
+                                    new_value += previous_value[comment_start:comment_end]
                         try:
                             # Is the group open?
                             group_tab = self.app.currently_open_groups[
