@@ -45,6 +45,7 @@ splash.update_text('importing matplotlib')
 # GUI integration:
 import matplotlib
 matplotlib.use('Agg')
+import numpy as np
 
 from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
 from qtutils.qt.QtCore import pyqtSignal as Signal
@@ -3072,7 +3073,9 @@ class RemoteServer(ZMQServer):
                 # or file. If this does not result in an object the user can actually
                 # use, evaluation will error and the caller will find out about it later
                 if not raw:
-                    new_value = repr(new_value)
+                    # Arrays are written in full, not summarised with an ellipsis:
+                    with np.printoptions(threshold=sys.maxsize):
+                        new_value = repr(new_value)
                 elif not isinstance(new_value, (str, bytes)):
                     msg = "global %s must be a string if raw=True, not %s"
                     raise TypeError(msg % (global_name, new_value.__class__.__name__))
