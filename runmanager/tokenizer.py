@@ -21,15 +21,18 @@ def find_comments(src):
     """Return a list of start and end indices for where comments are in given Python
     source. Comments on separate lines with only whitespace in between them are
     coalesced. Whitespace preceding a comment is counted as part of the comment."""
-    line_start = 0
+    # Offset of the start of each line in src, so that token positions, which are
+    # a line number and a column, can be converted to offsets:
+    line_offsets = [0]
+    for line in io.StringIO(src):
+        line_offsets.append(line_offsets[-1] + len(line))
     comments = []
     tokens = tokenize.generate_tokens(io.StringIO(src).readline)
     try:
-        for token_type, token_value, (_, start), (_, end), _ in tokens:
+        for token_type, _, (row, start), (_, end), _ in tokens:
             if token_type == tokenize.COMMENT:
+                line_start = line_offsets[row - 1]
                 comments.append((line_start + start, line_start + end))
-            if token_value == '\n':
-                line_start += end
     except tokenize.TokenError:
         pass
     # coalesce comments with only whitespace between them:
