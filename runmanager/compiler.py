@@ -21,6 +21,7 @@ import errno
 import json
 import os
 import random
+import sys
 import threading
 import traceback
 
@@ -262,18 +263,17 @@ def compile_labscript_async(labscript_file, run_file,
     to_child, from_child, child = process_tree.subprocess(
         compiler_path, output_redirection_port=stream_port
     )
-    to_child.put(['compile', [labscript_file, run_file]])
-    while True:
+    try:
+        to_child.put(['compile', [labscript_file, run_file]])
         signal, data = from_child.get()
-        if signal == 'done':
-            success = data
-            to_child.put(['quit', None])
-            child.communicate()
-            if done_callback is not None:
-                done_callback(success)
-            break
-        else:
+        if signal != 'done':
             raise RuntimeError((signal, data))
+        success = data
+    finally:
+        to_child.put(['quit', None])
+        child.communicate()
+    if done_callback is not None:
+        done_callback(success)
 
 
 def compile_multishot_async(labscript_file, run_files,
@@ -307,23 +307,24 @@ def compile_multishot_async(labscript_file, run_files,
     try:
         for run_file in run_files:
             to_child.put(['compile', [labscript_file, run_file]])
-            while True:
-                signal, data = from_child.get()
-                if signal == 'done':
-                    success = data
-                    if done_callback is not None:
-                        done_callback(data)
-                    break
+            signal, data = from_child.get()
+            if signal != 'done':
+                raise RuntimeError((signal, data))
+            success = data
+            if done_callback is not None:
+                done_callback(success)
             if not success:
                 break
     except Exception:
         error = traceback.format_exc()
-        zmq_push_multipart(stream_port, data=[b'stderr', error.encode('utf-8')])
+        if stream_port is None:
+            sys.stderr.write(error)
+        else:
+            zmq_push_multipart(stream_port, data=[b'stderr', error.encode('utf-8')])
+        raise
+    finally:
         to_child.put(['quit', None])
         child.communicate()
-        raise
-    to_child.put(['quit', None])
-    child.communicate()
 
 
 def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path,
