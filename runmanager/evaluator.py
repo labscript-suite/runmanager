@@ -171,6 +171,22 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 break
         previous_errors = len(errors)
 
+    # Globals in the same zip group must have equal lengths. Exceptions and
+    # iterators without a length are skipped:
+    zip_groups = {}
+    for global_name, value in evaled_globals.items():
+        if expansions[global_name] not in ('', 'outer') and hasattr(value, '__len__'):
+            zip_groups.setdefault(expansions[global_name], {})[global_name] = len(value)
+    for zip_key, lengths in zip_groups.items():
+        if len(set(lengths.values())) > 1:
+            exception = ValueError(
+                f"Globals in zip group '{zip_key}' have unequal lengths: "
+                + ', '.join(f'{name} ({length})' for name, length in lengths.items())
+            )
+            if raise_exceptions:
+                raise exception
+            evaled_globals.update(dict.fromkeys(lengths, exception))
+
     # Assemble results into a dictionary of the same format as sequence_globals:
     for group_name in sequence_globals:
         for global_name in sequence_globals[group_name]:
