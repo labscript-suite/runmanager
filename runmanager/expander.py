@@ -65,7 +65,7 @@ def _make_axes(sequence_globals, evaled_globals, expansion_config=None):
                     value = [value]
                 axis.append(value)
                 zip_global_names.append(global_name)
-        axes['zip '+zip_key] = list(zip(*axis))
+        axes['zip '+zip_key] = list(zip(*axis, strict=True))
         global_names['zip '+zip_key] = zip_global_names
 
     # Give each global being outer-product'ed its own axis. It gets
