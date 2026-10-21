@@ -41,7 +41,7 @@ from runmanager.group_manager import (
     get_globals,
     get_shot_globals,
 )
-from runmanager.evaluator import TraceDictionary, iterator_to_tuple, evaluate_globals
+from runmanager.evaluator import iterator_to_tuple, evaluate_globals
 from runmanager.expander import expand_globals, count_shots
 from runmanager.compiler import (
     next_sequence_index,
@@ -81,7 +81,6 @@ __all__ = [
     'get_all_groups',
     'get_globals',
     'get_shot_globals',
-    'TraceDictionary',
     'iterator_to_tuple',
     'evaluate_globals',
     'expand_globals',
