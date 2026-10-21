@@ -429,9 +429,6 @@ subprocess</string>
               <property name="text">
                <string/>
               </property>
-              <property name="pixmap">
-               <pixmap>:/qtutils/fugue/exclamation-white.png</pixmap>
-              </property>
              </widget>
             </item>
             <item>

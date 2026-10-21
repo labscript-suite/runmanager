@@ -908,6 +908,12 @@ class RunManager:
             os.path.join(runmanager_dir, 'main.ui'), RunmanagerMainWindow()
         )
 
+        # Rendered from an icon rather than set as a pixmap in main.ui, so that it is
+        # drawn at the small icon size and crisp on high-DPI displays:
+        icon_size = self.ui.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
+        self.ui.label_non_default_folder.setPixmap(
+            QtGui.QIcon(':/qtutils/fugue/exclamation-white').pixmap(icon_size, icon_size))
+
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
 
         # Add a 'pop-out' button to the output tab:
