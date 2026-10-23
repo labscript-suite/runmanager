@@ -329,28 +329,16 @@ expanded on a different axis (an ‘outer’ global or a global in another zip g
 directly or through globals that are not expanded. A quantity that depends on several axes
 of a scan can be computed in the experiment script, where each global has a single value.
 
-To implement this, we take advantage of the Python built-in function exec which not
-only evaluates a string containing a Python expression, but can do so from within a controlled
-namespace. This has a two-fold benefit. The first is that it allows us to provide
-access to a specific set of functions that can be used from within the Python expressions
-(such as numpy functions like `linspace`). The second is that it allows us to keep track of the
-relationship between global variables, which is critical for both descriptive error messages
-and automatically detecting which globals should be combined into a zip groups.
-
-The Python `exec` function is given access to a namespace to work in via an optional
-argument in the form of a dictionary. Keys and values in this dictionary correspond to
-variable names in the namespace and their associated values respectively. Rather than
-using a native Python dictionary for the namespace, we subclass the Python dictionary
-and override the built-in dictionary method for looking up entries in the dictionary. When
-combined with exec, this translates to our `dict` subclasses tracking each time the `exec`
-function requests the value of a variable in the namespace. This then provides us with a
-mapping of each global variable, and the names of global variables that it depends on. In
-order to resolve both the order in which global variable expressions are evaluated in, and
-detection of any recursive relationships, we begin by evaluating all global expressions and
-then recursively re-evaluate the set of globals that did not evaluate in the previous iteration.
-The first iteration will evaluate any (correctly defined) independent globals, and subsequent
-iterations will then be able to evaluate globals that depend on other globals (once those
-other globals have been evaluated by a previous iteration).
+To implement this, each expression is parsed with the Python ``ast`` module to find the
+names of the other globals that it refers to, and the expressions are then evaluated in an
+order in which every global comes after the globals it refers to, each in a namespace that
+also holds a specific set of functions that can be used from within the expressions (such
+as numpy functions like `linspace`). This gives a mapping of each global variable to the
+names of the global variables that it depends on, which is used for descriptive error
+messages and for automatically detecting which globals should be combined into zip groups.
+Each expression is evaluated once. Globals that refer to each other in a cycle are reported
+as an error naming the cycle, and a global that refers to a global with an error gets an
+error of its own.
 
 The hierarchy of global interdependencies is then used to determine automatic zip group
 names, which are based on the name of the global in the hierarchy that does not depend on

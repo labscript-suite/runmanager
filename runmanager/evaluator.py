@@ -15,29 +15,12 @@
 Evaluating converts strings into python expressions.
 """
 
+import ast
+import graphlib
 import types
 
 from runmanager.exceptions import ExpansionError
 
-
-class TraceDictionary(dict):
-
-    def __init__(self, *args, **kwargs):
-        self.trace_data = None
-        dict.__init__(self, *args, **kwargs)
-
-    def start_trace(self):
-        self.trace_data = []
-
-    def __getitem__(self, key):
-        if self.trace_data is not None and key not in self.trace_data:
-            self.trace_data.append(key)
-        return dict.__getitem__(self, key)
-
-    def stop_trace(self):
-        trace_data = self.trace_data
-        self.trace_data = None
-        return trace_data
 
 def iterator_to_tuple(iterator, max_length=1000000):
     # We want to prevent infinite length tuples, but we cannot know
@@ -54,15 +37,17 @@ def iterator_to_tuple(iterator, max_length=1000000):
     return tuple(temp_list)
 
 def evaluate_globals(sequence_globals, raise_exceptions=True):
-    """Takes a dictionary of globals as returned by get_globals. These
-    globals are unevaluated strings.  Evaluates them all in the same
-    namespace so that the expressions can refer to each other. Iterates
-    to allow for NameErrors to be resolved by subsequently defined
-    globals. Throws an exception if this does not result in all errors
-    going away. The exception contains the messages of all exceptions
-    which failed to be resolved. If raise_exceptions is False, any
-    evaluations resulting in an exception will instead return the
-    exception object in the results dictionary"""
+    """Evaluates the expressions of the globals in sequence_globals and returns
+    (results, global_hierarchy, expansions). results has the structure of
+    sequence_globals with each expression replaced by its value. global_hierarchy maps
+    the name of each global that refers to other globals to a sorted list of their
+    names. expansions maps each global name to its expansion setting.
+
+    Each expression is evaluated once, after the globals that it refers to. A global
+    that fails to evaluate, that is defined in more than one group, or that is in a
+    cycle of references holds an exception instead of a value, and the globals that
+    refer to it fail with NameError. If raise_exceptions is True, one exception listing
+    every failed global is raised instead."""
 
     # Flatten all the groups into one dictionary of {global_name:
     # expression} pairs. Also create the group structure of the results
@@ -70,7 +55,6 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     all_globals = {}
     results = {}
     expansions = {}
-    global_hierarchy = {}
     # Pre-fill the results dictionary with groups, this is needed for
     # storing exceptions in the case of globals with the same name being
     # defined in multiple groups (all of them get the exception):
@@ -101,75 +85,83 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     for global_name in multiply_defined_globals:
         del all_globals[global_name]
 
+    # Compile each expression and find the globals it refers to. Names bound within
+    # the expression, by a comprehension or a lambda, are not references:
+    errors = {}
+    code = {}
+    dependencies = {}
+    for global_name, expression in all_globals.items():
+        try:
+            tree = ast.parse(expression, '<string>', 'eval')
+        except SyntaxError as e:
+            errors[global_name] = e
+            dependencies[global_name] = set()
+            continue
+        code[global_name] = compile(tree, '<string>', 'eval')
+        referenced = set()
+        bound = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                (referenced if isinstance(node.ctx, ast.Load) else bound).add(node.id)
+            elif isinstance(node, ast.arg):
+                bound.add(node.arg)
+        dependencies[global_name] = (referenced - bound) & all_globals.keys()
+    global_hierarchy = {name: sorted(deps) for name, deps in dependencies.items() if deps}
+
+    # Order the globals so that each comes after the globals it refers to. The globals
+    # of a cycle of references get an error and are taken out of the ordering:
+    while True:
+        try:
+            order = list(graphlib.TopologicalSorter(dependencies).static_order())
+            break
+        except graphlib.CycleError as e:
+            cycle = e.args[1]
+            if len(cycle) == 2:
+                exception = ValueError(f'Global {cycle[0]} refers to itself')
+            else:
+                exception = ValueError('Globals refer to each other in a cycle: ' + ' -> '.join(cycle))
+            for global_name in set(cycle):
+                errors[global_name] = exception
+                del dependencies[global_name]
+
     # Eval the expressions in the same namespace as each other:
-    evaled_globals = {}
-    # we use a "TraceDictionary" to track which globals another global depends on
-    sandbox = TraceDictionary()
+    sandbox = {}
     exec('from pylab import *', sandbox, sandbox) # noqa: S102
     exec('from runmanager.functions import *', sandbox, sandbox) # noqa: S102
-    globals_to_eval = all_globals.copy()
-    previous_errors = -1
-    while globals_to_eval:
-        errors = []
-        for global_name, expression in globals_to_eval.copy().items():
-            # start the trace to determine which globals this global depends on
-            sandbox.start_trace()
-            try:
-                code = compile(expression, '<string>', 'eval')
-                value = eval(code, sandbox)
-                # Need to know the length of any generators, convert to tuple:
-                if isinstance(value, types.GeneratorType):
-                    value = iterator_to_tuple(value)
-                # Make sure if we're zipping or outer-producting this value, that it can
-                # be iterated over:
-                if expansions[global_name]:
-                    try:
-                        iter(value)
-                    except Exception as e: # noqa: BLE001
-                        # Any error here is an expansion error
-                        raise ExpansionError(str(e))
-            except ExpansionError as e:
-                # The expression evaluated, so other globals can refer to the value:
-                sandbox[global_name] = value
-                errors.append((global_name, e))
-                sandbox.stop_trace()
-                continue
-            except Exception as e: # noqa: BLE001
-                # Don't raise, just append the error to a list, we'll display them all later.
-                errors.append((global_name, e))
-                sandbox.stop_trace()
-                continue
+    evaled_globals = {}
+    for global_name in order:
+        if global_name in errors:
+            continue
+        try:
+            value = eval(code[global_name], sandbox) # noqa: S307
+            # Need to know the length of any generators, convert to tuple:
+            if isinstance(value, types.GeneratorType):
+                value = iterator_to_tuple(value)
+            # Make sure if we're zipping or outer-producting this value, that it can
+            # be iterated over:
+            if expansions[global_name]:
+                try:
+                    iter(value)
+                except Exception as e: # noqa: BLE001
+                    # Any error here is an expansion error
+                    raise ExpansionError(str(e))
+        except ExpansionError as e:
+            # The expression evaluated, so other globals can refer to the value:
+            sandbox[global_name] = value
+            errors[global_name] = e
+        except Exception as e: # noqa: BLE001
+            errors[global_name] = e
+        else:
             # Put the global into the namespace so other globals can use it:
             sandbox[global_name] = value
-            del globals_to_eval[global_name]
             evaled_globals[global_name] = value
 
-            # get the results from the global trace
-            trace_data = sandbox.stop_trace()
-            # Only store names of globals (not other functions)
-            for key in list(trace_data):  # copy the list before iterating over it
-                if key not in all_globals:
-                    trace_data.remove(key)
-            if trace_data:
-                global_hierarchy[global_name] = trace_data
-
-        if len(errors) == previous_errors:
-            # Since some globals may refer to others, we expect maybe
-            # some NameErrors to have occured.  There should be fewer
-            # NameErrors each iteration of this while loop, as globals
-            # that are required become defined. If there are not fewer
-            # errors, then there is something else wrong and we should
-            # raise it.
-            if raise_exceptions:
-                message = 'Error parsing globals:\n'
-                for global_name, exception in errors:
-                    message += f'{global_name}: {exception.__class__.__name__}: {exception!s}\n'
-                raise Exception(message)
-            else:
-                for global_name, exception in errors:
-                    evaled_globals[global_name] = exception
-                break
-        previous_errors = len(errors)
+    if errors and raise_exceptions:
+        message = 'Error parsing globals:\n'
+        for global_name, exception in errors.items():
+            message += f'{global_name}: {exception.__class__.__name__}: {exception!s}\n'
+        raise Exception(message)
+    evaled_globals.update(errors)
 
     # Globals in the same zip group must have equal lengths. Exceptions and
     # iterators without a length are skipped:
