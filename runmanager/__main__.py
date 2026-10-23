@@ -18,6 +18,7 @@ import os
 import sys
 import importlib.metadata
 import labscript_utils.excepthook
+labscript_utils.excepthook.install()
 
 # Associate app windows with OS menu shortcuts:
 import desktop_app
