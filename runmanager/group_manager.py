@@ -23,6 +23,7 @@ import labscript_utils.shot_utils
 import numpy as np
 
 from runmanager.evaluator import evaluate_globals
+from runmanager.exceptions import ExpansionError
 
 
 def _ensure_str(s):
@@ -140,6 +141,7 @@ def new_group(filename, groupname):
         group = f['globals'].create_group(groupname)
         group.create_group('units')
         group.create_group('expansion')
+        group.create_group('expansion_custom')
 
 
 def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_source_group=False):
@@ -213,8 +215,9 @@ def new_global(filename, groupname, globalname):
         if globalname in group.attrs:
             raise Exception('Can\'t create global: target name already exists.')
         group.attrs[globalname] = ''
-        f['globals'][groupname]['units'].attrs[globalname] = ''
-        f['globals'][groupname]['expansion'].attrs[globalname] = ''
+        group['units'].attrs[globalname] = ''
+        group['expansion'].attrs[globalname] = ''
+        group.require_group('expansion_custom').attrs[globalname] = False
 
 
 def rename_global(filename, groupname, oldglobalname, newglobalname):
@@ -226,6 +229,7 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
     value = get_value(filename, groupname, oldglobalname)
     units = get_units(filename, groupname, oldglobalname)
     expansion = get_expansion(filename, groupname, oldglobalname)
+    custom = get_expansion_custom(filename, groupname, oldglobalname)
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
@@ -233,9 +237,13 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
         group.attrs[newglobalname] = value
         group['units'].attrs[newglobalname] = units
         group['expansion'].attrs[newglobalname] = expansion
+        if custom is not None:
+            group['expansion_custom'].attrs[newglobalname] = custom
         del group.attrs[oldglobalname]
         del group['units'].attrs[oldglobalname]
         del group['expansion'].attrs[oldglobalname]
+        if custom is not None:
+            del group['expansion_custom'].attrs[oldglobalname]
 
 
 def get_value(filename, groupname, globalname):
@@ -275,25 +283,84 @@ def get_expansion(filename, groupname, globalname):
         return value
 
 
-def set_expansion(filename, groupname, globalname, expansion):
+def get_expansion_custom(filename, groupname, globalname):
+    """Whether the expansion setting of the global was chosen by the user rather than set
+    automatically. None if the file does not record this for the global."""
+    with h5py.File(filename, 'r') as f:
+        group = f['globals'][groupname]
+        if 'expansion_custom' in group and globalname in group['expansion_custom'].attrs:
+            return bool(group['expansion_custom'].attrs[globalname])
+        return None
+
+
+def set_expansion(filename, groupname, globalname, expansion, custom=True):
+    """Sets the expansion setting of the global, and records whether it was chosen by the
+    user (custom=True) or set automatically."""
     with h5py.File(filename, 'a') as f:
-        f['globals'][groupname]['expansion'].attrs[globalname] = expansion
+        group = f['globals'][groupname]
+        group['expansion'].attrs[globalname] = expansion
+        group.require_group('expansion_custom').attrs[globalname] = bool(custom)
 
 
 def delete_global(filename, groupname, globalname):
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
-        for subgroup in ['units', 'expansion']:
-            if globalname in group[subgroup].attrs:
+        for subgroup in ['units', 'expansion', 'expansion_custom']:
+            if subgroup in group and globalname in group[subgroup].attrs:
                 del group[subgroup].attrs[globalname]
 
 
 def guess_expansion_type(value):
-    if isinstance(value, (np.ndarray, list)):
+    if isinstance(value, (np.ndarray, list, range)):
         return 'outer'
     else:
         return ''
+
+
+def automatic_expansions(evaled_globals, global_hierarchy, expansions, custom):
+    """The expansion setting that each global gets automatically. evaled_globals maps
+    global names to values, global_hierarchy maps the name of each global that refers to
+    other globals to their names, expansions maps global names to their current settings
+    and custom maps global names to whether their setting was chosen by the user.
+
+    A global with a custom setting keeps it. A list, array or range is 'outer' and any
+    other value is '', except that a global that fails to evaluate keeps its setting. The
+    'outer' globals that are derived, through other 'outer' globals, from an 'outer'
+    global that is not itself derived from an expanded global are zipped with it in a
+    zip group named after it."""
+    result = {}
+    outer = set()
+    for global_name, value in evaled_globals.items():
+        if custom.get(global_name):
+            result[global_name] = expansions[global_name]
+        elif isinstance(value, ExpansionError):
+            result[global_name] = ''
+        elif isinstance(value, Exception):
+            result[global_name] = expansions[global_name]
+        else:
+            result[global_name] = guess_expansion_type(value)
+            if result[global_name] == 'outer':
+                outer.add(global_name)
+
+    def expanded(global_name):
+        return global_name in outer or (custom.get(global_name) and expansions[global_name])
+
+    for root in sorted(outer):
+        if any(expanded(name) for name in global_hierarchy.get(root, [])):
+            continue
+        members = set()
+        to_visit = [root]
+        while to_visit:
+            name = to_visit.pop()
+            for other in outer - members - {root}:
+                if name in global_hierarchy.get(other, []):
+                    members.add(other)
+                    to_visit.append(other)
+        for global_name in members | ({root} if members else set()):
+            if result[global_name] == 'outer':
+                result[global_name] = root
+    return result
 
 
 def get_all_groups(h5_files):
@@ -309,6 +376,23 @@ def get_all_groups(h5_files):
                                  'to make a run file.')
             groups[group_name] = path
     return groups
+
+
+def get_custom_expansions(groups):
+    """Takes a dictionary of group_name: h5_file pairs and returns a dictionary of the
+    same structure as get_globals, mapping each global name to whether its expansion
+    setting was chosen by the user, or None if the file does not record this."""
+    filepaths = set(groups.values())
+    custom = {}
+    for filepath in filepaths:
+        groups_from_this_file = [g for g, f in groups.items() if f == filepath]
+        with h5py.File(filepath, 'r') as f:
+            for group_name in groups_from_this_file:
+                globals_group = f['globals'][group_name]
+                flags = dict(globals_group['expansion_custom'].attrs) if 'expansion_custom' in globals_group else {}
+                custom[group_name] = {global_name: (bool(flags[global_name]) if global_name in flags else None)
+                                      for global_name in globals_group.attrs}
+    return custom
 
 
 def get_globals(groups):

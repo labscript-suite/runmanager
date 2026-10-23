@@ -252,15 +252,40 @@ is the ability to easily automate the traversal of a large parameter space, an i
 important requirement for performing modern ultracold atom experiments. Runmanager
 provides four features for managing parameter space scans:
 
-#.  The automatic detection of global variables that are defined as a list. [4]_ Such globals
-    are labelled ‘outer’ in the expansions column as all such globals will be combined, via
-    an outer product, into the parameter space to be scanned. The number of shots to be
-    generated, which is simply the product of the lengths of all ‘outer’ product globals, is
-    displayed next to the engage button.
+#.  The automatic detection of global variables that are defined as a list, array or
+    range. [4]_ Such globals are labelled ‘outer’ in the expansions column as all such
+    globals will be combined, via an outer product, into the parameter space to be scanned.
+    The number of shots to be generated, which is simply the product of the lengths of all
+    ‘outer’ product globals, is displayed next to the engage button.
 #.  The ability to define what we term ‘zip groups’ after the Python function `zip`. Two (or
     more) globals (specified as lists) can be grouped together so that they iterate through
     values in lockstep. In this instance, the zip group is used as a single axis of the outer
-    product rather than one axis for each global.
+    product rather than one axis for each global. Globals derived from a list are zipped
+    with it automatically. An expansion setting that runmanager chose is shown in grey
+    italics; one that you chose is shown in the normal text colour. Editing the expansion
+    column gives a list of the choices: ‘Auto’, ‘None’, ‘outer’ and the zip groups in
+    use, and a new zip group name can be typed. ‘Auto’ (or an empty entry) returns the
+    global to runmanager's choice, as does ‘Reset expansion to Auto’ in the right-click
+    menu.
+
+    .. figure:: img/runmanager_expansion_settings.png
+        :alt: A globals group with automatic expansion settings in grey italics and custom ones in the normal colour
+
+        A scan group. ``amplitude`` and the ``power`` derived from it are zipped
+        automatically, ``detuning`` and the range ``n_pulses`` are outer automatically,
+        ``freq_a`` and ``freq_b`` are in a zip group that the user chose, the list
+        ``pulse_shape`` is passed as a single value because the user chose ‘None’, and
+        the single values have no expansion automatically.
+
+    .. figure:: img/runmanager_expansion_editor.png
+        :alt: The expansion column editor, a drop-down list of Auto, None, outer and the zip groups in use
+
+        Editing an expansion setting.
+
+    .. figure:: img/runmanager_expansion_menu.png
+        :alt: The right-click menu of the globals table with the reset action
+
+        The right-click menu returns the selected globals to Auto.
 #.  The third feature is the ability to define the order in which the axes of the parameter
     space are iterated over when producing individual shots (see the ‘Axes’ tab discussed
     previously in :ref:`usage:The graphical interface`).
@@ -342,10 +367,10 @@ error of its own.
 
 The hierarchy of global interdependencies is then used to determine automatic zip group
 names, which are based on the name of the global in the hierarchy that does not depend on
-any other. If a global depends on multiple other globals, then the zip group name is chosen
-semi-randomly based on the order of the items in the Python dictionary (which depends on
-a hash of the dictionary key names and the size of the dictionary). However, it is of course
-always possible to overwrite the automatic zip group name with something else should our algorithm choose incorrectly.
+any other. If a global depends on multiple other globals, then the zip group name is the
+alphabetically first of them. The automatic settings are recomputed from the values and
+the hierarchy after every evaluation; a setting that you have chosen is recorded as such in
+the globals file and is kept until you return it to automatic.
 
 We believe that this complex evaluation of global variables is only possible due to the
 use of an interpreted language that has tools for parsing its own syntax. As such, the

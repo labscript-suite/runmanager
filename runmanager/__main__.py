@@ -32,6 +32,7 @@ splash.show()
 splash.update_text('importing standard library modules')
 import time
 import contextlib
+import html
 import subprocess
 import threading
 import logging
@@ -68,7 +69,7 @@ from runmanager import expander
 from runmanager import tokenizer
 from runmanager import group_manager
 from runmanager.exceptions import ExpansionError
-from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel
+from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel, ItemDelegate
 
 from qtutils import (
     inmain,
@@ -88,25 +89,6 @@ process_tree = ProcessTree.instance()
 
 # Set a meaningful name for zprocess.locking's client id:
 process_tree.zlock_client.set_process_name('runmanager')
-
-
-def log_if_global(g, g_list, message):
-    """logs a message if the global name "g" is in "g_list"
-    
-    useful if you want to print out a message inside a loop over globals,
-    but only for a particular global (or set of globals).
-    
-    If g_list is empty, then it will use the hardcoded list below
-    (useful if you want to change the behaviour globally)    
-    """
-    if not isinstance(g_list, list):
-        g_list = [g_list]
-        
-    if not g_list:
-        g_list = [] # add global options here
-    
-    if g in g_list:
-        logger.info(message)  # uses global `logger` instance defined in __main__ script section
 
 
 @inmain_decorator()
@@ -144,6 +126,69 @@ def scroll_view_to_row_if_current(view, item):
         horizontal_scrollbar.setValue(existing_horizontal_position)
 
 
+class ExpansionDelegate(ItemDelegate):
+    """Editor for the expansion column of a group tab: an editable combo box that offers
+    'Auto', 'None', 'outer' and the zip groups in use, and takes a typed zip group name.
+    An empty entry means 'Auto'."""
+
+    AUTO = 'Auto'
+
+    def __init__(self, group_tab):
+        ItemDelegate.__init__(self, group_tab.ui.tableView_globals)
+        self.group_tab = group_tab
+
+    def createEditor(self, parent, option, index):
+        combo = QtWidgets.QComboBox(parent)
+        combo.setEditable(True)
+        combo.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+        combo.addItem(self.AUTO)
+        combo.addItem(GroupTab.EXPANSION_NONE_TEXT)
+        combo.addItem(QtGui.QIcon(':qtutils/custom/outer'), 'outer')
+        for name in app.zip_group_names():
+            combo.addItem(QtGui.QIcon(':qtutils/custom/zip'), name)
+        # Key presses go to the line edit, so filter them there too:
+        combo.lineEdit().installEventFilter(self)
+        # Choosing an entry from the list commits it straight away:
+        combo.activated.connect(lambda *args: (self.commitData.emit(combo), self.closeEditor.emit(combo)))
+        return combo
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QtWidgets.QLineEdit):
+            return ItemDelegate.eventFilter(self, obj.parent(), event)
+        return ItemDelegate.eventFilter(self, obj, event)
+
+    def updateEditorGeometry(self, combo, option, index):
+        # The column is only as wide as its contents, so the editor extends to the
+        # left to the width it needs:
+        rect = QtCore.QRect(option.rect)
+        rect.setLeft(rect.right() + 1 - max(rect.width(), combo.sizeHint().width()))
+        combo.setGeometry(rect)
+
+    def setEditorData(self, combo, index):
+        item = self.group_tab.globals_model.itemFromIndex(index)
+        if item.data(GroupTab.GLOBALS_ROLE_EXPANSION_CUSTOM):
+            combo.setCurrentText(item.text())
+        else:
+            combo.setCurrentText(self.AUTO)
+        combo.lineEdit().selectAll()
+
+    def setModelData(self, combo, model, index):
+        text = combo.currentText().strip()
+        item = model.itemFromIndex(index)
+        if not text or text.lower() == self.AUTO.lower():
+            custom = False
+            text = item.text()
+        else:
+            custom = True
+        # Set the setting and whether it is custom together, so that the change
+        # handler sees both:
+        with self.group_tab.globals_model_item_changed_disconnected:
+            item.setData(custom, GroupTab.GLOBALS_ROLE_EXPANSION_CUSTOM)
+            item.setText(text)
+        self.group_tab.on_globals_model_expansion_changed(item)
+
+
 class GroupTab:
     GLOBALS_COL_DELETE = 0
     GLOBALS_COL_NAME = 1
@@ -155,8 +200,12 @@ class GroupTab:
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
+    GLOBALS_ROLE_EXPANSION_CUSTOM = QtCore.Qt.UserRole + 5
+    GLOBALS_ROLE_PREVIOUS_CUSTOM = QtCore.Qt.UserRole + 6
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
+    # The text shown for a global with no expansion:
+    EXPANSION_NONE_TEXT = 'None'
 
     def __init__(self, tabWidget, globals_file, group_name):
 
@@ -185,6 +234,8 @@ class GroupTab:
         # Make it so the user can just start typing on an item to edit:
         self.ui.tableView_globals.setEditTriggers(QtWidgets.QTableView.AnyKeyPressed |
                                                   QtWidgets.QTableView.EditKeyPressed)
+        self.ui.tableView_globals.setItemDelegateForColumn(
+            self.GLOBALS_COL_EXPANSION, ExpansionDelegate(self))
         # Ensure the clickable region of the delete button doesn't extend forever:
         self.ui.tableView_globals.horizontalHeader().setStretchLastSection(False)
         # Stretch the value column to fill available space:
@@ -200,6 +251,8 @@ class GroupTab:
             QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected Booleans True',  self.ui)
         self.action_globals_set_selected_false = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected Booleans False',  self.ui)
+        self.action_globals_reset_expansion = QtWidgets.QAction(
+            QtGui.QIcon(':qtutils/fugue/arrow-circle'), 'Reset expansion of selected global(s) to Auto', self.ui)
 
         self.connect_signals()
 
@@ -231,6 +284,7 @@ class GroupTab:
         self.action_globals_set_selected_false.triggered.connect(
             lambda: self.on_globals_set_selected_bools_triggered('False'))
         self.action_globals_delete_selected.triggered.connect(self.on_globals_delete_selected_triggered)
+        self.action_globals_reset_expansion.triggered.connect(self.on_globals_reset_expansion_triggered)
         self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.globals_model_item_changed_disconnected = DisconnectContextManager(
@@ -258,8 +312,9 @@ class GroupTab:
 
     def populate_model(self):
         globals = group_manager.get_globals({self.group_name: self.globals_file})[self.group_name]
+        custom = group_manager.get_custom_expansions({self.group_name: self.globals_file})[self.group_name]
         for name, (value, units, expansion) in globals.items():
-            row = self.make_global_row(name, value, units, expansion)
+            row = self.make_global_row(name, value, units, expansion, custom[name])
             self.globals_model.appendRow(row)
             value_item = row[self.GLOBALS_COL_VALUE]
             self.check_for_boolean_values(value_item)
@@ -302,7 +357,7 @@ class GroupTab:
         # Sort by name:
         self.ui.tableView_globals.sortByColumn(self.GLOBALS_COL_NAME, QtCore.Qt.AscendingOrder)
 
-    def make_global_row(self, name, value='', units='', expansion=''):
+    def make_global_row(self, name, value='', units='', expansion='', custom=False):
         self.logger.debug(f'{self.globals_file}:{self.group_name} - make global row: {name} ')
         # We just set some data here, other stuff is set in
         # self.update_parse_indication after runmanager has a chance to parse
@@ -333,9 +388,11 @@ class GroupTab:
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
         units_item.setToolTip('')
 
-        expansion_item = QtGui.QStandardItem(expansion)
+        expansion_item = QtGui.QStandardItem(expansion or self.EXPANSION_NONE_TEXT)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        expansion_item.setData(bool(custom), self.GLOBALS_ROLE_EXPANSION_CUSTOM)
+        expansion_item.setData(bool(custom), self.GLOBALS_ROLE_PREVIOUS_CUSTOM)
         expansion_item.setToolTip('')
 
         row = [delete_item, name_item, value_item, units_item, expansion_item]
@@ -436,37 +493,69 @@ class GroupTab:
         if new_units != previous_units:
             self.change_global_units(global_name, previous_units, new_units)
 
+    @classmethod
+    def expansion_from_text(cls, text):
+        """The expansion setting that the text of an expansion item means"""
+        return '' if text == cls.EXPANSION_NONE_TEXT else text
+
     def on_globals_model_expansion_changed(self, item):
         index = item.index()
-        new_expansion = item.text()
+        new_expansion = self.expansion_from_text(item.text())
         previous_expansion = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        custom = bool(item.data(self.GLOBALS_ROLE_EXPANSION_CUSTOM))
+        previous_custom = bool(item.data(self.GLOBALS_ROLE_PREVIOUS_CUSTOM))
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
+        if new_expansion == 'outer':
+            icon = QtGui.QIcon(':qtutils/custom/outer')
+            effect = ('This global will be interpreted as a list of values, and will be outer '
+                      'producted with other lists to form a larger parameter space.')
+            reason = 'the value is a list, array or range'
+        elif new_expansion:
+            icon = QtGui.QIcon(':qtutils/custom/zip')
+            effect = ('This global will be interpreted as a list of values, and will be iterated '
+                      f"over in lock-step with other globals in the '{new_expansion}' zip group.")
+            if new_expansion == global_name:
+                reason = 'other globals are derived from it'
+            else:
+                reason = f'it is derived from {new_expansion}'
+        else:
+            icon = None
+            effect = 'This global will be interpreted as a single value and passed to compilation as-is.'
+            reason = 'the value is not a list, array or range'
+        if custom:
+            origin = "Chosen by you. Choose 'Auto' to let runmanager set the expansion."
+        else:
+            origin = f'Set automatically because {reason}.'
         # Don't want icon changing to recurse - which happens even if it is
         # the same icon. So disconnect the signal temporarily:
         with self.globals_model_item_changed_disconnected:
-            if new_expansion == 'outer':
-                item.setIcon(QtGui.QIcon(':qtutils/custom/outer'))
-                item.setToolTip('This global will be interpreted as a list of values, and will ' +
-                                'be outer producted with other lists to form a larger parameter space.')
-            elif new_expansion:
-                item.setIcon(QtGui.QIcon(':qtutils/custom/zip'))
-                item.setToolTip('This global will be interpreted as a list of values, and will ' +
-                                'be iterated over in lock-step with other globals in the ' +
-                                f'\'{new_expansion}\' zip group.')
-            else:
+            if icon is None:
                 item.setData(None, QtCore.Qt.DecorationRole)
-                item.setToolTip('This global will be interpreted as a single value and passed to compilation as-is.')
-        # Ensure the value actually changed, rather than something else about
+            else:
+                item.setIcon(icon)
+            # Rich text, so that the tooltip wraps:
+            item.setToolTip(f'<p>{html.escape(effect)}</p><p>{html.escape(origin)}</p>')
+            # An automatic setting is shown in grey italics:
+            font = item.font()
+            font.setItalic(not custom)
+            item.setFont(font)
+            if custom:
+                item.setData(None, QtCore.Qt.ForegroundRole)
+            else:
+                palette = self.ui.tableView_globals.palette()
+                item.setForeground(palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text))
+        # Ensure the setting actually changed, rather than something else about
         # the item:
-        if new_expansion != previous_expansion:
-            self.change_global_expansion(global_name, previous_expansion, new_expansion)
+        if new_expansion != previous_expansion or custom != previous_custom:
+            self.change_global_expansion(global_name, previous_expansion, new_expansion, custom)
 
     def on_tableView_globals_context_menu_requested(self, point):
         menu = QtWidgets.QMenu(self.ui)
         menu.addAction(self.action_globals_set_selected_true)
         menu.addAction(self.action_globals_set_selected_false)
+        menu.addAction(self.action_globals_reset_expansion)
         menu.addAction(self.action_globals_delete_selected)
         menu.exec(QtGui.QCursor.pos())
 
@@ -492,6 +581,15 @@ class GroupTab:
         for value_item, units_item in zip(value_items, units_items):
             if units_item.data(self.GLOBALS_ROLE_IS_BOOL):
                 value_item.setText(state)
+
+    def on_globals_reset_expansion_triggered(self):
+        selected_indexes = self.ui.tableView_globals.selectedIndexes()
+        selected_items = [self.globals_model.itemFromIndex(index) for index in selected_indexes]
+        for item in selected_items:
+            if item.column() == self.GLOBALS_COL_EXPANSION and not item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
+                with self.globals_model_item_changed_disconnected:
+                    item.setData(False, self.GLOBALS_ROLE_EXPANSION_CUSTOM)
+                self.on_globals_model_expansion_changed(item)
 
     def close(self):
         # It is up to the main runmanager class to drop references to this
@@ -657,18 +755,23 @@ class GroupTab:
             # If this changed the sort order, ensure the item is still visible:
             scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
-    def change_global_expansion(self, global_name, previous_expansion, new_expansion):
-        self.logger.info(f'{self.globals_file}:{self.group_name} - change expansion: {global_name} = {previous_expansion} -> {new_expansion}')
+    def change_global_expansion(self, global_name, previous_expansion, new_expansion, custom):
+        self.logger.info(f'{self.globals_file}:{self.group_name} - change expansion: {global_name} = '
+                         f'{previous_expansion} -> {new_expansion} ({"custom" if custom else "automatic"})')
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
         try:
-            group_manager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
+            group_manager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion, custom=custom)
         except Exception as e: # noqa: BLE001 send all errors to dialog box
             error_dialog(str(e))
-            # Set the item text back to the old units, since the change failed:
-            item.setText(previous_expansion)
+            # Set the item back to the old setting, since the change failed:
+            with self.globals_model_item_changed_disconnected:
+                item.setData(item.data(self.GLOBALS_ROLE_PREVIOUS_CUSTOM), self.GLOBALS_ROLE_EXPANSION_CUSTOM)
+            item.setText(previous_expansion or self.EXPANSION_NONE_TEXT)
         else:
-            item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-            item.setData(new_expansion, self.GLOBALS_ROLE_SORT_DATA)
+            with self.globals_model_item_changed_disconnected:
+                item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
+                item.setData(new_expansion, self.GLOBALS_ROLE_SORT_DATA)
+                item.setData(custom, self.GLOBALS_ROLE_PREVIOUS_CUSTOM)
             self.do_model_sort()
             self.globals_changed()
             # If this changed the sort order, ensure the item is still visible:
@@ -741,7 +844,7 @@ class GroupTab:
         self.globals_model.removeRow(name_item.row())
         self.globals_changed()
 
-    def update_parse_indication(self, active_groups, sequence_globals, evaled_globals):
+    def update_parse_indication(self, active_groups, sequence_globals, evaled_globals, custom_expansions):
         # Check that we are an active group:
         if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
             self.tab_contains_errors = False
@@ -762,25 +865,23 @@ class GroupTab:
                 value = evaled_globals[self.group_name][global_name]
 
                 _, _, expansion = sequence_globals[self.group_name][global_name]
+                custom = bool(custom_expansions[self.group_name][global_name])
                 # Temporarily disconnect the item_changed signal on the model
-                # so that we can set the expansion type without triggering
+                # so that we can set the expansion setting without triggering
                 # another preparse - the parsing has already been done with
-                # the new expansion type.
+                # the new setting.
                 with self.globals_model_item_changed_disconnected:
-                    if expansion_item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT) != expansion:
-                        # self.logger.info('expansion previous text set')
-                        expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
-                    if expansion_item.data(self.GLOBALS_ROLE_SORT_DATA) != expansion:
-                        # self.logger.info('sort data role set')
-                        expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
-                # The next line will now trigger item_changed, but it will not
-                # be detected as an actual change to the expansion type,
-                # because previous_text will match text. So it will not look
-                # like a change and will not trigger preparsing. However It is
-                # still important that other triggers be processed, such as
-                # setting the icon in the expansion item, so that will still
-                # occur in the callback.
-                expansion_item.setText(expansion)
+                    for role in [self.GLOBALS_ROLE_PREVIOUS_TEXT, self.GLOBALS_ROLE_SORT_DATA]:
+                        if expansion_item.data(role) != expansion:
+                            expansion_item.setData(expansion, role)
+                    for role in [self.GLOBALS_ROLE_PREVIOUS_CUSTOM, self.GLOBALS_ROLE_EXPANSION_CUSTOM]:
+                        if expansion_item.data(role) != custom:
+                            expansion_item.setData(custom, role)
+                    if expansion_item.text() != (expansion or self.EXPANSION_NONE_TEXT):
+                        expansion_item.setText(expansion or self.EXPANSION_NONE_TEXT)
+                # Update the icon, tooltip and text style. This is not detected as
+                # a change to the setting, because the previous roles match.
+                self.on_globals_model_expansion_changed(expansion_item)
                 if isinstance(value, Exception):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
@@ -969,13 +1070,6 @@ class RunManager:
 
         # A flag telling the compilation thread to abort:
         self.compilation_aborted = threading.Event()
-
-        # A few attributes for self.guess_expansion_modes() to keep track of
-        # its state, and thus detect changes:
-        self.previous_evaled_globals = {}
-        self.previous_global_hierarchy = {}
-        self.previous_expansion_types = {}
-        self.previous_expansions = {}
 
         # The prospective number of shots resulting from compilation
         self.n_shots = None
@@ -2113,9 +2207,9 @@ class RunManager:
         self.axes_model.appendRow(items)
     
     @inmain_decorator()  # Is called by preparser thread
-    def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals, n_shots):
+    def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals, custom_expansions, n_shots):
         for group_tab in self.currently_open_groups.values():
-            group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals)
+            group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals, custom_expansions)
         self.ui.pushButton_engage.setEnabled(True)
         if n_shots == 1:
             n_shots_string = '(1 shot)'
@@ -2129,14 +2223,13 @@ class RunManager:
             # There was an error, get_active_groups has already shown
             # it to the user.
             return
-        # Expansion mode is automatically updated when the global's
-        # type changes. If this occurs, we will have to parse again to
-        # include the change:
+        # The automatic expansion settings depend on the values. If any changes, we
+        # parse again so that the globals are evaluated with the new settings:
         while True:
             results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False)
             sequence_globals, _, evaled_globals, global_hierarchy, expansions = results
-            expansions_changed = self.guess_expansion_modes(
-                active_groups, evaled_globals, global_hierarchy, expansions)
+            expansions_changed, custom_expansions = self.update_expansions(
+                active_groups, sequence_globals, evaled_globals, global_hierarchy, expansions)
             if not expansions_changed:
                 # Count the shots without constructing them. This must only be done
                 # after the expansion type guessing has been updated, to avoid
@@ -2145,7 +2238,8 @@ class RunManager:
                     sequence_globals, evaled_globals, return_dimensions=True
                 )
                 break
-        self.update_tabs_parsing_indication(active_groups, sequence_globals, evaled_globals, self.n_shots)
+        self.update_tabs_parsing_indication(
+            active_groups, sequence_globals, evaled_globals, custom_expansions, self.n_shots)
         self.update_axes_tab(expansions, dimensions)
         self.logger.info('Globals parsed')
 
@@ -2841,165 +2935,48 @@ class RunManager:
         else:
             return sequence_globals, shots, evaled_globals, global_hierarchy, expansions
 
-    def guess_expansion_modes(self, active_groups, evaled_globals, global_hierarchy, expansions):
-        """This function is designed to be called iteratively. It changes the
-        expansion type of globals that reference other globals - such that
-        globals referencing an iterable global will be zipped with it, rather
-        than outer producted. Each time this method is called,
-        self.parse_globals should also be called, so that the globals are
-        evaluated with their new expansion modes, if they changed. This should
-        be performed repeatedly until there are no more changes. Note that
-        this method does not return what expansion types it thinks globals
-        should have - it *actually writes them to the globals HDF5 file*. So
-        it is up to later code to ensure it re-reads the expansion mode from
-        the HDF5 file before proceeding. At present this method is only called
-        from self.preparse_globals(), so see there to see how it fits in with
-        everything else. This method uses four instance attributes to store
-        state: self.previous_evaled_globals, self.previous_global_hierarchy,
-        self.previous_expansion_types and self.previous_expansions. This is
-        neccesary so that it can detect changes."""
+    def update_expansions(self, active_groups, sequence_globals, evaled_globals, global_hierarchy, expansions):
+        """Writes the automatic expansion setting of each global that has no custom
+        setting to its globals file. A global whose file does not record whether its
+        setting is custom gets a custom setting if the stored setting is not the
+        automatic one. Returns whether any setting changed, and the custom flags of the
+        globals of the active groups in the structure of sequence_globals."""
+        custom = group_manager.get_custom_expansions(active_groups)
+        values = differ.flatten_globals(evaled_globals, evaluated=True)
+        flat_custom = {name: bool(flag) for group in custom.values() for name, flag in group.items()}
+        automatic = group_manager.automatic_expansions(values, global_hierarchy, expansions, flat_custom)
+        migrated = False
+        for group_name, globals_file in active_groups.items():
+            for global_name in sequence_globals[group_name]:
+                if custom[group_name][global_name] is None and not isinstance(values[global_name], Exception):
+                    flag = expansions[global_name] != automatic[global_name]
+                    group_manager.set_expansion(
+                        globals_file, group_name, global_name, expansions[global_name], custom=flag)
+                    custom[group_name][global_name] = flat_custom[global_name] = flag
+                    migrated = migrated or flag
+        if migrated:
+            automatic = group_manager.automatic_expansions(values, global_hierarchy, expansions, flat_custom)
+        changed = False
+        for group_name, globals_file in active_groups.items():
+            for global_name in sequence_globals[group_name]:
+                if not custom[group_name][global_name] and expansions[global_name] != automatic[global_name]:
+                    self.logger.info(f'{globals_file}:{group_name} - automatic expansion: {global_name} = '
+                                     f'{expansions[global_name]} -> {automatic[global_name]}')
+                    group_manager.set_expansion(
+                        globals_file, group_name, global_name, automatic[global_name], custom=False)
+                    changed = True
+        return changed, custom
 
-        # Do nothing if there were exceptions:
-        for group_name in evaled_globals:
-            for global_name in evaled_globals[group_name]:
-                value = evaled_globals[group_name][global_name]
-                if isinstance(value, Exception):
-                    # Let ExpansionErrors through through, as they occur
-                    # when the user has changed the value without changing
-                    # the expansion type:
-                    if isinstance(value, ExpansionError):
-                        continue
-                    return False
-        # Did the guessed expansion type for any of the globals change?
-        expansion_types_changed = False
-        expansion_types = {}
-        for group_name in evaled_globals:
-            for global_name in evaled_globals[group_name]:
-                new_value = evaled_globals[group_name][global_name]
-                try:
-                    previous_value = self.previous_evaled_globals[group_name][global_name]
-                except KeyError:
-                    if group_name in self.previous_evaled_globals:
-                        # The global was created since the previous parse. A previous
-                        # value of 0 gives a previous guess of '', so that the
-                        # expansion type is guessed from the new value.
-                        previous_value = 0
-                    else:
-                        # The group has just been loaded or activated, and the
-                        # expansion types stored in the globals file are kept.
-                        previous_value = new_value
-
-                new_guess = group_manager.guess_expansion_type(new_value)
-                previous_guess = group_manager.guess_expansion_type(previous_value)
-
-                if new_guess == 'outer':
-                    expansion_types[global_name] = {'previous_guess': previous_guess,
-                                                    'new_guess': new_guess,
-                                                    'group_name': group_name,
-                                                    'value': new_value
-                                                    }
-                elif new_guess != previous_guess:
-                    filename = active_groups[group_name]
-                    group_manager.set_expansion(filename, group_name, global_name, new_guess)
-                    expansions[global_name] = new_guess
-                    expansion_types_changed = True
-
-        # recursively find dependencies and add them to a zip group!
-        def find_dependencies(global_name, global_hierarchy, expansion_types):
-            results = set()
-            for name, dependencies in global_hierarchy.items():
-                if name in expansion_types and global_name in dependencies:
-                    results.add(name)
-                    results = results.union(find_dependencies(name, global_hierarchy, expansion_types))
-            return results
-
-        def global_depends_on_global_with_outer_product(global_name, global_hierarchy, expansions):
-            if global_name not in global_hierarchy:
-                return False
-            else:
-                for dependency in global_hierarchy[global_name]:
-                    if expansions[dependency]:
-                        return True
-
-        def set_expansion_type_guess(expansion_types, expansions, global_name, expansion_to_set, new=True):
-            if new:
-                key = 'new_guess'
-            else:
-                key = 'previous_guess'
-                
-            # debug logging
-            log_if_global(global_name, [], 'setting expansion type for new dependency' if new else 'setting expansion type for old dependencies')
-            
-            
-            # only do this if the expansion is *not* already set to a specific zip group
-            if global_name in expansions and expansions[global_name] != '' and expansions[global_name] != 'outer':
-                expansion_types[global_name][key] = expansions[global_name]
-                
-                # debug logging
-                log_if_global(global_name, [], f'Using existing expansion {expansions[global_name]} for {global_name}')
-            else:
-                expansion_types[global_name][key] = expansion_to_set
-                expansions[global_name] = expansion_to_set
-                
-                # debug logging
-                log_if_global(global_name, [], f'Using existing expansion {expansion_to_set} for {global_name}')
-            
-        
-        for global_name in sorted(expansion_types):
-            # we have a global that does not depend on anything that has an
-            # expansion type of 'outer'
-            if (not global_depends_on_global_with_outer_product(global_name, global_hierarchy, expansions)
-                    and not isinstance(expansion_types[global_name]['value'], ExpansionError)):
-                current_dependencies = find_dependencies(global_name, global_hierarchy, expansion_types)
-
-                # if this global has other globals that use it, then add them
-                # all to a zip group with the name of this global
-                if current_dependencies:
-                    for dependency in current_dependencies:                        
-                        set_expansion_type_guess(expansion_types, expansions, dependency,  str(global_name))
-                            
-                    set_expansion_type_guess(expansion_types, expansions, global_name,  str(global_name))
-
-        for global_name in sorted(self.previous_expansion_types):
-            if (not global_depends_on_global_with_outer_product(
-                global_name, self.previous_global_hierarchy, self.previous_expansions)
-                    and not isinstance(self.previous_expansion_types[global_name]['value'], ExpansionError)):
-                old_dependencies = find_dependencies(global_name, self.previous_global_hierarchy, self.previous_expansion_types)
-                # if this global has other globals that use it, then add them
-                # all to a zip group with the name of this global
-                if old_dependencies:
-                    for dependency in old_dependencies:
-                        if dependency in expansion_types:
-                            set_expansion_type_guess(expansion_types, self.previous_expansions, dependency, str(global_name), new=False)
-                    if global_name in expansion_types:
-                        set_expansion_type_guess(expansion_types, self.previous_expansions, global_name, str(global_name), new=False)
-
-        for global_name, guesses in expansion_types.items():
-            if guesses['new_guess'] != guesses['previous_guess']:
-                filename = active_groups[guesses['group_name']]
-                group_manager.set_expansion(
-                    filename, str(guesses['group_name']), str(global_name), str(guesses['new_guess']))
-                expansions[global_name] = guesses['new_guess']
-                expansion_types_changed = True
-
-        # Now check everything that has an expansion type not equal to outer.
-        # If it has one, but is not iteratble, remove it from the zip group
-        for group_name in evaled_globals:
-            for global_name in evaled_globals[group_name]:
-                if expansions[global_name] and expansions[global_name] != 'outer':
-                    try:
-                        iter(evaled_globals[group_name][global_name])
-                    except Exception:
-                        filename = active_groups[group_name]
-                        group_manager.set_expansion(filename, group_name, global_name, '')
-                        expansion_types_changed = True
-
-        self.previous_evaled_globals = evaled_globals
-        self.previous_global_hierarchy = global_hierarchy
-        self.previous_expansion_types = expansion_types
-        self.previous_expansions = expansions
-
-        return expansion_types_changed
+    def zip_group_names(self):
+        """The zip group names in use in the open groups, sorted."""
+        names = set()
+        for group_tab in self.currently_open_groups.values():
+            for row in range(group_tab.globals_model.rowCount()):
+                item = group_tab.globals_model.item(row, GroupTab.GLOBALS_COL_EXPANSION)
+                expansion = GroupTab.expansion_from_text(item.text())
+                if not item.data(GroupTab.GLOBALS_ROLE_IS_DUMMY_ROW) and expansion not in ('', 'outer'):
+                    names.add(expansion)
+        return sorted(names)
 
     def make_h5_files(self, labscript_file, output_folder, sequence_globals, shots, shuffle):
         if not shots:
