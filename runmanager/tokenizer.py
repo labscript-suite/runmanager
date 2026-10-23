@@ -33,7 +33,7 @@ def find_comments(src):
             if token_type == tokenize.COMMENT:
                 line_start = line_offsets[row - 1]
                 comments.append((line_start + start, line_start + end))
-    except tokenize.TokenError:
+    except (tokenize.TokenError, SyntaxError):
         pass
     # coalesce comments with only whitespace between them:
     to_merge = []
@@ -73,6 +73,6 @@ def remove_comments_and_tokenify(src):
         for _, token_value, _, _, _ in tokens_iter:
             if token_value:
                 tokens.append(token_value)
-    except tokenize.TokenError:
+    except (tokenize.TokenError, SyntaxError):
         pass
     return src, tokens

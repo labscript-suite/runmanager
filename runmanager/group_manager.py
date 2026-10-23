@@ -15,6 +15,8 @@
 
 import contextlib
 import io
+import json
+import time
 import tokenize
 import warnings
 
@@ -24,6 +26,16 @@ import numpy as np
 
 from runmanager.evaluator import evaluate_globals
 from runmanager.exceptions import ExpansionError
+from runmanager.tokenizer import remove_comments_and_tokenify
+
+# The score of a value in the history of a global halves over this interval, in seconds:
+HISTORY_HALF_LIFE = 7 * 24 * 3600
+# The score of a value is increased at most once in this interval, in seconds:
+HISTORY_SCORE_INTERVAL = 3600
+HISTORY_MAX_ENTRIES = 20
+# The maximum size of the JSON history of one global. HDF5 attributes stored in the
+# object header must be smaller than 64 kB.
+HISTORY_MAX_BYTES = 60000
 
 
 def _ensure_str(s):
@@ -244,6 +256,9 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
         del group['expansion'].attrs[oldglobalname]
         if custom is not None:
             del group['expansion_custom'].attrs[oldglobalname]
+        if 'history' in group and oldglobalname in group['history'].attrs:
+            group['history'].attrs[newglobalname] = group['history'].attrs[oldglobalname]
+            del group['history'].attrs[oldglobalname]
 
 
 def get_value(filename, groupname, globalname):
@@ -306,9 +321,165 @@ def delete_global(filename, groupname, globalname):
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
-        for subgroup in ['units', 'expansion', 'expansion_custom']:
+        for subgroup in ['units', 'expansion', 'expansion_custom', 'history']:
             if subgroup in group and globalname in group[subgroup].attrs:
                 del group[subgroup].attrs[globalname]
+
+
+def history_key(value):
+    """The key that identifies a value in the history of a global: its tokens without
+    comments or whitespace, so that values that differ only in those are the same."""
+    _, tokens = remove_comments_and_tokenify(value)
+    return ' '.join(token for token in tokens if token.strip())
+
+
+def history_score(entry, now):
+    """The score of a history entry at the time now, which is the number of times that
+    the value was used, with each use weighted by its age."""
+    return entry['score'] * 2 ** (-(now - entry['scored']) / HISTORY_HALF_LIFE)
+
+
+def _read_history(history_group, globalname):
+    if history_group is None or globalname not in history_group.attrs:
+        return []
+    return json.loads(_ensure_str(history_group.attrs[globalname]))
+
+
+def _write_history(history_group, globalname, entries):
+    # A fixed-length bytes attribute is overwritten in place. A variable-length string
+    # would be written to the HDF5 global heap, which does not reuse the space of the
+    # old value, and the file would grow every time the history changed.
+    history_group.attrs[globalname] = np.bytes_(json.dumps(entries).encode('utf8'))
+
+
+def get_history(filename, groupname, globalname):
+    """Return the history of the values of a global, as a list of entries in no
+    particular order. Each entry is a dictionary with the keys:
+
+    'text': the text of the value the last time it was used, including comments
+    'key': the history_key() of the value
+    'last_used': the time at which the value was last used, in seconds since the epoch
+    'score', 'scored': the score of the value and the time at which it was last
+        updated, from which history_score() computes its current score
+    'pinned': whether the user has pinned the entry
+    'expansion': the expansion setting that the global had when the value was last
+        used, if it was set by the user. Absent if the expansion setting was
+        automatic."""
+    with h5py.File(filename, 'r') as f:
+        group = f['globals'][groupname]
+        return _read_history(group.get('history'), globalname)
+
+
+def record_history(groups, sequence_globals, custom_expansions, now=None):
+    """Record that the globals in sequence_globals were used to compile shots.
+    groups is a dictionary of group_name: h5_file pairs, and sequence_globals and
+    custom_expansions are as returned by get_globals() and get_custom_expansions() for
+    those groups. Groups and globals that no longer exist are ignored."""
+    if now is None:
+        now = time.time()
+    filepaths = set(groups.values())
+    for filepath in filepaths:
+        groups_from_this_file = [g for g, f in groups.items() if f == filepath]
+        with h5py.File(filepath, 'a') as f:
+            for group_name in groups_from_this_file:
+                if group_name not in f['globals']:
+                    continue
+                group = f['globals'][group_name]
+                history_group = group.require_group('history')
+                for global_name, (value, _, expansion) in sequence_globals[group_name].items():
+                    if global_name not in group.attrs:
+                        continue
+                    entries = _read_history(history_group, global_name)
+                    custom = custom_expansions[group_name].get(global_name)
+                    if _update_history(entries, value, expansion if custom else None, now):
+                        _write_history(history_group, global_name, entries)
+
+
+def _update_history(entries, value, expansion, now):
+    """Add a use of the value to the list of history entries, and remove the entries
+    with the lowest scores if there are too many. expansion is the expansion setting if
+    it was chosen by the user, otherwise None. Return whether the entries can be
+    stored."""
+    key = history_key(value)
+    for entry in entries:
+        if entry['key'] == key:
+            if now - entry['scored'] >= HISTORY_SCORE_INTERVAL:
+                entry['score'] = history_score(entry, now) + 1
+                entry['scored'] = now
+            break
+    else:
+        entry = {'key': key, 'score': 1, 'scored': now, 'pinned': False}
+        entries.append(entry)
+    entry['text'] = value
+    entry['last_used'] = now
+    if expansion is None:
+        entry.pop('expansion', None)
+    else:
+        entry['expansion'] = expansion
+    # Unpinned entries are removed first, lowest score first:
+    removable = sorted(
+        (e for e in entries if e is not entry),
+        key=lambda e: (e['pinned'], history_score(e, now)),
+    )
+    while removable and (
+        len(entries) > HISTORY_MAX_ENTRIES
+        or len(json.dumps(entries).encode('utf8')) > HISTORY_MAX_BYTES
+    ):
+        entries.remove(removable.pop(0))
+    return len(json.dumps(entries).encode('utf8')) <= HISTORY_MAX_BYTES
+
+
+def _modify_history_entry(filename, groupname, globalname, key, modify):
+    with h5py.File(filename, 'a') as f:
+        group = f['globals'][groupname]
+        history_group = group.get('history')
+        entries = _read_history(history_group, globalname)
+        for entry in entries:
+            if entry['key'] == key:
+                modify(entries, entry)
+                _write_history(history_group, globalname, entries)
+                return
+
+
+def set_history_pinned(filename, groupname, globalname, key, pinned):
+    """Pin or unpin the history entry of a global that has the given history_key()"""
+    def modify(entries, entry):
+        entry['pinned'] = bool(pinned)
+    _modify_history_entry(filename, groupname, globalname, key, modify)
+
+
+def delete_history_entry(filename, groupname, globalname, key):
+    """Remove the history entry of a global that has the given history_key()"""
+    def modify(entries, entry):
+        entries.remove(entry)
+    _modify_history_entry(filename, groupname, globalname, key, modify)
+
+
+def previous_history_entry(entries, current_value):
+    """Return the most recently used history entry that is not the current value, or
+    None if there is none."""
+    key = history_key(current_value)
+    others = [e for e in entries if e['key'] != key]
+    if not others:
+        return None
+    return max(others, key=lambda e: e['last_used'])
+
+
+def ordered_history(entries, current_value, now=None):
+    """Return the history entries in the order in which to show them: the entry for the
+    current value, then the most recently used of the other entries, then the pinned
+    entries, then the other entries. The pinned and other entries are in order of
+    decreasing score."""
+    if now is None:
+        now = time.time()
+    key = history_key(current_value)
+    previous = previous_history_entry(entries, current_value)
+    current = [e for e in entries if e['key'] == key]
+    rest = sorted(
+        (e for e in entries if e['key'] != key and e is not previous),
+        key=lambda e: (not e['pinned'], -history_score(e, now)),
+    )
+    return current + ([previous] if previous is not None else []) + rest
 
 
 def guess_expansion_type(value):
