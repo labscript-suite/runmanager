@@ -69,7 +69,20 @@ from runmanager import expander
 from runmanager import tokenizer
 from runmanager import group_manager
 from runmanager.exceptions import ExpansionError
-from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel, ItemDelegate
+from runmanager.widgets import (
+    RunmanagerColors,
+    FingerTabWidget,
+    TableView,
+    TreeView,
+    TabToolButton,
+    AlternatingColorModel,
+    ItemDelegate,
+    CommentDelegate,
+    HistoryPopup,
+    EXPANSION_NONE_TEXT,
+    expansion_text,
+    style_expansion_item,
+)
 
 from qtutils import (
     inmain,
@@ -143,7 +156,7 @@ class ExpansionDelegate(ItemDelegate):
         combo.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
         combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
         combo.addItem(self.AUTO)
-        combo.addItem(GroupTab.EXPANSION_NONE_TEXT)
+        combo.addItem(EXPANSION_NONE_TEXT)
         combo.addItem(QtGui.QIcon(':qtutils/custom/outer'), 'outer')
         for name in app.zip_group_names():
             combo.addItem(QtGui.QIcon(':qtutils/custom/zip'), name)
@@ -189,6 +202,51 @@ class ExpansionDelegate(ItemDelegate):
         self.group_tab.on_globals_model_expansion_changed(item)
 
 
+class ValueDelegate(CommentDelegate):
+    """Delegate for the value column of a group tab. Comments are drawn in grey, and
+    the hovered or current cell has a drop-down button that shows the history of the
+    global's values."""
+
+    BUTTON_WIDTH = 16
+
+    def __init__(self, group_tab):
+        CommentDelegate.__init__(self, group_tab.ui.tableView_globals)
+        self.group_tab = group_tab
+
+    def has_button(self, index):
+        model = index.model()
+        if model.data(index, GroupTab.GLOBALS_ROLE_IS_DUMMY_ROW):
+            return False
+        units_index = index.sibling(index.row(), GroupTab.GLOBALS_COL_UNITS)
+        return not model.data(units_index, GroupTab.GLOBALS_ROLE_IS_BOOL)
+
+    def button_rect(self, rect):
+        return QtCore.QRect(rect.right() + 1 - self.BUTTON_WIDTH, rect.top(), self.BUTTON_WIDTH, rect.height())
+
+    def button_contains(self, index, global_pos):
+        """Whether the given point in global coordinates is on the button of the cell"""
+        view = self.group_tab.ui.tableView_globals
+        pos = view.viewport().mapFromGlobal(global_pos)
+        return self.has_button(index) and self.button_rect(view.visualRect(index)).contains(pos)
+
+    def reserved_width(self, index):
+        return self.BUTTON_WIDTH if self.has_button(index) else 0
+
+    def paint(self, painter, option, index):
+        CommentDelegate.paint(self, painter, option, index)
+        if not self.has_button(index):
+            return
+        view = self.group_tab.ui.tableView_globals
+        if not (option.state & QtWidgets.QStyle.State_MouseOver or view.currentIndex() == index):
+            return
+        arrow_option = QtWidgets.QStyleOption()
+        arrow_option.initFrom(view)
+        arrow_option.rect = self.button_rect(option.rect)
+        arrow_option.rect.setHeight(self.MIN_ROW_HEIGHT)
+        arrow_option.rect.moveCenter(self.button_rect(option.rect).center())
+        view.style().drawPrimitive(QtWidgets.QStyle.PE_IndicatorArrowDown, arrow_option, painter, view)
+
+
 class GroupTab:
     GLOBALS_COL_DELETE = 0
     GLOBALS_COL_NAME = 1
@@ -204,8 +262,6 @@ class GroupTab:
     GLOBALS_ROLE_PREVIOUS_CUSTOM = QtCore.Qt.UserRole + 6
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
-    # The text shown for a global with no expansion:
-    EXPANSION_NONE_TEXT = 'None'
 
     def __init__(self, tabWidget, globals_file, group_name):
 
@@ -236,6 +292,10 @@ class GroupTab:
                                                   QtWidgets.QTableView.EditKeyPressed)
         self.ui.tableView_globals.setItemDelegateForColumn(
             self.GLOBALS_COL_EXPANSION, ExpansionDelegate(self))
+        self.value_delegate = ValueDelegate(self)
+        self.ui.tableView_globals.setItemDelegateForColumn(self.GLOBALS_COL_VALUE, self.value_delegate)
+        # Repaint cells when the mouse moves over them, for the history button:
+        self.ui.tableView_globals.viewport().setAttribute(QtCore.Qt.WA_Hover)
         # Ensure the clickable region of the delete button doesn't extend forever:
         self.ui.tableView_globals.horizontalHeader().setStretchLastSection(False)
         # Stretch the value column to fill available space:
@@ -253,6 +313,14 @@ class GroupTab:
             QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected Booleans False',  self.ui)
         self.action_globals_reset_expansion = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/arrow-circle'), 'Reset expansion of selected global(s) to Auto', self.ui)
+        self.action_globals_previous_value = QtWidgets.QAction(
+            QtGui.QIcon(':qtutils/fugue/arrow-circle-double'), 'Switch selected global(s) to previous value', self.ui)
+        self.action_globals_value_history = QtWidgets.QAction(
+            QtGui.QIcon(':qtutils/fugue/clock-history'), 'Value history...', self.ui)
+        self.action_globals_value_history.setShortcuts(
+            [QtGui.QKeySequence('Alt+Down'), QtGui.QKeySequence('F4')])
+        self.action_globals_value_history.setShortcutContext(QtCore.Qt.WidgetWithChildrenShortcut)
+        self.ui.tableView_globals.addAction(self.action_globals_value_history)
 
         self.connect_signals()
 
@@ -285,6 +353,8 @@ class GroupTab:
             lambda: self.on_globals_set_selected_bools_triggered('False'))
         self.action_globals_delete_selected.triggered.connect(self.on_globals_delete_selected_triggered)
         self.action_globals_reset_expansion.triggered.connect(self.on_globals_reset_expansion_triggered)
+        self.action_globals_previous_value.triggered.connect(self.on_globals_previous_value_triggered)
+        self.action_globals_value_history.triggered.connect(self.on_globals_value_history_triggered)
         self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.globals_model_item_changed_disconnected = DisconnectContextManager(
@@ -388,7 +458,7 @@ class GroupTab:
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
         units_item.setToolTip('')
 
-        expansion_item = QtGui.QStandardItem(expansion or self.EXPANSION_NONE_TEXT)
+        expansion_item = QtGui.QStandardItem(expansion_text(expansion))
         expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         expansion_item.setData(bool(custom), self.GLOBALS_ROLE_EXPANSION_CUSTOM)
@@ -424,6 +494,10 @@ class GroupTab:
         elif item.column() == self.GLOBALS_COL_DELETE:
             # They clicked a delete button.
             self.delete_global(global_name)
+        elif item.column() == self.GLOBALS_COL_VALUE and self.value_delegate.button_contains(
+                index, QtGui.QCursor.pos()):
+            self.ui.tableView_globals.setCurrentIndex(index)
+            self.show_value_history(global_name)
         elif not item.data(self.GLOBALS_ROLE_IS_BOOL):
             # Edit whatever it is:
             if (self.ui.tableView_globals.currentIndex() != index
@@ -496,7 +570,7 @@ class GroupTab:
     @classmethod
     def expansion_from_text(cls, text):
         """The expansion setting that the text of an expansion item means"""
-        return '' if text == cls.EXPANSION_NONE_TEXT else text
+        return '' if text == EXPANSION_NONE_TEXT else text
 
     def on_globals_model_expansion_changed(self, item):
         index = item.index()
@@ -508,12 +582,10 @@ class GroupTab:
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
         if new_expansion == 'outer':
-            icon = QtGui.QIcon(':qtutils/custom/outer')
             effect = ('This global will be interpreted as a list of values, and will be outer '
                       'producted with other lists to form a larger parameter space.')
             reason = 'the value is a list, array or range'
         elif new_expansion:
-            icon = QtGui.QIcon(':qtutils/custom/zip')
             effect = ('This global will be interpreted as a list of values, and will be iterated '
                       f"over in lock-step with other globals in the '{new_expansion}' zip group.")
             if new_expansion == global_name:
@@ -521,7 +593,6 @@ class GroupTab:
             else:
                 reason = f'it is derived from {new_expansion}'
         else:
-            icon = None
             effect = 'This global will be interpreted as a single value and passed to compilation as-is.'
             reason = 'the value is not a list, array or range'
         if custom:
@@ -531,21 +602,9 @@ class GroupTab:
         # Don't want icon changing to recurse - which happens even if it is
         # the same icon. So disconnect the signal temporarily:
         with self.globals_model_item_changed_disconnected:
-            if icon is None:
-                item.setData(None, QtCore.Qt.DecorationRole)
-            else:
-                item.setIcon(icon)
+            style_expansion_item(item, new_expansion, custom, self.ui.tableView_globals.palette())
             # Rich text, so that the tooltip wraps:
             item.setToolTip(f'<p>{html.escape(effect)}</p><p>{html.escape(origin)}</p>')
-            # An automatic setting is shown in grey italics:
-            font = item.font()
-            font.setItalic(not custom)
-            item.setFont(font)
-            if custom:
-                item.setData(None, QtCore.Qt.ForegroundRole)
-            else:
-                palette = self.ui.tableView_globals.palette()
-                item.setForeground(palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text))
         # Ensure the setting actually changed, rather than something else about
         # the item:
         if new_expansion != previous_expansion or custom != previous_custom:
@@ -556,6 +615,8 @@ class GroupTab:
         menu.addAction(self.action_globals_set_selected_true)
         menu.addAction(self.action_globals_set_selected_false)
         menu.addAction(self.action_globals_reset_expansion)
+        menu.addAction(self.action_globals_previous_value)
+        menu.addAction(self.action_globals_value_history)
         menu.addAction(self.action_globals_delete_selected)
         menu.exec(QtGui.QCursor.pos())
 
@@ -590,6 +651,95 @@ class GroupTab:
                 with self.globals_model_item_changed_disconnected:
                     item.setData(False, self.GLOBALS_ROLE_EXPANSION_CUSTOM)
                 self.on_globals_model_expansion_changed(item)
+
+    def on_globals_previous_value_triggered(self):
+        selected_indexes = self.ui.tableView_globals.selectedIndexes()
+        selected_items = [self.globals_model.itemFromIndex(index) for index in selected_indexes]
+        for item in selected_items:
+            if item.column() == self.GLOBALS_COL_NAME and not item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
+                global_name = item.text()
+                value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+                entries = group_manager.get_history(self.globals_file, self.group_name, global_name)
+                entry = group_manager.previous_history_entry(entries, value_item.text())
+                if entry is not None:
+                    self.set_value_from_history(global_name, entry)
+
+    def on_globals_value_history_triggered(self):
+        view = self.ui.tableView_globals
+        index = view.currentIndex()
+        if not index.isValid():
+            return
+        index = index.sibling(index.row(), self.GLOBALS_COL_VALUE)
+        if not self.value_delegate.has_button(index):
+            return
+        editor = view.indexWidget(index)
+        if editor is not None:
+            # Discard the edit in progress:
+            self.value_delegate.closeEditor.emit(editor, QtWidgets.QAbstractItemDelegate.NoHint)
+        view.setCurrentIndex(index)
+        name_item = self.globals_model.itemFromIndex(index.sibling(index.row(), self.GLOBALS_COL_NAME))
+        self.show_value_history(name_item.text())
+
+    def show_value_history(self, global_name):
+        value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+        try:
+            entries = group_manager.get_history(self.globals_file, self.group_name, global_name)
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
+            error_dialog(str(e))
+            return
+        current_value = value_item.text()
+        expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
+        popup = HistoryPopup(
+            self.ui,
+            group_manager.ordered_history(entries, current_value),
+            group_manager.history_key(current_value),
+            QtGui.QFont(GLOBAL_MONOSPACE_FONT),
+            self.expansion_from_text(expansion_item.text()),
+            bool(expansion_item.data(self.GLOBALS_ROLE_EXPANSION_CUSTOM)),
+        )
+        popup.activated.connect(lambda entry: self.set_value_from_history(global_name, entry))
+        popup.pin_toggled.connect(lambda entry: self.set_history_pinned(global_name, entry))
+        popup.removed.connect(lambda entry: self.delete_history_entry(global_name, entry))
+        view = self.ui.tableView_globals
+        rect = view.visualRect(value_item.index())
+        rect.moveTopLeft(view.viewport().mapToGlobal(rect.topLeft()))
+        popup.show_below(rect)
+
+    def set_value_from_history(self, global_name, entry):
+        """Set the value of the global and its expansion setting to those in the history
+        entry. An automatic setting is set again by the parse that follows."""
+        value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+        previous_value = value_item.text()
+        if entry['text'] != previous_value:
+            try:
+                self.change_global_value(global_name, previous_value, entry['text'], interactive=False)
+            except Exception as e: # noqa: BLE001 send all errors to dialog box
+                error_dialog(str(e))
+                return
+        expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
+        expansion, custom = group_manager.history_entry_expansion(entry)
+        previous_custom = bool(expansion_item.data(self.GLOBALS_ROLE_EXPANSION_CUSTOM))
+        previous_expansion = self.expansion_from_text(expansion_item.text())
+        if custom != previous_custom or (expansion is not None and expansion != previous_expansion):
+            with self.globals_model_item_changed_disconnected:
+                expansion_item.setData(custom, self.GLOBALS_ROLE_EXPANSION_CUSTOM)
+                if expansion is not None:
+                    expansion_item.setText(expansion_text(expansion))
+            self.on_globals_model_expansion_changed(expansion_item)
+
+    def set_history_pinned(self, global_name, entry):
+        try:
+            group_manager.set_history_pinned(
+                self.globals_file, self.group_name, global_name, entry['key'], entry['pinned']
+            )
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
+            error_dialog(str(e))
+
+    def delete_history_entry(self, global_name, entry):
+        try:
+            group_manager.delete_history_entry(self.globals_file, self.group_name, global_name, entry['key'])
+        except Exception as e: # noqa: BLE001 send all errors to dialog box
+            error_dialog(str(e))
 
     def close(self):
         # It is up to the main runmanager class to drop references to this
@@ -766,7 +916,7 @@ class GroupTab:
             # Set the item back to the old setting, since the change failed:
             with self.globals_model_item_changed_disconnected:
                 item.setData(item.data(self.GLOBALS_ROLE_PREVIOUS_CUSTOM), self.GLOBALS_ROLE_EXPANSION_CUSTOM)
-            item.setText(previous_expansion or self.EXPANSION_NONE_TEXT)
+            item.setText(expansion_text(previous_expansion))
         else:
             with self.globals_model_item_changed_disconnected:
                 item.setData(new_expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -877,8 +1027,8 @@ class GroupTab:
                     for role in [self.GLOBALS_ROLE_PREVIOUS_CUSTOM, self.GLOBALS_ROLE_EXPANSION_CUSTOM]:
                         if expansion_item.data(role) != custom:
                             expansion_item.setData(custom, role)
-                    if expansion_item.text() != (expansion or self.EXPANSION_NONE_TEXT):
-                        expansion_item.setText(expansion or self.EXPANSION_NONE_TEXT)
+                    if expansion_item.text() != expansion_text(expansion):
+                        expansion_item.setText(expansion_text(expansion))
                 # Update the icon, tooltip and text style. This is not detected as
                 # a change to the setting, because the previous roles match.
                 self.on_globals_model_expansion_changed(expansion_item)
@@ -1456,11 +1606,13 @@ class RunManager:
                 sequenceglobals, shots, _, _, _ = self.parse_globals(active_groups, expansion_order=expansion_order)
             except Exception as e:
                 raise Exception(f'Error parsing globals:\n{e!s}\nCompilation aborted.')
+            # Recorded in the history of each global once a shot compiles:
+            history = active_groups, sequenceglobals
             self.logger.info('Making h5 files')
             labscript_file, run_files = self.make_h5_files(
                 labscript_file, output_folder, sequenceglobals, shots, shuffle)
             self.ui.pushButton_abort.setEnabled(True)
-            self.compile_queue.put([labscript_file, run_files, len(shots), send_to_BLACS, BLACS_host, send_to_runviewer])
+            self.compile_queue.put([labscript_file, run_files, len(shots), send_to_BLACS, BLACS_host, send_to_runviewer, history])
         except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'{e!s}\n\n', red=True)
         self.logger.info('end engage')
@@ -2855,7 +3007,7 @@ class RunManager:
     def compile_loop(self):
         while True:
             try:
-                labscript_file, run_files, n_shots, send_to_BLACS, BLACS_host, send_to_runviewer = self.compile_queue.get()
+                labscript_file, run_files, n_shots, send_to_BLACS, BLACS_host, send_to_runviewer, history = self.compile_queue.get()
                 inmain(self.ui.pushButton_abort.setEnabled, True)
                 run_files = iter(run_files)  # Should already be in iterator but just in case
                 shot_number = 0
@@ -2884,6 +3036,8 @@ class RunManager:
                             if not success:
                                 self.compilation_aborted.set()
                                 continue
+                            if shot_number == 1:
+                                self.record_history(*history)
                             if send_to_BLACS:
                                 self.send_to_BLACS(run_file, BLACS_host)
                             if send_to_runviewer:
@@ -2900,6 +3054,12 @@ class RunManager:
                 exc_info = sys.exc_info()
                 raise_exception_in_thread(exc_info)
                 continue
+
+    def record_history(self, active_groups, sequence_globals):
+        try:
+            group_manager.record_history(active_groups, sequence_globals)
+        except Exception as e: # noqa: BLE001 send all errors to the output box
+            self.output_box.output(f'Could not record the values of globals in their history: {e!s}\n', red=True)
 
     def discard_queued_sequences(self):
         """Removes every sequence waiting in the compile queue and reports the number

@@ -13,10 +13,17 @@
 """Widgets for the Runmanager GUI
 """
 
+import functools
 import logging
+import time
 
 from qtutils.qt import QT_ENV, QtCore, QtGui, QtWidgets
 from qtutils.qt.QtCore import pyqtSignal as Signal
+
+from runmanager.group_manager import history_entry_expansion
+from runmanager.tokenizer import find_comments
+
+EXPANSION_NONE_TEXT = 'None'
 
 
 class RunmanagerColors:
@@ -631,3 +638,426 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         
     def setModelData(self, editor, model, index):
         model.setData(index, editor.toPlainText())
+
+
+@functools.lru_cache(maxsize=4096)
+def comment_ranges(text):
+    """The start and end indices of the comments in a Python expression"""
+    return find_comments(text)
+
+
+def comment_color(palette):
+    """The text colour, partly transparent, so that comments are grey on any background"""
+    color = QtGui.QColor(palette.color(QtGui.QPalette.Text))
+    color.setAlpha(140)
+    return color
+
+
+class CommentHighlighter(QtGui.QSyntaxHighlighter):
+    """Highlighter that shows the comments in a Python expression in the given colour"""
+
+    def __init__(self, document, color):
+        QtGui.QSyntaxHighlighter.__init__(self, document)
+        self.color = color
+
+    def highlightBlock(self, text):
+        document_text = self.document().toPlainText()
+        offset = self.currentBlock().position()
+        char_format = QtGui.QTextCharFormat()
+        char_format.setForeground(self.color)
+        for start, end in comment_ranges(document_text):
+            start = max(start - offset, 0)
+            end = min(end - offset, len(text))
+            if start < end:
+                self.setFormat(start, end - start, char_format)
+        # An edit to one line can change which text in the following lines is a
+        # comment. A block state that differs from its previous value makes Qt
+        # highlight the following block too:
+        self.setCurrentBlockState(hash(document_text) & 0x7FFFFFFF)
+
+
+class CommentDelegate(ItemDelegate):
+    """An ItemDelegate for Python expressions, which draws comments in grey, both in
+    the cell and in the editor"""
+
+    def __init__(self, *args, **kwargs):
+        ItemDelegate.__init__(self, *args, **kwargs)
+        self._painting = False
+
+    def reserved_width(self, index):
+        """Width in pixels at the right of the cell in which no text is drawn"""
+        return 0
+
+    def initStyleOption(self, option, index):
+        ItemDelegate.initStyleOption(self, option, index)
+        if self._painting:
+            # We draw the text ourselves
+            option.text = ''
+
+    def sizeHint(self, option, index):
+        reserved_width = self.reserved_width(index)
+        option = QtWidgets.QStyleOptionViewItem(option)
+        option.rect.setWidth(option.rect.width() - reserved_width)
+        size = ItemDelegate.sizeHint(self, option, index)
+        return QtCore.QSize(size.width() + reserved_width, size.height())
+
+    def paint(self, painter, option, index):
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        widget = opt.widget
+        style = widget.style() if widget is not None else QtWidgets.QApplication.style()
+        text_rect = style.subElementRect(QtWidgets.QStyle.SE_ItemViewItemText, opt, widget)
+        margin = style.pixelMetric(QtWidgets.QStyle.PM_FocusFrameHMargin, None, widget) + 1
+        text_rect.adjust(margin, 0, -margin - self.reserved_width(index), 0)
+        self._painting = True
+        try:
+            ItemDelegate.paint(self, painter, option, index)
+        finally:
+            self._painting = False
+        text = index.data() or ''
+        # Table views draw the selection as the background colour, with normal text:
+        selected = (opt.state & QtWidgets.QStyle.State_Selected
+                    and not isinstance(self.parent(), QtWidgets.QTableView))
+        text_role = QtGui.QPalette.HighlightedText if selected else QtGui.QPalette.Text
+        layout = QtGui.QTextLayout(text.replace('\n', '\u2028'), opt.font)
+        text_option = QtGui.QTextOption()
+        if opt.features & QtWidgets.QStyleOptionViewItem.WrapText:
+            text_option.setWrapMode(QtGui.QTextOption.WordWrap)
+        else:
+            text_option.setWrapMode(QtGui.QTextOption.ManualWrap)
+        layout.setTextOption(text_option)
+        formats = []
+        for start, end in comment_ranges(text):
+            format_range = QtGui.QTextLayout.FormatRange()
+            format_range.start = start
+            format_range.length = end - start
+            char_format = QtGui.QTextCharFormat()
+            char_format.setForeground(comment_color(opt.palette))
+            format_range.format = char_format
+            formats.append(format_range)
+        layout.setFormats(formats)
+        height = 0
+        layout.beginLayout()
+        while True:
+            line = layout.createLine()
+            if not line.isValid():
+                break
+            line.setLineWidth(text_rect.width())
+            line.setPosition(QtCore.QPointF(0, height))
+            height += line.height()
+        layout.endLayout()
+        # Centred vertically, or aligned to the top if the text does not fit:
+        top = text_rect.top() + max(0, (text_rect.height() - height) / 2)
+        painter.save()
+        painter.setClipRect(text_rect)
+        painter.setPen(opt.palette.color(text_role))
+        layout.draw(painter, QtCore.QPointF(text_rect.left(), top))
+        painter.restore()
+
+    def createEditor(self, parent, option, index):
+        editor = ItemDelegate.createEditor(self, parent, option, index)
+        editor.highlighter = CommentHighlighter(editor.document(), comment_color(editor.palette()))
+        return editor
+
+
+def expansion_text(expansion):
+    """The text of an expansion setting as shown in the globals table"""
+    return expansion or EXPANSION_NONE_TEXT
+
+
+def style_expansion_item(item, expansion, custom, palette):
+    """Give an item the icon of an expansion setting, and grey italics if the setting
+    is automatic rather than chosen by the user"""
+    if expansion == 'outer':
+        item.setIcon(QtGui.QIcon(':qtutils/custom/outer'))
+    elif expansion:
+        item.setIcon(QtGui.QIcon(':qtutils/custom/zip'))
+    else:
+        item.setData(None, QtCore.Qt.DecorationRole)
+    font = item.font()
+    font.setItalic(not custom)
+    item.setFont(font)
+    if custom:
+        item.setData(None, QtCore.Qt.ForegroundRole)
+    else:
+        item.setForeground(palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text))
+
+
+def format_time_ago(t, now):
+    """A short description of the time t relative to the time now, both in seconds since
+    the epoch, such as '5 min ago' or '12 Oct'"""
+    interval = now - t
+    if interval < 60:
+        return 'just now'
+    elif interval < 3600:
+        return f'{int(interval // 60)} min ago'
+    elif interval < 24 * 3600:
+        return f'{int(interval // 3600)} h ago'
+    elif interval < 7 * 24 * 3600:
+        days = int(interval // (24 * 3600))
+        return '1 day ago' if days == 1 else f'{days} days ago'
+    elif time.localtime(t).tm_year == time.localtime(now).tm_year:
+        return time.strftime('%d %b', time.localtime(t)).lstrip('0')
+    else:
+        return time.strftime('%d %b %Y', time.localtime(t)).lstrip('0')
+
+
+class HistoryPopup(QtWidgets.QFrame):
+    """A popup list of the previous values of a global, with a box to filter them.
+    entries are history entries as returned by runmanager.group_manager.get_history(),
+    in the order in which to show them, and current_key is the history key of the
+    current value of the global. Each value is listed with the expansion setting that
+    the global had when the value was used; the current value is listed with
+    current_expansion and current_custom, the global's current setting and whether the
+    user chose it. Emits activated(entry) when the user chooses an entry,
+    pin_toggled(entry) after the user pins or unpins one, and removed(entry) when the
+    user removes one."""
+
+    activated = Signal(object)
+    pin_toggled = Signal(object)
+    removed = Signal(object)
+
+    COL_PIN = 0
+    COL_VALUE = 1
+    COL_EXPANSION = 2
+    COL_TIME = 3
+
+    ROLE_ENTRY = QtCore.Qt.UserRole + 1
+
+    MAX_VISIBLE_ROWS = 15
+
+    def __init__(self, parent, entries, current_key, font, current_expansion, current_custom):
+        QtWidgets.QFrame.__init__(self, parent, QtCore.Qt.Popup)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.current_key = current_key
+        now = time.time()
+
+        self.filter_edit = QtWidgets.QLineEdit(self)
+        self.filter_edit.setPlaceholderText('Filter')
+        self.filter_edit.setClearButtonEnabled(True)
+        self.filter_edit.installEventFilter(self)
+
+        self.model = QtGui.QStandardItemModel(self)
+        self.view = QtWidgets.QTreeView(self)
+        self.view.setModel(self.model)
+        self.view.setHeaderHidden(True)
+        self.view.setRootIsDecorated(False)
+        self.view.setAllColumnsShowFocus(True)
+        self.view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.view.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.view.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.view.setItemDelegateForColumn(self.COL_VALUE, CommentDelegate(self.view))
+        self.view.clicked.connect(self.on_clicked)
+        self.view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.view.customContextMenuRequested.connect(self.on_context_menu_requested)
+
+        bold_font = QtGui.QFont(font)
+        bold_font.setBold(True)
+        for entry in entries:
+            current = entry['key'] == current_key
+            pin_item = QtGui.QStandardItem()
+            value_item = QtGui.QStandardItem(entry['text'])
+            value_item.setFont(bold_font if current else font)
+            value_item.setData(entry, self.ROLE_ENTRY)
+            value_item.setToolTip('Current value' if current else 'Click to use this value')
+            if current:
+                expansion_item = self.make_expansion_item(current_expansion, current_custom, current)
+            else:
+                expansion_item = self.make_expansion_item(*history_entry_expansion(entry), current)
+            time_item = QtGui.QStandardItem(format_time_ago(entry['last_used'], now))
+            time_item.setToolTip(
+                'Last used ' + time.strftime('%Y-%m-%d %H:%M', time.localtime(entry['last_used']))
+            )
+            time_item.setForeground(comment_color(self.view.palette()))
+            self.model.appendRow([pin_item, value_item, expansion_item, time_item])
+            self.update_pin_item(pin_item, entry)
+        if not entries:
+            item = QtGui.QStandardItem('No shots have been compiled with this global')
+            item.setFlags(QtCore.Qt.NoItemFlags)
+            self.model.appendRow(
+                [QtGui.QStandardItem(), item, QtGui.QStandardItem(), QtGui.QStandardItem()]
+            )
+
+        hint = QtWidgets.QLabel('Enter: use value    Ctrl+P: pin    Delete: remove', self)
+        hint_palette = hint.palette()
+        hint_palette.setColor(QtGui.QPalette.WindowText, comment_color(hint_palette))
+        hint.setPalette(hint_palette)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
+        layout.addWidget(self.filter_edit)
+        layout.addWidget(self.view)
+        layout.addWidget(hint)
+
+        for column in range(self.model.columnCount()):
+            self.view.resizeColumnToContents(column)
+        header = self.view.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(self.COL_VALUE, QtWidgets.QHeaderView.Stretch)
+        self.filter_edit.textChanged.connect(self.on_filter_changed)
+        self.select_first_row()
+
+    def make_expansion_item(self, expansion, custom, current):
+        """An item that shows an expansion setting as the globals table does. expansion
+        is None if the setting was not recorded with the value."""
+        item = QtGui.QStandardItem()
+        if expansion is None and not custom:
+            item.setToolTip('The expansion setting was not recorded with this value')
+            return item
+        item.setText(expansion_text(expansion))
+        style_expansion_item(item, expansion, custom, self.view.palette())
+        if current:
+            origin = 'chosen by you' if custom else 'set automatically'
+            item.setToolTip(f'The current expansion setting, {origin}')
+        elif custom:
+            item.setToolTip('Chosen by you when this value was used. Choosing the value restores it.')
+        else:
+            item.setToolTip('Set automatically when this value was used. '
+                            'Runmanager sets it again when you choose the value.')
+        return item
+
+    def update_pin_item(self, pin_item, entry):
+        icon = QtGui.QIcon(':qtutils/fugue/pin')
+        if entry['pinned']:
+            pin_item.setIcon(icon)
+            pin_item.setToolTip('Pinned. Click to unpin')
+        else:
+            pin_item.setIcon(QtGui.QIcon(icon.pixmap(QtCore.QSize(16, 16), QtGui.QIcon.Disabled)))
+            pin_item.setToolTip('Click to pin')
+
+    def entry(self, row):
+        return self.model.item(row, self.COL_VALUE).data(self.ROLE_ENTRY)
+
+    def visible_rows(self):
+        return [row for row in range(self.model.rowCount())
+                if not self.view.isRowHidden(row, QtCore.QModelIndex())
+                and self.entry(row) is not None]
+
+    def select_row(self, row):
+        self.view.setCurrentIndex(self.model.index(row, self.COL_VALUE))
+
+    def select_first_row(self):
+        rows = self.visible_rows()
+        # Select the first entry that is not the current value:
+        for row in rows:
+            if self.entry(row)['key'] != self.current_key:
+                self.select_row(row)
+                return
+        if rows:
+            self.select_row(rows[0])
+
+    def current_row(self):
+        index = self.view.currentIndex()
+        if index.isValid() and index.row() in self.visible_rows():
+            return index.row()
+        return None
+
+    def on_filter_changed(self, text):
+        text = text.lower()
+        for row in range(self.model.rowCount()):
+            entry = self.entry(row)
+            hidden = entry is not None and text not in entry['text'].lower()
+            self.view.setRowHidden(row, QtCore.QModelIndex(), hidden)
+        self.select_first_row()
+
+    def on_clicked(self, index):
+        if self.entry(index.row()) is None:
+            return
+        if index.column() == self.COL_PIN:
+            self.toggle_pin(index.row())
+        else:
+            self.activate(index.row())
+
+    def activate(self, row):
+        entry = self.entry(row)
+        self.close()
+        if entry['key'] != self.current_key:
+            self.activated.emit(entry)
+
+    def toggle_pin(self, row):
+        entry = self.entry(row)
+        entry['pinned'] = not entry['pinned']
+        self.update_pin_item(self.model.item(row, self.COL_PIN), entry)
+        self.pin_toggled.emit(entry)
+
+    def remove(self, row):
+        entry = self.entry(row)
+        self.model.removeRow(row)
+        self.removed.emit(entry)
+        self.select_first_row()
+
+    def on_context_menu_requested(self, point):
+        index = self.view.indexAt(point)
+        if not index.isValid() or self.entry(index.row()) is None:
+            return
+        row = index.row()
+        menu = QtWidgets.QMenu(self)
+        use_action = menu.addAction('Use this value')
+        use_action.setEnabled(self.entry(row)['key'] != self.current_key)
+        pin_action = menu.addAction(
+            QtGui.QIcon(':qtutils/fugue/pin'), 'Unpin' if self.entry(row)['pinned'] else 'Pin'
+        )
+        remove_action = menu.addAction(QtGui.QIcon(':qtutils/fugue/cross'), 'Remove from history')
+        action = menu.exec(self.view.viewport().mapToGlobal(point))
+        if action is use_action:
+            self.activate(row)
+        elif action is pin_action:
+            self.toggle_pin(row)
+        elif action is remove_action:
+            self.remove(row)
+
+    def eventFilter(self, obj, event):
+        """Keys pressed in the filter box move the selection and act on the selected
+        entry"""
+        if obj is self.filter_edit and event.type() == QtCore.QEvent.KeyPress:
+            key = event.key()
+            rows = self.visible_rows()
+            row = self.current_row()
+            if key in (QtCore.Qt.Key_Up, QtCore.Qt.Key_Down) and rows:
+                if row is None:
+                    position = 0
+                elif key == QtCore.Qt.Key_Up:
+                    position = max(rows.index(row) - 1, 0)
+                else:
+                    position = min(rows.index(row) + 1, len(rows) - 1)
+                self.select_row(rows[position])
+                return True
+            elif key in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
+                if row is not None:
+                    self.activate(row)
+                return True
+            elif key == QtCore.Qt.Key_P and event.modifiers() & QtCore.Qt.ControlModifier:
+                if row is not None:
+                    self.toggle_pin(row)
+                return True
+            elif key == QtCore.Qt.Key_Delete and not self.filter_edit.text():
+                if row is not None:
+                    self.remove(row)
+                return True
+        return QtWidgets.QFrame.eventFilter(self, obj, event)
+
+    def show_below(self, rect):
+        """Show the popup below the given rectangle in global coordinates, or above it if
+        there is not enough space below"""
+        n_rows = min(max(self.model.rowCount(), 1), self.MAX_VISIBLE_ROWS)
+        rows_height = sum(self.view.sizeHintForRow(row) for row in range(n_rows))
+        self.view.setFixedHeight(rows_height + 2 * self.view.frameWidth())
+        width = sum(self.view.columnWidth(col) for col in range(self.model.columnCount()))
+        self.view.setMinimumWidth(width + 2 * self.view.frameWidth())
+        self.adjustSize()
+        screen = QtWidgets.QApplication.screenAt(rect.center())
+        available = screen.availableGeometry() if screen is not None else None
+        width = max(self.width(), rect.width())
+        if available is not None:
+            width = min(width, available.width())
+        self.resize(width, self.height())
+        position = rect.bottomLeft()
+        if available is not None:
+            if position.y() + self.height() > available.bottom():
+                position.setY(rect.top() - self.height())
+            position.setX(min(position.x(), available.right() - width))
+        self.move(position)
+        self.show()
+        self.filter_edit.setFocus()
