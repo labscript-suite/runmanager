@@ -187,6 +187,42 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 raise exception
             evaled_globals.update(dict.fromkeys(lengths, exception))
 
+    # Each global is evaluated once for the whole sequence, so a global in a zip group
+    # cannot depend on globals expanded on other axes, directly or through globals that
+    # are not expanded:
+    def expanded_dependencies(global_name, visited):
+        for name in global_hierarchy.get(global_name, []):
+            if name not in visited:
+                visited.add(name)
+                if expansions[name]:
+                    yield name
+                else:
+                    yield from expanded_dependencies(name, visited)
+
+    for global_name, value in evaled_globals.items():
+        zip_key = expansions[global_name]
+        if zip_key in ('', 'outer') or isinstance(value, Exception):
+            continue
+        other_axes = [
+            name for name in expanded_dependencies(global_name, {global_name})
+            if expansions[name] != zip_key
+        ]
+        if other_axes:
+            exception = ValueError(
+                f"Global '{global_name}' in zip group '{zip_key}' depends on globals on "
+                + 'other axes: '
+                + ', '.join(
+                    f"{name} (outer)" if expansions[name] == 'outer'
+                    else f"{name} (zip group '{expansions[name]}')"
+                    for name in other_axes
+                )
+                + '. Globals are evaluated once for the whole sequence, not once per '
+                + 'shot, so a global in a zip group cannot vary with other axes'
+            )
+            if raise_exceptions:
+                raise exception
+            evaled_globals[global_name] = exception
+
     # Assemble results into a dictionary of the same format as sequence_globals:
     for group_name in sequence_globals:
         for global_name in sequence_globals[group_name]:
