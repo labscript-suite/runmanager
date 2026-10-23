@@ -15,15 +15,32 @@
 
 import contextlib
 import io
+import os
+import shutil
+import tempfile
 import tokenize
 import warnings
 
 import h5py
 import labscript_utils.shot_utils
 import numpy as np
+from labscript_utils.ls_zprocess import Lock
+from labscript_utils.shared_drive import path_to_agnostic
 
 from runmanager.evaluator import evaluate_globals
 from runmanager.exceptions import ExpansionError
+
+
+# HDF5 stores variable-length strings in global heap collections of at least 4 kB, and
+# allocates a new collection each time a globals file is opened and a string is written to
+# it. The free space in earlier collections is not reused, so we repack a globals file
+# once it has grown by more than this many bytes and to more than twice its size since it
+# was last repacked:
+_REPACK_GROWTH = 1 << 20
+
+# Size in bytes of each globals file after it was last repacked by this process, keyed by
+# absolute path
+_repacked_sizes = {}
 
 
 def _ensure_str(s):
@@ -75,6 +92,84 @@ def is_valid_hdf5_group_name(name):
             return False
     return True
 
+
+def _grown(size, repacked_size):
+    return size > 2 * repacked_size and size > repacked_size + _REPACK_GROWTH
+
+
+def _attributes(f):
+    """The attributes of every object in an open h5 file, keyed by the path of the
+    object"""
+    objects = {'/': f}
+    f.visititems(objects.__setitem__)
+    return {path: {name: obj.attrs[name] for name in obj.attrs} for path, obj in objects.items()}
+
+
+def _same_attributes(a, b):
+    return a.keys() == b.keys() and all(
+        a[path].keys() == b[path].keys()
+        and all(np.array_equal(a[path][name], b[path][name]) for name in a[path])
+        for path in a
+    )
+
+
+def _repack(path, size):
+    """Copy the globals file at the absolute path, which is size bytes, to a new file.
+    Replace the file with the copy if the file is too large compared with the copy, and
+    record the size of the copy. The caller must hold the write lock of the file."""
+    directory, name = os.path.split(path)
+    try:
+        fd, temp_path = tempfile.mkstemp(prefix=f'.{name}.', suffix='.repack', dir=directory)
+    except OSError:
+        return
+    os.close(fd)
+    try:
+        with h5py.File(path, 'r') as source, h5py.File(temp_path, 'w') as dest:
+            for attr_name in source.attrs:
+                dest.attrs.create(
+                    attr_name, source.attrs[attr_name], dtype=source.attrs.get_id(attr_name).dtype
+                )
+            for item_name in source:
+                source.copy(source[item_name], dest, item_name)
+            same = _same_attributes(_attributes(source), _attributes(dest))
+        if not same:
+            return
+        repacked_size = os.path.getsize(temp_path)
+        if _grown(size, repacked_size):
+            shutil.copymode(path, temp_path)
+            # Fails on Windows if another process has the file open, in which case we try
+            # again after the next write:
+            os.replace(temp_path, path)
+        _repacked_sizes[path] = repacked_size
+    except OSError:
+        pass
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def _repack_if_grown(filename):
+    """Repack the globals file if it has grown too much since it was last repacked by
+    this process. The first call for each file repacks it to find its repacked size."""
+    path = os.path.abspath(filename)
+    if path in _repacked_sizes and not _grown(os.path.getsize(path), _repacked_sizes[path]):
+        return
+    with Lock(path_to_agnostic(path)):
+        # Another thread may have repacked the file since the check above:
+        size = os.path.getsize(path)
+        if path in _repacked_sizes and not _grown(size, _repacked_sizes[path]):
+            return
+        _repack(path, size)
+
+
+@contextlib.contextmanager
+def _open_for_writing(filename):
+    """Open a globals file in append mode, and repack it after closing it if required"""
+    with h5py.File(filename, 'a') as f:
+        yield f
+    _repack_if_grown(filename)
+
+
 def new_globals_file(filename):
     """Creates a new globals h5 file.
     
@@ -98,7 +193,7 @@ def add_expansion_groups(filename):
                 requires_expansion_group.append(groupname)
     if requires_expansion_group:
         group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group]
-        with h5py.File(filename, 'a') as f:
+        with _open_for_writing(filename) as f:
             for groupname, globalslist in zip(requires_expansion_group, group_globalslists):
                 group = f['globals'][groupname]
                 subgroup = group.create_group('expansion')
@@ -135,7 +230,7 @@ def new_group(filename, groupname):
             'Invalid group name. Group names must contain only ASCII '
             'characters and cannot include "/" or ".".'
         )
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         if groupname in f['globals']:
             raise Exception('Can\'t create group: target name already exists.')
         group = f['globals'].create_group(groupname)
@@ -150,14 +245,14 @@ def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_
         collision. If delete_source_group is False the copyied files have
         a suffix '_copy'."""
     with contextlib.ExitStack() as stack:
-        source_f = stack.enter_context(h5py.File(source_globals_file, 'a'))
+        source_f = stack.enter_context(_open_for_writing(source_globals_file))
         # check if group exists
         if source_groupname not in source_f['globals']:
             raise Exception(f'Can\'t copy there is no group "{source_groupname}"!')
 
         # Are we coping from one file to another?
         if dest_globals_file is not None and source_globals_file != dest_globals_file:
-            dest_f = stack.enter_context(h5py.File(dest_globals_file, 'a'))
+            dest_f = stack.enter_context(_open_for_writing(dest_globals_file))
         else:
             dest_f = source_f  # no -> dest files is source file
 
@@ -187,7 +282,7 @@ def rename_group(filename, oldgroupname, newgroupname):
             'Invalid group name. Group names must contain only ASCII '
             'characters and cannot include "/" or ".".'
         )
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         if newgroupname in f['globals']:
             raise Exception('Can\'t rename group: target name already exists.')
         f.copy(f['globals'][oldgroupname], f'/globals/{newgroupname}')
@@ -195,7 +290,7 @@ def rename_group(filename, oldgroupname, newgroupname):
 
 
 def delete_group(filename, groupname):
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         del f['globals'][groupname]
 
 
@@ -210,7 +305,7 @@ def get_globalslist(filename, groupname):
 def new_global(filename, groupname, globalname):
     if not is_valid_python_identifier(globalname):
         raise ValueError(f'{globalname} is not a valid Python variable name')
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         group = f['globals'][groupname]
         if globalname in group.attrs:
             raise Exception('Can\'t create global: target name already exists.')
@@ -230,7 +325,7 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
     units = get_units(filename, groupname, oldglobalname)
     expansion = get_expansion(filename, groupname, oldglobalname)
     custom = get_expansion_custom(filename, groupname, oldglobalname)
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         group = f['globals'][groupname]
         if newglobalname in group.attrs:
             raise Exception('Can\'t rename global: target name already exists.')
@@ -256,7 +351,7 @@ def get_value(filename, groupname, globalname):
 
 
 def set_value(filename, groupname, globalname, value):
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         f['globals'][groupname].attrs[globalname] = value
 
 
@@ -270,7 +365,7 @@ def get_units(filename, groupname, globalname):
 
 
 def set_units(filename, groupname, globalname, units):
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         f['globals'][groupname]['units'].attrs[globalname] = units
 
 
@@ -296,14 +391,14 @@ def get_expansion_custom(filename, groupname, globalname):
 def set_expansion(filename, groupname, globalname, expansion, custom=True):
     """Sets the expansion setting of the global, and records whether it was chosen by the
     user (custom=True) or set automatically."""
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         group = f['globals'][groupname]
         group['expansion'].attrs[globalname] = expansion
         group.require_group('expansion_custom').attrs[globalname] = bool(custom)
 
 
 def delete_global(filename, groupname, globalname):
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         group = f['globals'][groupname]
         del group.attrs[globalname]
         for subgroup in ['units', 'expansion', 'expansion_custom']:
