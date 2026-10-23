@@ -321,6 +321,14 @@ This ensures that important quantities need not be derived (from globals) in the
 experiment logic script, and that they are accessible directly during the analysis stage (see
 :doc:`lyse <lyse:index>`).
 
+Each global is evaluated once for the whole sequence, not once per shot: in the expression
+of a global that refers to a list, the name of the list has the whole list as its value. A
+global in a zip group therefore varies only with the other globals in its zip group, and
+runmanager reports an error for a global in a zip group that refers to a global that is
+expanded on a different axis (an ‘outer’ global or a global in another zip group), either
+directly or through globals that are not expanded. A quantity that depends on several axes
+of a scan can be computed in the experiment script, where each global has a single value.
+
 To implement this, we take advantage of the Python built-in function exec which not
 only evaluates a string containing a Python expression, but can do so from within a controlled
 namespace. This has a two-fold benefit. The first is that it allows us to provide
