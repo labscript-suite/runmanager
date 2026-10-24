@@ -55,7 +55,7 @@ import qtutils.icons # noqa: F401 (registers the icon resources)
 PYQT_VERSION_STR = importlib.metadata.version(QT_ENV)
 
 splash.update_text('importing labscript suite modules')
-from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
+from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer, exit_if_port_in_use
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.setup_logging import setup_logging
 from labscript_utils import shared_drive
@@ -3245,6 +3245,11 @@ if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
+    exit_if_port_in_use(
+        'runmanager',
+        LabConfig().getint('ports', 'runmanager', fallback=runmanager.remote.DEFAULT_PORT),
+        splash,
+    )
     qapplication = QtWidgets.QApplication.instance()
     if qapplication is None:
         qapplication = QtWidgets.QApplication(sys.argv)
