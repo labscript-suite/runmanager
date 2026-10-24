@@ -475,7 +475,7 @@ def record_history(groups, sequence_globals, custom_expansions, now=None):
     filepaths = set(groups.values())
     for filepath in filepaths:
         groups_from_this_file = [g for g, f in groups.items() if f == filepath]
-        with h5py.File(filepath, 'a') as f:
+        with _open_for_writing(filepath) as f:
             for group_name in groups_from_this_file:
                 if group_name not in f['globals']:
                     continue
@@ -525,7 +525,7 @@ def _update_history(entries, value, expansion, now):
 
 
 def _modify_history_entry(filename, groupname, globalname, key, modify):
-    with h5py.File(filename, 'a') as f:
+    with _open_for_writing(filename) as f:
         group = f['globals'][groupname]
         history_group = group.get('history')
         entries = _read_history(history_group, globalname)
