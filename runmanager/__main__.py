@@ -258,7 +258,7 @@ class GroupTab:
 
         # Populate the model with globals from the h5 file:
         self.populate_model()
-        self.logger.info(f'Initial population of {self.group_name}')
+        self.logger.info('Initial population of %s', self.group_name)
         # Set sensible column widths:
         for col in range(self.globals_model.columnCount()):
             if col != self.GLOBALS_COL_VALUE:
@@ -358,7 +358,7 @@ class GroupTab:
         self.ui.tableView_globals.sortByColumn(self.GLOBALS_COL_NAME, QtCore.Qt.AscendingOrder)
 
     def make_global_row(self, name, value='', units='', expansion='', custom=False):
-        self.logger.debug(f'{self.globals_file}:{self.group_name} - make global row: {name} ')
+        self.logger.debug('%s:%s - make global row: %s ', self.globals_file, self.group_name, name)
         # We just set some data here, other stuff is set in
         # self.update_parse_indication after runmanager has a chance to parse
         # everything and get back to us about what that data should be.
@@ -688,7 +688,7 @@ class GroupTab:
                 scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def change_global_value(self, global_name, previous_value, new_value, interactive=True):
-        self.logger.info(f'{self.globals_file}:{self.group_name} - change global value: {global_name} = {previous_value} -> {new_value}')
+        self.logger.info('%s:%s - change global value: %s = %s -> %s', self.globals_file, self.group_name, global_name, previous_value, new_value)
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
         if not interactive:
             # Value was not set interactively by the user, it is up to us to set it:
@@ -740,7 +740,7 @@ class GroupTab:
                 scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def change_global_units(self, global_name, previous_units, new_units):
-        self.logger.info(f'{self.globals_file}:{self.group_name} - change units: {global_name} = {previous_units} -> {new_units}')
+        self.logger.info('%s:%s - change units: %s = %s -> %s', self.globals_file, self.group_name, global_name, previous_units, new_units)
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
         try:
             group_manager.set_units(self.globals_file, self.group_name, global_name, new_units)
@@ -756,8 +756,8 @@ class GroupTab:
             scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def change_global_expansion(self, global_name, previous_expansion, new_expansion, custom):
-        self.logger.info(f'{self.globals_file}:{self.group_name} - change expansion: {global_name} = '
-                         f'{previous_expansion} -> {new_expansion} ({"custom" if custom else "automatic"})')
+        self.logger.info('%s:%s - change expansion: %s = %s -> %s (%s)', self.globals_file, self.group_name,
+                         global_name, previous_expansion, new_expansion, "custom" if custom else "automatic")
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
         try:
             group_manager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion, custom=custom)
@@ -788,7 +788,7 @@ class GroupTab:
         name_item = self.globals_model.itemFromIndex(name_index)
         units_item = self.globals_model.itemFromIndex(units_index)
         global_name = name_item.text()
-        self.logger.debug(f'{self.globals_file}:{self.group_name} - check for boolean values: {global_name}')
+        self.logger.debug('%s:%s - check for boolean values: %s', self.globals_file, self.group_name, global_name)
         if value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
@@ -835,7 +835,7 @@ class GroupTab:
         app.globals_changed()
 
     def delete_global(self, global_name, confirm=True):
-        self.logger.info(f'{self.globals_file}:{self.group_name} - delete global: {global_name}')
+        self.logger.info('%s:%s - delete global: %s', self.globals_file, self.group_name, global_name)
         if confirm and not question_dialog(f"Delete the global '{global_name}'?"):
             return
         group_manager.delete_global(self.globals_file, self.group_name, global_name)
@@ -994,13 +994,13 @@ class RunManager:
     def __init__(self):
         self.logger = logging.getLogger('runmanager')
         # log dependency versions
-        self.logger.info(f'Python version: {sys.version}')
-        self.logger.info(f'Platform: {sys.platform}')
-        self.logger.info(f'Qt environment: {QT_ENV}')
-        self.logger.info(f'PySide/PyQt version: {PYQT_VERSION_STR}')
-        self.logger.info(f'Qt version: {QtCore.qVersion()}')
-        self.logger.info(f"qtutils version: {importlib.metadata.version('qtutils')}")
-        self.logger.info(f"runmanager version: {runmanager.__version__}")
+        self.logger.info('Python version: %s', sys.version)
+        self.logger.info('Platform: %s', sys.platform)
+        self.logger.info('Qt environment: %s', QT_ENV)
+        self.logger.info('PySide/PyQt version: %s', PYQT_VERSION_STR)
+        self.logger.info('Qt version: %s', QtCore.qVersion())
+        self.logger.info("qtutils version: %s", importlib.metadata.version('qtutils'))
+        self.logger.info("runmanager version: %s", runmanager.__version__)
 
         splash.update_text('loading graphical interface')
         loader = UiLoader()
@@ -2105,7 +2105,7 @@ class RunManager:
                 self.check_output_folder_update()
             except Exception as e:
                 # Don't stop the thread.
-                self.logger.exception(f"error checking default output folder: {e}")
+                self.logger.exception("error checking default output folder: %s", e)
 
     @inmain_decorator()
     def check_output_folder_update(self):
@@ -2266,7 +2266,7 @@ class RunManager:
                         except queue.Empty:
                             break
                 # Do some work:
-                self.logger.info(f'Pre-parsing globals with {n_requests:d} requests')
+                self.logger.info('Pre-parsing globals with %d requests', n_requests)
                 try:
                     self.preparse_globals()
                 finally:
@@ -2965,8 +2965,8 @@ class RunManager:
                 if global_name not in custom[group_name]:
                     continue
                 if not custom[group_name][global_name] and expansions[global_name] != automatic[global_name]:
-                    self.logger.info(f'{globals_file}:{group_name} - automatic expansion: {global_name} = '
-                                     f'{expansions[global_name]} -> {automatic[global_name]}')
+                    self.logger.info('%s:%s - automatic expansion: %s = %s -> %s', globals_file, group_name,
+                                     global_name, expansions[global_name], automatic[global_name])
                     group_manager.set_expansion(
                         globals_file, group_name, global_name, automatic[global_name], custom=False)
                     changed = True
