@@ -24,6 +24,7 @@ import random
 import sys
 import threading
 import traceback
+import uuid
 
 import h5py
 import numpy as np
@@ -166,12 +167,43 @@ def _make_run_files(output_folder, sequence_globals, shots, sequence_attrs, file
     ndigits = int(np.ceil(np.log10(nruns)))
     if shuffle:
         random.shuffle(shots)
+    template = _sequence_globals_image(sequence_globals)
     for i, shot_globals in enumerate(shots):
         runfilename = ('%s_%0' + str(ndigits) + 'd.h5') % (basename, i)
-        make_single_run_file(
-            runfilename, sequence_globals, shot_globals, sequence_attrs, i, nruns
-        )
+        _write_run_file(runfilename, template, shot_globals, sequence_attrs, i, nruns)
         yield runfilename
+
+
+def _in_memory_file(image=None):
+    """Return a writable HDF5 file that is held in memory, optionally initialised from
+    a file image."""
+    fapl = h5py.h5p.create(h5py.h5p.FILE_ACCESS)
+    fapl.set_fapl_core(backing_store=False)
+    # The name must differ from that of any open file. A file opened from an identifier
+    # is not locked with zlock.
+    name = f'run_file_{uuid.uuid4()}'.encode()
+    if image is None:
+        return h5py.File(h5py.h5f.create(name, fapl=fapl))
+    fapl.set_file_image(image)
+    return h5py.File(h5py.h5f.open(name, h5py.h5f.ACC_RDWR, fapl=fapl))
+
+
+def _sequence_globals_image(sequence_globals):
+    """Return the image of an HDF5 file with the globals group of a run file, holding
+    the sequence globals but no shot globals."""
+    with _in_memory_file() as f:
+        globals_group = f.create_group('globals')
+        if sequence_globals is not None:
+            for groupname, groupvars in sequence_globals.items():
+                group = globals_group.create_group(groupname)
+                unitsgroup = group.create_group('units')
+                expansiongroup = group.create_group('expansion')
+                for name, (value, units, expansion) in groupvars.items():
+                    group.attrs[name] = value
+                    unitsgroup.attrs[name] = units
+                    expansiongroup.attrs[name] = expansion
+        f.flush()
+        return f.id.get_file_image()
 
 
 def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, run_no, n_runs):
@@ -182,35 +214,35 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
     new_sequence_details. run_no and n_runs must be provided, if this run file is part
     of a sequence, then they should reflect how many run files are being generated in
     this sequence, all of which must have identical sequence_attrs."""
+    template = _sequence_globals_image(sequenceglobals)
+    _write_run_file(filename, template, runglobals, sequence_attrs, run_no, n_runs)
+
+
+def _write_run_file(filename, template, runglobals, sequence_attrs, run_no, n_runs):
     directory = os.path.dirname(filename)
     if directory:
         os.makedirs(directory, exist_ok=True)
-    with h5py.File(filename, 'w') as f:
+    with _in_memory_file(template) as f:
         f.attrs.update(sequence_attrs)
         f.attrs['run number'] = run_no
         f.attrs['n_runs'] = n_runs
-        f.create_group('globals')
-        if sequenceglobals is not None:
-            for groupname, groupvars in sequenceglobals.items():
-                group = f['globals'].create_group(groupname)
-                unitsgroup = group.create_group('units')
-                expansiongroup = group.create_group('expansion')
-                for name, (value, units, expansion) in groupvars.items():
-                    group.attrs[name] = value
-                    unitsgroup.attrs[name] = units
-                    expansiongroup.attrs[name] = expansion
+        globals_group = f['globals']
         for name, value in runglobals.items():
             if value is None:
                 # Store it as a null object reference:
                 value = h5py.Reference()
             try:
-                f['globals'].attrs[name] = value
+                globals_group.attrs[name] = value
             except Exception as e: # noqa: BLE001 all global exceptions are value errors
                 message = (f'Global {name} cannot be saved as an hdf5 attribute. ' +
                            'Globals can only have relatively simple datatypes, with no nested structures. ' +
                            'Original error was:\n' +
                            f'{e.__class__.__name__}: {e!s}')
                 raise ValueError(message)
+        f.flush()
+        image = f.id.get_file_image()
+    with open(filename, 'wb') as f:
+        f.write(image)
 
 
 def make_run_file_from_globals_files(labscript_file, globals_files, output_path, config=None):
