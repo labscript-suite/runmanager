@@ -59,7 +59,7 @@ from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.setup_logging import setup_logging
 from labscript_utils import shared_drive
-from zprocess import raise_exception_in_thread
+from zprocess import raise_exception_in_thread, port_in_use
 import runmanager
 import runmanager.remote
 from runmanager import compiler
@@ -3245,6 +3245,19 @@ if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
+    port = LabConfig().getint(
+        'ports', 'runmanager', fallback=runmanager.remote.DEFAULT_PORT
+    )
+    if port_in_use(port):
+        message = (
+            f"runmanager cannot start because port {port}, which is the runmanager "
+            "port in the labconfig, is in use. Another copy of runmanager is probably "
+            "running."
+        )
+        logger.error(message)
+        splash.hide()
+        QtWidgets.QMessageBox.critical(None, 'runmanager', message)
+        sys.exit(1)
     qapplication = QtWidgets.QApplication.instance()
     if qapplication is None:
         qapplication = QtWidgets.QApplication(sys.argv)
