@@ -41,6 +41,10 @@ class BatchProcessor:
         # Save the dict so we can reset the module to a clean state later:
         self.script_module_clean_dict = self.script_module.__dict__.copy()
         sys.modules[self.script_module.__name__] = self.script_module
+        # The path and source of the last script compiled, and its code object:
+        self.script_path = None
+        self.script_source = None
+        self.script_code = None
 
         self.mainloop()
         
@@ -68,10 +72,14 @@ class BatchProcessor:
             with kill_lock, module_watcher.lock:
                 labscript.labscript_init(run_file, labscript_file=labscript_file)
                 with open(labscript_file) as f:
-                    code = compile(
-                        f.read(), self.script_module.__file__, 'exec', dont_inherit=True
+                    source = f.read()
+                if (labscript_file, source) != (self.script_path, self.script_source):
+                    self.script_code = compile(
+                        source, self.script_module.__file__, 'exec', dont_inherit=True
                     )
-                    exec(code, self.script_module.__dict__) # noqa: S102
+                    self.script_path = labscript_file
+                    self.script_source = source
+                exec(self.script_code, self.script_module.__dict__) # noqa: S102
             return True
         except (Exception, SystemExit): # noqa: BLE001 print errors for any exception and return failure
             traceback_lines = traceback.format_exception(*sys.exc_info())
