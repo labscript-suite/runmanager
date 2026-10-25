@@ -1020,18 +1020,23 @@ class GroupTab:
                 # so that we can set the expansion setting without triggering
                 # another preparse - the parsing has already been done with
                 # the new setting.
+                expansion_changed = False
                 with self.globals_model_item_changed_disconnected:
                     for role in [self.GLOBALS_ROLE_PREVIOUS_TEXT, self.GLOBALS_ROLE_SORT_DATA]:
                         if expansion_item.data(role) != expansion:
                             expansion_item.setData(expansion, role)
+                            expansion_changed = True
                     for role in [self.GLOBALS_ROLE_PREVIOUS_CUSTOM, self.GLOBALS_ROLE_EXPANSION_CUSTOM]:
                         if expansion_item.data(role) != custom:
                             expansion_item.setData(custom, role)
+                            expansion_changed = True
                     if expansion_item.text() != expansion_text(expansion):
                         expansion_item.setText(expansion_text(expansion))
-                # Update the icon, tooltip and text style. This is not detected as
-                # a change to the setting, because the previous roles match.
-                self.on_globals_model_expansion_changed(expansion_item)
+                        expansion_changed = True
+                if expansion_changed:
+                    # Update the icon, tooltip and text style. This is not detected as
+                    # a change to the setting, because the previous roles match.
+                    self.on_globals_model_expansion_changed(expansion_item)
                 if isinstance(value, Exception):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
