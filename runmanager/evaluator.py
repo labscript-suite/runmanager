@@ -15,9 +15,8 @@
 Evaluating converts strings into python expressions.
 """
 
-import ast
 import graphlib
-import types
+import symtable
 
 from runmanager.exceptions import ExpansionError
 
@@ -35,6 +34,21 @@ def iterator_to_tuple(iterator, max_length=1000000):
                              f'If you really want an iterator longer than {max_length}, ' +
                              'please modify runmanager.iterator_to_tuple and increase max_length.')
     return tuple(temp_list)
+
+
+def _global_references(table):
+    """Returns the names that the code of a symbol table, and of the tables nested in
+    it, reads from the global namespace."""
+    # On Python 3.12 and later, the variables of a comprehension are in the table of the
+    # enclosing scope, where they are global and assigned:
+    names = {
+        symbol.get_name() for symbol in table.get_symbols()
+        if symbol.is_global() and symbol.is_referenced() and not symbol.is_assigned()
+    }
+    for child in table.get_children():
+        names |= _global_references(child)
+    return names
+
 
 def evaluate_globals(sequence_globals, raise_exceptions=True):
     """Evaluates the expressions of the globals in sequence_globals and returns
@@ -85,27 +99,19 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     for global_name in multiply_defined_globals:
         del all_globals[global_name]
 
-    # Compile each expression and find the globals it refers to. Names bound within
-    # the expression, by a comprehension or a lambda, are not references:
+    # Compile each expression and find the globals it refers to:
     errors = {}
     code = {}
     dependencies = {}
     for global_name, expression in all_globals.items():
         try:
-            tree = ast.parse(expression, '<string>', 'eval')
+            code[global_name] = compile(expression, '<string>', 'eval')
+            table = symtable.symtable(expression, '<string>', 'eval')
         except SyntaxError as e:
             errors[global_name] = e
             dependencies[global_name] = set()
             continue
-        code[global_name] = compile(tree, '<string>', 'eval')
-        referenced = set()
-        bound = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Name):
-                (referenced if isinstance(node.ctx, ast.Load) else bound).add(node.id)
-            elif isinstance(node, ast.arg):
-                bound.add(node.arg)
-        dependencies[global_name] = (referenced - bound) & all_globals.keys()
+        dependencies[global_name] = _global_references(table) & all_globals.keys()
     global_hierarchy = {name: sorted(deps) for name, deps in dependencies.items() if deps}
 
     # Order the globals so that each comes after the globals it refers to. The globals
@@ -134,8 +140,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             continue
         try:
             value = eval(code[global_name], sandbox) # noqa: S307
-            # Need to know the length of any generators, convert to tuple:
-            if isinstance(value, types.GeneratorType):
+            # Need to know the length of any iterators, convert to tuple:
+            if hasattr(value, '__next__'):
                 value = iterator_to_tuple(value)
             # Make sure if we're zipping or outer-producting this value, that it can
             # be iterated over:
@@ -164,7 +170,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     evaled_globals.update(errors)
 
     # Globals in the same zip group must have equal lengths. Exceptions and
-    # iterators without a length are skipped:
+    # iterables without a length are skipped:
     zip_groups = {}
     for global_name, value in evaled_globals.items():
         if expansions[global_name] not in ('', 'outer') and hasattr(value, '__len__'):

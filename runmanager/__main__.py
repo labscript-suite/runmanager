@@ -2948,6 +2948,9 @@ class RunManager:
         migrated = False
         for group_name, globals_file in active_groups.items():
             for global_name in sequence_globals[group_name]:
+                if global_name not in custom[group_name]:
+                    # Deleted or renamed after the globals were read
+                    continue
                 if custom[group_name][global_name] is None and not isinstance(values[global_name], Exception):
                     flag = expansions[global_name] != automatic[global_name]
                     group_manager.set_expansion(
@@ -2959,6 +2962,8 @@ class RunManager:
         changed = False
         for group_name, globals_file in active_groups.items():
             for global_name in sequence_globals[group_name]:
+                if global_name not in custom[group_name]:
+                    continue
                 if not custom[group_name][global_name] and expansions[global_name] != automatic[global_name]:
                     self.logger.info(f'{globals_file}:{group_name} - automatic expansion: {global_name} = '
                                      f'{expansions[global_name]} -> {automatic[global_name]}')
