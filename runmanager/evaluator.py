@@ -17,7 +17,6 @@ Evaluating converts strings into python expressions.
 
 import ast
 import graphlib
-import types
 
 from runmanager.exceptions import ExpansionError
 
@@ -134,8 +133,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             continue
         try:
             value = eval(code[global_name], sandbox) # noqa: S307
-            # Need to know the length of any generators, convert to tuple:
-            if isinstance(value, types.GeneratorType):
+            # Need to know the length of any iterators, convert to tuple:
+            if hasattr(value, '__next__'):
                 value = iterator_to_tuple(value)
             # Make sure if we're zipping or outer-producting this value, that it can
             # be iterated over:
@@ -164,7 +163,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     evaled_globals.update(errors)
 
     # Globals in the same zip group must have equal lengths. Exceptions and
-    # iterators without a length are skipped:
+    # iterables without a length are skipped:
     zip_groups = {}
     for global_name, value in evaled_globals.items():
         if expansions[global_name] not in ('', 'outer') and hasattr(value, '__len__'):
