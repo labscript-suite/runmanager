@@ -22,12 +22,24 @@ kill_lock = process_tree.kill_lock
 process_tree.zlock_client.set_process_name('runmanager.batch_compiler')
 
 import os
+import queue
+import signal
 import sys
+import threading
 import traceback
 from types import ModuleType
 
+from zprocess import interrupt_main_thread
 import labscript
 from labscript_utils.modulewatcher import ModuleWatcher
+
+
+# Duration in seconds for which the compiler, when told to quit, waits for an interrupted
+# compilation to stop:
+ABORT_TIMEOUT = 5
+# Duration in seconds for which the compiler, if a compilation did not stop, waits for its
+# HDF5 files to be closed before it exits:
+KILL_LOCK_TIMEOUT = 60
 
 
 class BatchProcessor:
@@ -46,19 +58,66 @@ class BatchProcessor:
         self.script_source = None
         self.script_code = None
 
+        self.requests = queue.Queue()
+        # Set while no compilation is running:
+        self.idle = threading.Event()
+        self.idle.set()
+        # Set while the main thread is running the user's script. on_sigint() raises
+        # KeyboardInterrupt only while this is set, so that the interrupt is raised in
+        # the compilation and not in the code that runs after it:
+        self.compiling = False
+        signal.signal(signal.SIGINT, self.on_sigint)
+        threading.Thread(target=self.receive, daemon=True).start()
         self.mainloop()
-        
+
+    def receive(self):
+        """Receive requests from the parent, so that an abort or quit is received
+        while a compilation is running in the main thread."""
+        while True:
+            request, data = self.from_parent.get()
+            if request == 'abort':
+                self.abort()
+            elif request == 'quit':
+                self.quit()
+            else:
+                self.requests.put([request, data])
+
     def mainloop(self):
         while True:
-            signal, data =  self.from_parent.get()
-            if signal == 'compile':
+            request, data = self.requests.get()
+            if request == 'compile':
+                self.idle.clear()
                 success = self.compile(*data)
+                self.idle.set()
                 self.to_parent.put(['done',success])
-            elif signal == 'quit':
-                sys.exit(0)
             else:
-                raise ValueError(signal)
-                    
+                raise ValueError(request)
+
+    def abort(self):
+        """Raise KeyboardInterrupt in the compilation if one is running"""
+        if self.compiling:
+            interrupt_main_thread()
+
+    def quit(self):
+        """Interrupt the compilation if one is running, and exit. If the compilation
+        has not stopped after ABORT_TIMEOUT seconds, exit when no HDF5 file is open for
+        writing, or after KILL_LOCK_TIMEOUT seconds."""
+        self.abort()
+        if not self.idle.wait(ABORT_TIMEOUT):
+            print(
+                'The compilation did not stop after %d seconds. The compiler will exit '
+                'when it has no HDF5 file open for writing, or after %d seconds.'
+                % (ABORT_TIMEOUT, KILL_LOCK_TIMEOUT),
+                file=sys.stderr,
+            )
+        sys.stdout.flush()
+        sys.stderr.flush()
+        self.kill_lock.exit_when_released(status=0, timeout=KILL_LOCK_TIMEOUT)
+
+    def on_sigint(self, signum, frame):
+        if self.compiling:
+            raise KeyboardInterrupt
+
     def compile(self, labscript_file, run_file):
         self.script_module.__file__ = labscript_file
 
@@ -69,18 +128,25 @@ class BatchProcessor:
         try:
             os.chdir(os.path.dirname(labscript_file))
             # Do not let the modulewatcher unload any modules whilst we're working:
-            with kill_lock, module_watcher.lock:
-                labscript.labscript_init(run_file, labscript_file=labscript_file)
-                with open(labscript_file) as f:
-                    source = f.read()
-                if (labscript_file, source) != (self.script_path, self.script_source):
-                    self.script_code = compile(
-                        source, self.script_module.__file__, 'exec', dont_inherit=True
-                    )
-                    self.script_path = labscript_file
-                    self.script_source = source
-                exec(self.script_code, self.script_module.__dict__) # noqa: S102
+            with module_watcher.lock:
+                try:
+                    self.compiling = True
+                    labscript.labscript_init(run_file, labscript_file=labscript_file)
+                    with open(labscript_file) as f:
+                        source = f.read()
+                    if (labscript_file, source) != (self.script_path, self.script_source):
+                        self.script_code = compile(
+                            source, self.script_module.__file__, 'exec', dont_inherit=True
+                        )
+                        self.script_path = labscript_file
+                        self.script_source = source
+                    exec(self.script_code, self.script_module.__dict__) # noqa: S102
+                finally:
+                    self.compiling = False
             return True
+        except KeyboardInterrupt:
+            sys.stderr.write('Compilation interrupted\n')
+            return False
         except (Exception, SystemExit): # noqa: BLE001 print errors for any exception and return failure
             traceback_lines = traceback.format_exception(*sys.exc_info())
             del traceback_lines[1:2]

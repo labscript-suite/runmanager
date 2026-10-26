@@ -27,7 +27,8 @@ located in a always visible toolbar at the top of the runmanager interface. Thes
     text so that any mistakes made when defining the parameter space scan can be quickly
     corrected prior to beginning shot generation. This button can also be ‘clicked’ via the
     F5 key on a keyboard.
-#.  The abort button: This stops the production of shot files prematurely.
+#.  The abort button: This stops the production of shot files prematurely, and
+    interrupts the compilation of the shot in progress.
 #.  The restart subprocess button: Primarily for debugging and for use during labscript
     development, this button restarts the subprocess that manages the execution of the
     labscript experiment logic file, which in turn generates and stores hardware instructions
