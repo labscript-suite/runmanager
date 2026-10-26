@@ -174,6 +174,38 @@ limited to:
   or `(other_global4)`, or
 * any of the above plus a Python comment: `780e-9 #This was previously 781e-9`.
 
+Comments are shown in grey, both in the table and while a value is being edited.
+
+.. figure:: img/runmanager_value_comments.png
+
+    Comments in grey in the values of globals and in the editor.
+
+Runmanager records, in the globals file, the values of each global that have been used to
+compile shots, and the time at which each was last used. The drop-down button at the right
+of a value cell, or Alt+Down, lists them: the current value first, then the most recently
+used of the other values, then values that have been pinned, then the others, in order of
+how often and how recently they were used. Values that differ only in their comments or
+whitespace are one entry, which keeps the most recent comment. Type in the box at the top
+of the list to filter it, and choose a value with Enter or a click. Ctrl+P pins and unpins
+the selected value, and Delete removes it from the list. Each value is listed with the
+expansion setting that the global had when the value was used, shown as it is in the
+table: in grey italics if runmanager set it automatically. Choosing a value restores its
+expansion setting as well; an automatic setting is set again from the new value. The
+right-click menu item *Switch selected global(s) to previous value* sets each selected
+global to the most recently compiled of its other values. Using it, then compiling, then
+using it again switches a global back and forth between two values.
+
+.. figure:: img/runmanager_value_history.png
+
+    The values of `mot_detuning` that have been used to compile shots, each with the
+    expansion setting that the global had when the value was used. The current value is
+    first, in bold. The selected value, `-18e6`, is the most recently used of the others,
+    and `-10e6` is pinned.
+
+.. figure:: img/runmanager_value_history_menu.png
+
+    The right-click menu of a global, with the items for its value history.
+
 As these expressions can become quite complex (see :numref:`fig-complex-globals`), the tooltip for the value
 cells displays the evaluated result of the Python expression. The value cell is also colour
 coded to the successful evaluation of the expression, so that mistakes can be easily identified
