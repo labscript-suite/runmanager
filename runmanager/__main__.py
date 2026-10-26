@@ -1123,6 +1123,11 @@ class PoppedOutOutputBoxWindow(QtWidgets.QDialog):
 
 class RunManager:
 
+    # Duration in seconds for which Restart subprocess waits for the compiler to exit
+    # before killing it. The compiler exits within batch_compiler.ABORT_TIMEOUT +
+    # batch_compiler.KILL_LOCK_TIMEOUT = 65 seconds unless it is unresponsive.
+    QUIT_TIMEOUT = 70
+
     # Constants for the model in the axes tab:
     AXES_COL_NAME = 0
     AXES_COL_LENGTH = 1
@@ -1625,33 +1630,29 @@ class RunManager:
     def on_abort_clicked(self):
         self.discard_queued_sequences()
         self.compilation_aborted.set()
+        self.to_child.put(['abort', None])
 
     def on_restart_subprocess_clicked(self):
-        # Kill and restart the compilation subprocess
+        """Tell the compiler to quit, and kill it if it has not exited after
+        QUIT_TIMEOUT seconds. The compiler interrupts the compilation if one is running,
+        and if the compilation has not stopped after batch_compiler.ABORT_TIMEOUT
+        seconds, exits when it has no HDF5 file open for writing, or after
+        batch_compiler.KILL_LOCK_TIMEOUT seconds. Then start a new compiler."""
+        self.ui.pushButton_restart_subprocess.setEnabled(False)
         self.to_child.put(['quit', None])
         self.from_child.put(['done', False])
-        time.sleep(0.1)
         self.output_box.output('Asking subprocess to quit...')
-        timeout_time = time.time() + 2
-        QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time, kill=False))
+        timeout_time = time.time() + self.QUIT_TIMEOUT
+        QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time))
 
-    def check_child_exited(self, timeout_time, kill=False):
+    def check_child_exited(self, timeout_time):
         self.child.poll()
         if self.child.returncode is None and time.time() < timeout_time:
-            QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time, kill))
+            QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time))
             return
         elif self.child.returncode is None:
-            if not kill:
-                self.child.terminate()
-                self.output_box.output('not responding.\n')
-                timeout_time = time.time() + 2
-                QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time, kill=True))
-                return
-            else:
-                self.child.kill()
-                self.output_box.output('Killed\n', red=True)
-        elif kill:
-            self.output_box.output('Terminated\n', red=True)
+            self.child.kill()
+            self.output_box.output('Killed\n', red=True)
         else:
             self.output_box.output('done.\n')
         self.output_box.output('Spawning new compiler subprocess...')
@@ -1661,6 +1662,7 @@ class RunManager:
         )
         self.output_box.output('done.\n')
         self.output_box.output('Ready.\n\n')
+        self.ui.pushButton_restart_subprocess.setEnabled(True)
 
     def on_tabCloseRequested(self, index):
         tab_page = self.ui.tabWidget.widget(index)

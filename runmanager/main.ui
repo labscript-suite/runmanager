@@ -129,8 +129,7 @@ QToolButton:hover:checked {
             <enum>Qt::NoFocus</enum>
            </property>
            <property name="toolTip">
-            <string>Stop compiling shots after the current shot is compiled.
- To interrupt a compilation mid-shot, use the 'Restart subprocess' button</string>
+            <string>Stop compiling shots, and interrupt the shot that is being compiled</string>
            </property>
            <property name="text">
             <string>Abort</string>
@@ -198,7 +197,7 @@ QPushButton:hover {
             <enum>Qt::NoFocus</enum>
            </property>
            <property name="toolTip">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Forcefully restart the compilation subprocess, stopping any compilation in process.&lt;/p&gt;&lt;p&gt;This can be useful if the child process is misbehaving for any reason.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Restart the compilation subprocess, interrupting any compilation in progress.&lt;/p&gt;&lt;p&gt;This can be useful if the child process is misbehaving for any reason.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
            <property name="text">
             <string>Restart
