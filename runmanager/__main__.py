@@ -94,9 +94,8 @@ from qtutils import (
     DisconnectContextManager,
     qtlock,
 )
+from labscript_utils.qtwidgets.application import setup_application, monospace_font
 from labscript_utils.qtwidgets.outputbox import OutputBox
-
-GLOBAL_MONOSPACE_FONT = "Consolas" if os.name == 'nt' else "Ubuntu Mono"
 
 runmanager_dir = Path(__file__).absolute().parent
 
@@ -434,7 +433,7 @@ class GroupTab:
         dummy_delete_item.setToolTip('Click to add global')
 
         dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
-        dummy_name_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
+        dummy_name_item.setFont(monospace_font())
         dummy_name_item.setToolTip('Click to add global')
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -478,13 +477,13 @@ class GroupTab:
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
-        name_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
+        name_item.setFont(monospace_font())
 
         value_item = QtGui.QStandardItem(value)
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
         value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
-        value_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
+        value_item.setFont(monospace_font())
 
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
@@ -732,7 +731,7 @@ class GroupTab:
             self.ui,
             group_manager.ordered_history(entries, current_value),
             group_manager.history_key(current_value),
-            QtGui.QFont(GLOBAL_MONOSPACE_FONT),
+            monospace_font(),
             self.expansion_from_text(expansion_item.text()),
             bool(expansion_item.data(self.GLOBALS_ROLE_EXPANSION_CUSTOM)),
         )
@@ -3491,6 +3490,7 @@ if __name__ == "__main__":
     qapplication = QtWidgets.QApplication.instance()
     if qapplication is None:
         qapplication = QtWidgets.QApplication(sys.argv)
+    setup_application(qapplication)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
     splash.update_text('Starting remote server')
