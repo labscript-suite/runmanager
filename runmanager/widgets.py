@@ -95,6 +95,40 @@ class RunmanagerColors:
             self.COLOR_BOOL_ON = "#29A300"  # bright green
             self.COLOR_BOOL_OFF = "#003900"  # dark green
 
+# Colour that is mixed into the button colour for the engage button, and its fraction:
+ENGAGE_RED = '#dc3232'
+ENGAGE_RED_FRACTION = 0.6
+
+
+def engage_button_style_sheet(palette):
+    """Style sheet for the engage button: the button colour of the palette mixed with
+    ENGAGE_RED, lighter on hover and darker when pressed. The palette must not be the
+    button's own, which has the background colour of the style sheet as its button
+    colour."""
+    button = palette.color(QtGui.QPalette.ColorRole.Button)
+    red = QtGui.QColor(ENGAGE_RED)
+    background = QtGui.QColor.fromRgbF(
+        *(
+            (1 - ENGAGE_RED_FRACTION) * a + ENGAGE_RED_FRACTION * b
+            for a, b in zip(button.getRgbF(), red.getRgbF())
+        )
+    )
+    return f"""
+QPushButton {{
+    background-color: {background.name()};
+    border: 1px solid {background.darker(130).name()};
+    border-radius: 3px;
+    padding: 4px;
+}}
+QPushButton:hover {{
+    background-color: {background.lighter(115).name()};
+}}
+QPushButton:pressed {{
+    background-color: {background.darker(115).name()};
+}}
+"""
+
+
 def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
     """composite a second colour over a first with given alpha values and return the
     result"""

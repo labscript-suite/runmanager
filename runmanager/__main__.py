@@ -77,6 +77,7 @@ from runmanager.widgets import (
     TreeView,
     TabToolButton,
     AlternatingColorModel,
+    engage_button_style_sheet,
     ItemDelegate,
     CommentDelegate,
     HistoryPopup,
@@ -1102,9 +1103,11 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
             # update group tab color themes
             RunmanagerColors().update_colors_from_scheme()
             for widget in self.findChildren(QtWidgets.QWidget):
-                # Complex widgets, like TreeView and TableView require triggering styleSheet and palette updates
-                widget.setPalette(widget.palette())
+                # Complex widgets, like TreeView and TableView require triggering styleSheet updates
                 widget.setStyleSheet(widget.styleSheet())
+            self.pushButton_engage.setStyleSheet(
+                engage_button_style_sheet(QtWidgets.QApplication.palette(self.pushButton_engage))
+            )
 
             for tab in app.currently_open_groups.values():
                 tab.globals_model.bg_brushes = {}  # reset pre-calculated brushes
@@ -1172,6 +1175,9 @@ class RunManager:
         )
 
         self.ui.label_non_default_folder.setIcon(Icon(':/qtutils/fugue/exclamation-white'))
+        self.ui.pushButton_engage.setStyleSheet(
+            engage_button_style_sheet(QtWidgets.QApplication.palette(self.ui.pushButton_engage))
+        )
 
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
 
