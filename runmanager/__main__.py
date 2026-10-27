@@ -3448,3 +3448,5 @@ if __name__ == "__main__":
 
     qapplication.exec()
     remote_server.shutdown()
+
+    app.output_box.shutdown()
