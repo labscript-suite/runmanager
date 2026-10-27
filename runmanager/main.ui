@@ -421,12 +421,9 @@ subprocess</string>
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_non_default_folder">
+             <widget class="IconLabel" name="label_non_default_folder">
               <property name="toolTip">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Non-default output folder chosen: all shots will be produced in this folder.&lt;/p&gt;&lt;p&gt;New folders will not automatically be created for new sequences/dates/etc.&lt;/p&gt;&lt;p&gt;To reset to the default output folder, click the 'reset to default output folder' button.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="text">
-               <string/>
               </property>
              </widget>
             </item>
@@ -968,6 +965,11 @@ subprocess</string>
   </action>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>IconLabel</class>
+   <extends>QWidget</extends>
+   <header>qtutils/widgets.h</header>
+  </customwidget>
   <customwidget>
    <class>FingerTabWidget</class>
    <extends>QTabWidget</extends>

@@ -19,6 +19,7 @@ import time
 
 from qtutils.qt import QT_ENV, QtCore, QtGui, QtWidgets
 from qtutils.qt.QtCore import pyqtSignal as Signal
+from qtutils.icons import Icon, in_mode
 
 from runmanager.group_manager import history_entry_expansion
 from runmanager.tokenizer import find_comments
@@ -185,10 +186,12 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
             self.initStyleOption(option, index)
             painter.drawControl(QtWidgets.QStyle.CE_TabBarTabShape, option)
             if not self.tabIcon(index).isNull():
-                icon = self.tabIcon(index).pixmap(self.iconSize())
                 alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
                 tabRect.moveLeft(10)
-                painter.drawItemPixmap(tabRect, alignment, icon)
+                icon_rect = QtWidgets.QStyle.alignedRect(
+                    self.layoutDirection(), alignment, self.iconSize(), tabRect
+                )
+                self.tabIcon(index).paint(painter, icon_rect)
                 tabRect.moveLeft(self.iconSize().width() + 15)
             else:
                 tabRect.moveLeft(10)
@@ -293,7 +296,7 @@ class FingerTabWidget(QtWidgets.QTabWidget):
             if not right_button:
                 # Make one:
                 close_button = TabToolButton(self.parent())
-                close_button.setIcon(QtGui.QIcon(':/qtutils/fugue/cross'))
+                close_button.setIcon(Icon(':/qtutils/fugue/cross'))
                 self.tabBar().setTabButton(index, QtWidgets.QTabBar.RightSide, close_button)
                 close_button.clicked.connect(lambda: self._on_close_button_clicked(close_button))
         else:
@@ -769,9 +772,9 @@ def style_expansion_item(item, expansion, custom, palette):
     """Give an item the icon of an expansion setting, and grey italics if the setting
     is automatic rather than chosen by the user"""
     if expansion == 'outer':
-        item.setIcon(QtGui.QIcon(':qtutils/custom/outer'))
+        item.setIcon(Icon(':qtutils/custom/outer'))
     elif expansion:
-        item.setIcon(QtGui.QIcon(':qtutils/custom/zip'))
+        item.setIcon(Icon(':qtutils/custom/zip'))
     else:
         item.setData(None, QtCore.Qt.DecorationRole)
     font = item.font()
@@ -919,12 +922,12 @@ class HistoryPopup(QtWidgets.QFrame):
         return item
 
     def update_pin_item(self, pin_item, entry):
-        icon = QtGui.QIcon(':qtutils/fugue/pin')
+        icon = Icon(':qtutils/fugue/pin')
         if entry['pinned']:
             pin_item.setIcon(icon)
             pin_item.setToolTip('Pinned. Click to unpin')
         else:
-            pin_item.setIcon(QtGui.QIcon(icon.pixmap(QtCore.QSize(16, 16), QtGui.QIcon.Disabled)))
+            pin_item.setIcon(in_mode(icon, QtGui.QIcon.Disabled))
             pin_item.setToolTip('Click to pin')
 
     def entry(self, row):
@@ -997,9 +1000,9 @@ class HistoryPopup(QtWidgets.QFrame):
         use_action = menu.addAction('Use this value')
         use_action.setEnabled(self.entry(row)['key'] != self.current_key)
         pin_action = menu.addAction(
-            QtGui.QIcon(':qtutils/fugue/pin'), 'Unpin' if self.entry(row)['pinned'] else 'Pin'
+            Icon(':qtutils/fugue/pin'), 'Unpin' if self.entry(row)['pinned'] else 'Pin'
         )
-        remove_action = menu.addAction(QtGui.QIcon(':qtutils/fugue/cross'), 'Remove from history')
+        remove_action = menu.addAction(Icon(':qtutils/fugue/cross'), 'Remove from history')
         action = menu.exec(self.view.viewport().mapToGlobal(point))
         if action is use_action:
             self.activate(row)
