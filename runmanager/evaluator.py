@@ -15,11 +15,23 @@
 Evaluating converts strings into python expressions.
 """
 
+import builtins
 import graphlib
+import runpy
 import symtable
+import warnings
 
+import numpy as np
+from labscript_utils.labconfig import LabConfig
+
+import runmanager.functions
 from runmanager.exceptions import ExpansionError
 from runmanager.expander import axis_names
+
+PYLAB_NAMESPACE_NOTE = (
+    'To evaluate globals without the names of `from pylab import *` now, set '
+    + 'pylab_namespace = False in the [runmanager] section of the labconfig.'
+)
 
 
 def iterator_to_tuple(iterator, max_length=1000000):
@@ -51,6 +63,68 @@ def _global_references(table):
     return names
 
 
+def _numpy_name(name, value):
+    """The name of value in numpy, as np.<name> or np.<submodule>.<name>, or None if
+    numpy does not have it under that name."""
+    for prefix, module in [('np', np), ('np.random', np.random), ('np.fft', np.fft), ('np.linalg', np.linalg)]:
+        if getattr(module, name, None) is value:
+            return f'{prefix}.{name}'
+    return None
+
+
+def _pylab_deprecation(names, namespace):
+    """The warning for a global that uses the given names from `from pylab import *`"""
+    replacements = []
+    for name in names:
+        numpy_name = _numpy_name(name, namespace[name])
+        if hasattr(builtins, name):
+            replacements.append(f'{name} (use {numpy_name}; without pylab, {name} is the Python builtin)')
+        elif numpy_name is not None:
+            replacements.append(f'{name} (use {numpy_name})')
+        else:
+            replacements.append(f'{name} (not in numpy; import it in a globals_namespace file)')
+    return (
+        'Uses names from `from pylab import *`, which runmanager will stop providing in a '
+        + 'future version: '
+        + ', '.join(replacements)
+        + '.'
+    )
+
+
+def _namespace():
+    """Returns the namespace in which globals are evaluated, and the set of names in it
+    that only `from pylab import *` provides. The namespace holds the names of
+    runmanager.functions and of the file given by globals_namespace in the [runmanager]
+    section of the labconfig, which take precedence, and, unless pylab_namespace is False
+    in that section, the names of `from pylab import *`. The names of the file are those
+    in its __all__, or if it has none, those that do not start with an underscore."""
+    config = LabConfig()
+    namespace = {}
+    pylab_names = set()
+    if config.getboolean('runmanager', 'pylab_namespace', fallback=True):
+        exec('from pylab import *', namespace, namespace) # noqa: S102
+        pylab_names = {
+            name for name, value in namespace.items()
+            if not name.startswith('_') and getattr(builtins, name, None) is not value
+        }
+    names = {name: getattr(runmanager.functions, name) for name in runmanager.functions.__all__}
+    path = config.get('runmanager', 'globals_namespace', fallback='')
+    if path:
+        try:
+            module_globals = runpy.run_path(path)
+        except Exception as e:
+            raise RuntimeError(
+                f'Could not load the globals namespace file {path}: {e.__class__.__name__}: {e!s}'
+            ) from e
+        names.update(
+            (name, module_globals[name]) for name in module_globals.get(
+                '__all__', [name for name in module_globals if not name.startswith('_')]
+            )
+        )
+    namespace.update(names)
+    return namespace, pylab_names - names.keys()
+
+
 def evaluate_globals(sequence_globals, raise_exceptions=True):
     """Evaluates the expressions of the globals in sequence_globals and returns
     (results, global_hierarchy, expansions). results has the structure of
@@ -62,7 +136,24 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     that fails to evaluate, that is defined in more than one group, or that is in a
     cycle of references holds an exception instead of a value, and the globals that
     refer to it fail with NameError. If raise_exceptions is True, one exception listing
-    every failed global is raised instead."""
+    every failed global is raised instead.
+
+    If any global uses names that only `from pylab import *` provides, a FutureWarning
+    names the globals and the replacement for each name."""
+    results, global_hierarchy, expansions, deprecations = _evaluate_globals(
+        sequence_globals, raise_exceptions
+    )
+    if deprecations:
+        message = '\n'.join(f'{name}: {message}' for name, message in deprecations.items())
+        warnings.warn(FutureWarning(f'{message}\n{PYLAB_NAMESPACE_NOTE}'), stacklevel=2)
+    return results, global_hierarchy, expansions
+
+
+def _evaluate_globals(sequence_globals, raise_exceptions=True):
+    """evaluate_globals, which returns (results, global_hierarchy, expansions,
+    deprecations) instead of warning. deprecations maps the name of each global that
+    uses names that only `from pylab import *` provides to a warning message that names
+    their replacements."""
 
     # Flatten all the groups into one dictionary of {global_name:
     # expression} pairs. Also create the group structure of the results
@@ -103,6 +194,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
     # Compile each expression and find the globals it refers to:
     errors = {}
     code = {}
+    references = {}
     dependencies = {}
     for global_name, expression in all_globals.items():
         try:
@@ -112,7 +204,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             errors[global_name] = e
             dependencies[global_name] = set()
             continue
-        dependencies[global_name] = _global_references(table) & all_globals.keys()
+        references[global_name] = _global_references(table)
+        dependencies[global_name] = references[global_name] & all_globals.keys()
     global_hierarchy = {name: sorted(deps) for name, deps in dependencies.items() if deps}
 
     # Order the globals so that each comes after the globals it refers to. The globals
@@ -131,10 +224,23 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                 errors[global_name] = exception
                 del dependencies[global_name]
 
-    # Eval the expressions in the same namespace as each other:
-    sandbox = {}
-    exec('from pylab import *', sandbox, sandbox) # noqa: S102
-    exec('from runmanager.functions import *', sandbox, sandbox) # noqa: S102
+    # Eval the expressions in the same namespace as each other. If the namespace cannot
+    # be loaded, every global holds the error, or it is raised if raise_exceptions is
+    # True:
+    deprecations = {}
+    try:
+        sandbox, pylab_names = _namespace()
+    except Exception as e:
+        if raise_exceptions:
+            raise
+        sandbox = {}
+        for global_name in order:
+            errors.setdefault(global_name, e)
+    else:
+        for global_name, names in references.items():
+            used = sorted((names - all_globals.keys()) & pylab_names)
+            if used:
+                deprecations[global_name] = _pylab_deprecation(used, sandbox)
     evaled_globals = {}
     for global_name in order:
         if global_name in errors:
@@ -235,5 +341,5 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
             if global_name not in results[group_name]:
                 results[group_name][global_name] = evaled_globals[global_name]
 
-    return results, global_hierarchy, expansions
+    return results, global_hierarchy, expansions, deprecations
 
