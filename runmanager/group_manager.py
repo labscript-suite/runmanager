@@ -591,41 +591,61 @@ def automatic_expansions(evaled_globals, global_hierarchy, expansions, custom):
     and custom maps global names to whether their setting was chosen by the user.
 
     A global with a custom setting keeps it. A list, array or range is 'outer' and any
-    other value is '', except that a global that fails to evaluate keeps its setting. The
-    'outer' globals that are derived, through other 'outer' globals, from an 'outer'
-    global that is not itself derived from an expanded global are zipped with it in a
-    zip group named after it."""
+    other value is '', except that a global that fails to evaluate keeps its setting. A
+    global with an ExpansionError, which means that it evaluated but that its value does
+    not fit its setting, gets the setting for its value.
+
+    An 'outer' global that is derived, through other 'outer' globals, from a source
+    global is then put on the axis of the source. A source is a global with a custom
+    expansion setting, or an 'outer' global that does not refer to an expanded global.
+    The derived global is put in the zip group of a source that is in a zip group, and
+    otherwise in a zip group named after the source. An automatic 'outer' source is put
+    in that zip group too, and a custom 'outer' source shares its axis (see
+    expander.axis_names). A global that is derived from several sources is put on the
+    axis of the first source in alphabetical order, and evaluate_globals gives it an
+    error naming the other axes."""
     result = {}
     outer = set()
     for global_name, value in evaled_globals.items():
         if custom.get(global_name):
             result[global_name] = expansions[global_name]
-        elif isinstance(value, ExpansionError):
-            result[global_name] = ''
-        elif isinstance(value, Exception):
+        elif isinstance(value, Exception) and not isinstance(value, ExpansionError):
             result[global_name] = expansions[global_name]
         else:
+            if isinstance(value, ExpansionError):
+                value = value.value
             result[global_name] = guess_expansion_type(value)
             if result[global_name] == 'outer':
                 outer.add(global_name)
 
-    def expanded(global_name):
-        return global_name in outer or (custom.get(global_name) and expansions[global_name])
+    def custom_expanded(global_name):
+        return bool(custom.get(global_name) and expansions[global_name])
 
-    for root in sorted(outer):
-        if any(expanded(name) for name in global_hierarchy.get(root, [])):
-            continue
-        members = set()
-        to_visit = [root]
+    def expanded(global_name):
+        return global_name in outer or custom_expanded(global_name)
+
+    sources = sorted(
+        global_name for global_name in evaled_globals
+        if custom_expanded(global_name)
+        or (global_name in outer and not any(expanded(name) for name in global_hierarchy.get(global_name, [])))
+    )
+    for source in sources:
+        derived = set()
+        to_visit = [source]
         while to_visit:
             name = to_visit.pop()
-            for other in outer - members - {root}:
+            for other in outer - derived - {source}:
                 if name in global_hierarchy.get(other, []):
-                    members.add(other)
+                    derived.add(other)
                     to_visit.append(other)
-        for global_name in members | ({root} if members else set()):
-            if result[global_name] == 'outer':
-                result[global_name] = root
+        derived = [global_name for global_name in derived if result[global_name] == 'outer']
+        if not derived:
+            continue
+        if source in outer:
+            result[source] = source
+        zip_key = source if expansions[source] == 'outer' or source in outer else expansions[source]
+        for global_name in derived:
+            result[global_name] = zip_key
     return result
 
 

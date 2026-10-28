@@ -19,6 +19,7 @@ import graphlib
 import symtable
 
 from runmanager.exceptions import ExpansionError
+from runmanager.expander import axis_names
 
 
 def iterator_to_tuple(iterator, max_length=1000000):
@@ -150,7 +151,7 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                     iter(value)
                 except Exception as e: # noqa: BLE001
                     # Any error here is an expansion error
-                    raise ExpansionError(str(e))
+                    raise ExpansionError(str(e), value)
         except ExpansionError as e:
             # The expression evaluated, so other globals can refer to the value:
             sandbox[global_name] = value
@@ -169,25 +170,11 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
         raise Exception(message)
     evaled_globals.update(errors)
 
-    # Globals in the same zip group must have equal lengths. Exceptions and
-    # iterables without a length are skipped:
-    zip_groups = {}
-    for global_name, value in evaled_globals.items():
-        if expansions[global_name] not in ('', 'outer') and hasattr(value, '__len__'):
-            zip_groups.setdefault(expansions[global_name], {})[global_name] = len(value)
-    for zip_key, lengths in zip_groups.items():
-        if len(set(lengths.values())) > 1:
-            exception = ValueError(
-                f"Globals in zip group '{zip_key}' have unequal lengths: "
-                + ', '.join(f'{name} ({length})' for name, length in lengths.items())
-            )
-            if raise_exceptions:
-                raise exception
-            evaled_globals.update(dict.fromkeys(lengths, exception))
-
     # Each global is evaluated once for the whole sequence, so a global in a zip group
     # cannot depend on globals expanded on other axes, directly or through globals that
     # are not expanded:
+    axis_of = axis_names(expansions)
+
     def expanded_dependencies(global_name, visited):
         for name in global_hierarchy.get(global_name, []):
             if name not in visited:
@@ -198,28 +185,47 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                     yield from expanded_dependencies(name, visited)
 
     for global_name, value in evaled_globals.items():
-        zip_key = expansions[global_name]
-        if zip_key in ('', 'outer') or isinstance(value, Exception):
+        if expansions[global_name] in ('', 'outer') or isinstance(value, Exception):
             continue
+        zip_key = expansions[global_name]
         other_axes = [
             name for name in expanded_dependencies(global_name, {global_name})
-            if expansions[name] != zip_key
+            if axis_of[name] != 'zip ' + zip_key
         ]
         if other_axes:
-            exception = ValueError(
+            exception = ExpansionError(
                 f"Global '{global_name}' in zip group '{zip_key}' depends on globals on "
                 + 'other axes: '
                 + ', '.join(
-                    f"{name} (outer)" if expansions[name] == 'outer'
-                    else f"{name} (zip group '{expansions[name]}')"
+                    f"{name} (outer)" if axis_of[name].startswith('outer ')
+                    else f"{name} (zip group '{axis_of[name][4:]}')"
                     for name in other_axes
                 )
                 + '. Globals are evaluated once for the whole sequence, not once per '
-                + 'shot, so a global in a zip group cannot vary with other axes'
+                + 'shot, so a global in a zip group cannot vary with other axes',
+                value,
             )
             if raise_exceptions:
                 raise exception
             evaled_globals[global_name] = exception
+
+    # Globals on the same zip group axis must have equal lengths. Exceptions and
+    # iterables without a length are skipped:
+    zip_groups = {}
+    for global_name, value in evaled_globals.items():
+        axis_name = axis_of.get(global_name, '')
+        if axis_name.startswith('zip ') and hasattr(value, '__len__'):
+            zip_groups.setdefault(axis_name[4:], {})[global_name] = len(value)
+    for zip_key, lengths in zip_groups.items():
+        if len(set(lengths.values())) > 1:
+            message = (
+                f"Globals in zip group '{zip_key}' have unequal lengths: "
+                + ', '.join(f'{name} ({length})' for name, length in lengths.items())
+            )
+            if raise_exceptions:
+                raise ValueError(message)
+            for global_name in lengths:
+                evaled_globals[global_name] = ExpansionError(message, evaled_globals[global_name])
 
     # Assemble results into a dictionary of the same format as sequence_globals:
     for group_name in sequence_globals:
