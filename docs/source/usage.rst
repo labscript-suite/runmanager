@@ -326,6 +326,12 @@ provides four features for managing parameter space scans:
     defined as a list. This can be done on a per global basis or on the entire set of shots
     that spans the defined parameter space.
 
+The tab of each group that contains a global that is scanned over shows the outer product
+icon, or the zip icon if all such globals in the group are in zip groups. The tab's tooltip
+lists these globals with the number of values of each. A global that is derived from another
+global in the same zip group is not counted as scanned over. A tab with an evaluation error
+shows the error icon instead.
+
 These features provide a powerful basis for performing complex experiments.
 
 Consider the following example. Many of the early stages of BEC production (for
