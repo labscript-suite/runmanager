@@ -85,12 +85,12 @@ def new_sequence_details(script_path, config=None, increment_sequence_index=True
     script_basename = os.path.splitext(os.path.basename(script_path))[0]
     shot_storage = config.get('DEFAULT', 'experiment_shot_storage')
     shot_basedir = os.path.join(shot_storage, script_basename)
-    now = datetime.datetime.now()
+    now = datetime.datetime.now().astimezone()
     sequence_timestamp = now.strftime('%Y%m%dT%H%M%S')
 
     # Toplevel attributes to be saved to the shot files:
     sequence_date = now.strftime('%Y-%m-%d')
-    sequence_id = sequence_timestamp + '_' + script_basename
+    sequence_id = now.strftime('%Y%m%dT%H%M%S%z') + '_' + script_basename
     sequence_index = next_sequence_index(shot_basedir, now, increment_sequence_index)
 
     sequence_attrs = {
