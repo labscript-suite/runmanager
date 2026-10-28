@@ -81,6 +81,7 @@ from runmanager.widgets import (
     CommentDelegate,
     HistoryPopup,
     EXPANSION_NONE_TEXT,
+    blank_icon,
     expansion_text,
     style_expansion_item,
 )
@@ -140,10 +141,46 @@ def scroll_view_to_row_if_current(view, item):
         horizontal_scrollbar.setValue(existing_horizontal_position)
 
 
-class ExpansionDelegate(ItemDelegate):
-    """Editor for the expansion column of a group tab: an editable combo box that offers
-    'Auto', 'None', 'outer' and the zip groups in use, and takes a typed zip group name.
-    An empty entry means 'Auto'."""
+class DropDownButtonDelegate:
+    """Mixin for an item delegate that draws a drop-down button at the right of the
+    hovered or current cell"""
+
+    BUTTON_WIDTH = 16
+
+    def has_button(self, index):
+        return not index.model().data(index, GroupTab.GLOBALS_ROLE_IS_DUMMY_ROW)
+
+    def button_rect(self, rect):
+        return QtCore.QRect(rect.right() + 1 - self.BUTTON_WIDTH, rect.top(), self.BUTTON_WIDTH, rect.height())
+
+    def button_contains(self, index, global_pos):
+        """Whether the given point in global coordinates is on the button of the cell"""
+        view = self.parent()
+        pos = view.viewport().mapFromGlobal(global_pos)
+        return self.has_button(index) and self.button_rect(view.visualRect(index)).contains(pos)
+
+    def reserved_width(self, index):
+        return self.BUTTON_WIDTH if self.has_button(index) else 0
+
+    def paint_button(self, painter, option, index):
+        if not self.has_button(index):
+            return
+        view = self.parent()
+        if not (option.state & QtWidgets.QStyle.State_MouseOver or view.currentIndex() == index):
+            return
+        arrow_option = QtWidgets.QStyleOption()
+        arrow_option.initFrom(view)
+        arrow_option.rect = self.button_rect(option.rect)
+        arrow_option.rect.setHeight(self.MIN_ROW_HEIGHT)
+        arrow_option.rect.moveCenter(self.button_rect(option.rect).center())
+        view.style().drawPrimitive(QtWidgets.QStyle.PE_IndicatorArrowDown, arrow_option, painter, view)
+
+
+class ExpansionDelegate(DropDownButtonDelegate, ItemDelegate):
+    """Delegate for the expansion column of a group tab. The hovered or current cell has
+    a drop-down button. The editor is an editable combo box that offers 'Auto', 'None',
+    'outer' and the zip groups in use, and takes a typed zip group name. An empty entry
+    means 'Auto'."""
 
     AUTO = 'Auto'
 
@@ -155,9 +192,8 @@ class ExpansionDelegate(ItemDelegate):
         combo = QtWidgets.QComboBox(parent)
         combo.setEditable(True)
         combo.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
-        combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
-        combo.addItem(self.AUTO)
-        combo.addItem(EXPANSION_NONE_TEXT)
+        combo.addItem(blank_icon(), self.AUTO)
+        combo.addItem(blank_icon(), EXPANSION_NONE_TEXT)
         combo.addItem(Icon(':qtutils/custom/outer'), 'outer')
         for name in app.zip_group_names():
             combo.addItem(Icon(':qtutils/custom/zip'), name)
@@ -166,6 +202,14 @@ class ExpansionDelegate(ItemDelegate):
         # Choosing an entry from the list commits it straight away:
         combo.activated.connect(lambda *args: (self.commitData.emit(combo), self.closeEditor.emit(combo)))
         return combo
+
+    def sizeHint(self, option, index):
+        size = ItemDelegate.sizeHint(self, option, index)
+        return QtCore.QSize(size.width() + self.reserved_width(index), size.height())
+
+    def paint(self, painter, option, index):
+        ItemDelegate.paint(self, painter, option, index)
+        self.paint_button(painter, option, index)
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QtWidgets.QLineEdit):
@@ -181,10 +225,14 @@ class ExpansionDelegate(ItemDelegate):
 
     def setEditorData(self, combo, index):
         item = self.group_tab.globals_model.itemFromIndex(index)
-        if item.data(GroupTab.GLOBALS_ROLE_EXPANSION_CUSTOM):
-            combo.setCurrentText(item.text())
+        text = item.text() if item.data(GroupTab.GLOBALS_ROLE_EXPANSION_CUSTOM) else self.AUTO
+        # The current entry must be the one with this text, or the combo box emits
+        # activated for that entry when the drop-down list takes the focus:
+        index = combo.findText(text)
+        if index == -1:
+            combo.setEditText(text)
         else:
-            combo.setCurrentText(self.AUTO)
+            combo.setCurrentIndex(index)
         combo.lineEdit().selectAll()
 
     def setModelData(self, combo, model, index):
@@ -203,49 +251,24 @@ class ExpansionDelegate(ItemDelegate):
         self.group_tab.on_globals_model_expansion_changed(item)
 
 
-class ValueDelegate(CommentDelegate):
+class ValueDelegate(DropDownButtonDelegate, CommentDelegate):
     """Delegate for the value column of a group tab. Comments are drawn in grey, and
     the hovered or current cell has a drop-down button that shows the history of the
     global's values."""
-
-    BUTTON_WIDTH = 16
 
     def __init__(self, group_tab):
         CommentDelegate.__init__(self, group_tab.ui.tableView_globals)
         self.group_tab = group_tab
 
     def has_button(self, index):
-        model = index.model()
-        if model.data(index, GroupTab.GLOBALS_ROLE_IS_DUMMY_ROW):
+        if not DropDownButtonDelegate.has_button(self, index):
             return False
         units_index = index.sibling(index.row(), GroupTab.GLOBALS_COL_UNITS)
-        return not model.data(units_index, GroupTab.GLOBALS_ROLE_IS_BOOL)
-
-    def button_rect(self, rect):
-        return QtCore.QRect(rect.right() + 1 - self.BUTTON_WIDTH, rect.top(), self.BUTTON_WIDTH, rect.height())
-
-    def button_contains(self, index, global_pos):
-        """Whether the given point in global coordinates is on the button of the cell"""
-        view = self.group_tab.ui.tableView_globals
-        pos = view.viewport().mapFromGlobal(global_pos)
-        return self.has_button(index) and self.button_rect(view.visualRect(index)).contains(pos)
-
-    def reserved_width(self, index):
-        return self.BUTTON_WIDTH if self.has_button(index) else 0
+        return not index.model().data(units_index, GroupTab.GLOBALS_ROLE_IS_BOOL)
 
     def paint(self, painter, option, index):
         CommentDelegate.paint(self, painter, option, index)
-        if not self.has_button(index):
-            return
-        view = self.group_tab.ui.tableView_globals
-        if not (option.state & QtWidgets.QStyle.State_MouseOver or view.currentIndex() == index):
-            return
-        arrow_option = QtWidgets.QStyleOption()
-        arrow_option.initFrom(view)
-        arrow_option.rect = self.button_rect(option.rect)
-        arrow_option.rect.setHeight(self.MIN_ROW_HEIGHT)
-        arrow_option.rect.moveCenter(self.button_rect(option.rect).center())
-        view.style().drawPrimitive(QtWidgets.QStyle.PE_IndicatorArrowDown, arrow_option, painter, view)
+        self.paint_button(painter, option, index)
 
 
 class GroupTab:
@@ -291,11 +314,11 @@ class GroupTab:
         # Make it so the user can just start typing on an item to edit:
         self.ui.tableView_globals.setEditTriggers(QtWidgets.QTableView.AnyKeyPressed |
                                                   QtWidgets.QTableView.EditKeyPressed)
-        self.ui.tableView_globals.setItemDelegateForColumn(
-            self.GLOBALS_COL_EXPANSION, ExpansionDelegate(self))
+        self.expansion_delegate = ExpansionDelegate(self)
+        self.ui.tableView_globals.setItemDelegateForColumn(self.GLOBALS_COL_EXPANSION, self.expansion_delegate)
         self.value_delegate = ValueDelegate(self)
         self.ui.tableView_globals.setItemDelegateForColumn(self.GLOBALS_COL_VALUE, self.value_delegate)
-        # Repaint cells when the mouse moves over them, for the history button:
+        # Repaint cells when the mouse moves over them, for the drop-down buttons:
         self.ui.tableView_globals.viewport().setAttribute(QtCore.Qt.WA_Hover)
         # Ensure the clickable region of the delete button doesn't extend forever:
         self.ui.tableView_globals.horizontalHeader().setStretchLastSection(False)
@@ -499,6 +522,11 @@ class GroupTab:
                 index, QtGui.QCursor.pos()):
             self.ui.tableView_globals.setCurrentIndex(index)
             self.show_value_history(global_name)
+        elif item.column() == self.GLOBALS_COL_EXPANSION and self.expansion_delegate.button_contains(
+                index, QtGui.QCursor.pos()):
+            self.ui.tableView_globals.setCurrentIndex(index)
+            self.ui.tableView_globals.edit(index)
+            self.ui.tableView_globals.indexWidget(index).showPopup()
         elif not item.data(self.GLOBALS_ROLE_IS_BOOL):
             # Edit whatever it is:
             if (self.ui.tableView_globals.currentIndex() != index

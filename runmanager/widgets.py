@@ -768,6 +768,16 @@ def expansion_text(expansion):
     return expansion or EXPANSION_NONE_TEXT
 
 
+@functools.lru_cache(maxsize=1)
+def blank_icon():
+    """A transparent icon, which aligns the text of an item with that of items that
+    have icons"""
+    # A QIcon does not scale a pixmap up, so the pixmap is larger than any icon size:
+    pixmap = QtGui.QPixmap(64, 64)
+    pixmap.fill(QtCore.Qt.transparent)
+    return QtGui.QIcon(pixmap)
+
+
 def style_expansion_item(item, expansion, custom, palette):
     """Give an item the icon of an expansion setting, and grey italics if the setting
     is automatic rather than chosen by the user"""
@@ -776,7 +786,7 @@ def style_expansion_item(item, expansion, custom, palette):
     elif expansion:
         item.setIcon(Icon(':qtutils/custom/zip'))
     else:
-        item.setData(None, QtCore.Qt.DecorationRole)
+        item.setIcon(blank_icon())
     font = item.font()
     font.setItalic(not custom)
     item.setFont(font)
