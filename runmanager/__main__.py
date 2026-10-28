@@ -298,7 +298,7 @@ class GroupTab:
         self.ui = loader.load(os.path.join(runmanager_dir, 'group.ui'))
 
         # Add the ui to the parent tabWidget:
-        self.tabWidget.addTab(self.ui, group_name, closable=True)
+        self.tabWidget.addTab(self.ui, group_name, closable=True, icon_on_right=True)
 
         # Descriptions of the globals of this group that are scanned over, for the tab
         # tooltip:
