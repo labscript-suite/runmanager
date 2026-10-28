@@ -85,8 +85,7 @@ further runmanager specific controls:
     points along that axis should be shuffled before the parameter space is expanded into
     the set of shots to be created. The global shuffle control (see item 4 in this list) is
     linked to the state of the shuffle checkboxes on the axes tab. This feature, along
-    with the many benefits, is detailed further in :ref:`usage:Parameter space scans` (see feature 3 and the paragraphs
-    following).
+    with the many benefits, is detailed further in :ref:`usage:Ordering and shuffling`.
 14. The groups tab: This tab manages the hdf5 files that store the globals (see :numref:`fig-groups`). 
     Further details on managing global variables will be discussed in :ref:`usage:Managing global variables`.
 
@@ -283,56 +282,100 @@ Parameter space scans
 One of the key features of runmanager (and critical goals of our scientific control system)
 is the ability to easily automate the traversal of a large parameter space, an increasingly
 important requirement for performing modern ultracold atom experiments. Runmanager
-provides four features for managing parameter space scans:
+scans a parameter space by expanding the globals whose values are lists into the axes of
+that space.
 
-#.  The automatic detection of global variables that are defined as a list, array or
-    range. [4]_ Such globals are labelled ‘outer’ in the expansions column as all such
-    globals will be combined, via an outer product, into the parameter space to be scanned.
-    The number of shots to be generated, which is simply the product of the lengths of all
-    ‘outer’ product globals, is displayed next to the engage button.
-#.  The ability to define what we term ‘zip groups’ after the Python function `zip`. Two (or
-    more) globals (specified as lists) can be grouped together so that they iterate through
-    values in lockstep. In this instance, the zip group is used as a single axis of the outer
-    product rather than one axis for each global. Globals derived from a list are zipped
-    with it automatically. An expansion setting that runmanager chose is shown in grey
-    italics; one that you chose is shown in the normal text colour. Editing the expansion
-    column gives a list of the choices: ‘Auto’, ‘None’, ‘outer’ and the zip groups in
-    use, and a new zip group name can be typed. ‘Auto’ (or an empty entry) returns the
-    global to runmanager's choice, as does ‘Reset expansion to Auto’ in the right-click
-    menu.
+How expansion works
+~~~~~~~~~~~~~~~~~~~
 
-    .. figure:: img/runmanager_expansion_settings.png
-        :alt: A globals group with automatic expansion settings in grey italics and custom ones in the normal colour
+A sequence is made of axes. Each axis is a list of points, and each point gives a value
+to one global, or to several globals that vary together. The shots of the sequence are
+every combination of one point from each axis, so the number of shots is the product of
+the lengths of the axes. An axis may have one point, or none, in which case the sequence
+has no shots.
 
-        A scan group. ``amplitude`` and the ``power`` derived from it are zipped
-        automatically, ``detuning`` and the range ``n_pulses`` are outer automatically,
-        ``freq_a`` and ``freq_b`` are in a zip group that the user chose, the list
-        ``pulse_shape`` is passed as a single value because the user chose ‘None’, and
-        the single values have no expansion automatically.
+The expansion column of each global holds its expansion setting, which is one of:
 
-    .. figure:: img/runmanager_expansion_editor.png
-        :alt: The expansion column editor, a drop-down list of Auto, None, outer and the zip groups in use
+* None (an empty cell): the value is passed to every shot as it is, even if it is a list.
+* ‘outer’: the global is an axis of its own, and each shot gets one element of its value.
+* The name of a zip group, after the Python function `zip`: the global varies in lockstep
+  with the other globals in the zip group, which together are one axis. The globals of a
+  zip group must have equal lengths. An ‘outer’ global and a zip group that has the name
+  of that global are one axis.
 
-        Editing an expansion setting.
+Each setting is either automatic, which is shown in grey italics, or chosen by you, which
+is shown in the normal text colour. Editing the expansion column gives a list of the
+choices: ‘Auto’, ‘None’, ‘outer’ and the zip groups in use, and a new zip group name can
+be typed. ‘Auto’ (or an empty entry) returns the global to the automatic setting, as does
+‘Reset expansion to Auto’ in the right-click menu. A setting that you choose is recorded
+as such in the globals file and is kept until you return the global to Auto.
 
-    .. figure:: img/runmanager_expansion_menu.png
-        :alt: The right-click menu of the globals table with the reset action
+Runmanager works out the automatic settings after every evaluation of the globals:
 
-        The right-click menu returns the selected globals to Auto.
-#.  The third feature is the ability to define the order in which the axes of the parameter
-    space are iterated over when producing individual shots (see the ‘Axes’ tab discussed
-    previously in :ref:`usage:The graphical interface`).
-#.  The ability to randomly shuffle the order of values within each global (or zip group)
-    defined as a list. This can be done on a per global basis or on the entire set of shots
-    that spans the defined parameter space.
+#.  A global whose value is a list, array or range [4]_ is ‘outer’. Any other value,
+    including a tuple, gives the setting None.
+#.  A list that is derived from a global on an axis, directly or through other lists with
+    automatic settings, is put on the axis of that global: in its zip group if it is in
+    one, and otherwise in a zip group named after it. If the global that it is derived
+    from has an automatic setting, that global is put in the same zip group. For example,
+    with ``amplitude = [0.1, 0.2, 0.3]`` and ``power = [a**2 for a in amplitude]``, both
+    globals are in zip group ``amplitude``, and in each shot ``power`` is the square of
+    ``amplitude``. This is the same when you have set ``amplitude`` to ‘outer’ or put it
+    in a zip group: ``power`` follows it.
+#.  A global that you have set to None is not on an axis, so rule 2 does not apply to the
+    lists that are derived from it. Such a list is ‘outer’ by rule 1, and the lists that
+    are derived from it follow it by rule 2.
 
-The tab of each group that contains a global that is scanned over shows the outer product
-icon, or the zip icon if all such globals in the group are in zip groups. The tab's tooltip
-lists these globals with the number of values of each. A global that is derived from another
-global in the same zip group is not counted as scanned over. A tab with an evaluation error
-shows the error icon instead.
+Choosing a setting for a derived list overrides rule 2. If you set ``power`` to ‘outer’,
+it is an axis of its own, the sequence has every combination of a value of ``power``
+with a value of ``amplitude``, and in most of the shots ``power`` is not the square of
+``amplitude``.
 
-These features provide a powerful basis for performing complex experiments.
+Runmanager reports an error, with the global's value cell in red and the error icon on
+the group's tab, for:
+
+* a global with an expansion setting whose value cannot be iterated over,
+* globals in a zip group that have unequal lengths, and
+* a global in a zip group that refers to a global on another axis (see
+  :ref:`usage:Evaluation of globals`). A list that is derived from lists on two
+  different axes gets this error.
+
+The number of shots is shown on the engage button, and the axes tab lists the axes with
+their lengths (see :numref:`fig-axes`). The tab of each group that contains a global that
+is scanned over shows the outer product icon, or the zip icon if all such globals in the
+group are in zip groups. The tab's tooltip lists these globals with the number of values
+of each. A global that is derived from another global in the same zip group is not
+counted as scanned over. A tab with an evaluation error shows the error icon instead.
+
+.. figure:: img/runmanager_expansion_settings.png
+    :alt: A globals group with automatic expansion settings in grey italics and custom ones in the normal colour
+
+    A scan group. ``amplitude`` and the ``power`` derived from it are zipped
+    automatically, ``detuning`` and the range ``n_pulses`` are outer automatically,
+    ``freq_a`` and ``freq_b`` are in a zip group that the user chose, the list
+    ``pulse_shape`` is passed as a single value because the user chose ‘None’, and
+    the single values have no expansion automatically.
+
+.. figure:: img/runmanager_expansion_editor.png
+    :alt: The expansion column editor, a drop-down list of Auto, None, outer and the zip groups in use
+
+    Editing an expansion setting.
+
+.. figure:: img/runmanager_expansion_menu.png
+    :alt: The right-click menu of the globals table with the reset action
+
+    The right-click menu returns the selected globals to Auto.
+
+Ordering and shuffling
+~~~~~~~~~~~~~~~~~~~~~~
+
+The axes tab sets the order in which the axes are combined when the shots are produced
+(see item 13 in :ref:`usage:The graphical interface`). The values of each axis can be shuffled, on
+a per axis basis, and the whole set of shots that spans the parameter space can also be
+shuffled.
+
+Together, expansion, ordering and shuffling provide a powerful basis for performing
+complex experiments.
 
 Consider the following example. Many of the early stages of BEC production (for
 instance the MOT or magnetic trap stages) should be optimised for best phase-space density.
@@ -343,8 +386,8 @@ analysing the result of multiple shots. In this case, the drop time (the time be
 the atoms from the trap and taking the absorption image) is varied for each shot and the
 temperature determined by fitting to the linearised relationship between atom cloud size
 and drop time. Already, it can be seen that measuring the phase space density for a single
-set of parameters requires several shots, which can be easily automated via the feature 1
-described above.
+set of parameters requires several shots, which can be easily automated by giving the drop
+time a list of values.
 
 Now consider the optimisation of MOT or magnetic trap parameters. Many of these are
 coupled and can not be independently optimised. As such, it is preferable to optimise two
@@ -352,9 +395,10 @@ or three variables at once, measuring the phase-space density at each point to d
 optimal set of parameters. Such a parameter space typically takes several hours to complete
 due to the large number of shots that must be run. A BEC apparatus is likely to undergo
 systematic drifts during this time, which may invalidate the results. However, with careful
-thought, features 3 and 4 can be used to counteract this. For example, systematic drift will
-effect the linearity of the data when determining temperature, especially if the acquisition
-of each data point is separated by a significant period of time. However, by defining the
+thought, the ordering and shuffling of the axes can be used to counteract this. For
+example, systematic drift will effect the linearity of the data when determining
+temperature, especially if the acquisition of each data point is separated by a
+significant period of time. However, by defining the
 drop time to be the inner most item of the outer product, you ensure that all shots needed
 to determine the phase-space density for a single set of MOT parameters are executed as
 close together in time as possible. Shuffling the order of the drop time then eliminates short
@@ -404,12 +448,11 @@ Each expression is evaluated once. Globals that refer to each other in a cycle a
 as an error naming the cycle, and a global that refers to a global with an error gets an
 error of its own.
 
-The hierarchy of global interdependencies is then used to determine automatic zip group
-names, which are based on the name of the global in the hierarchy that does not depend on
-any other. If a global depends on multiple other globals, then the zip group name is the
-alphabetically first of them. The automatic settings are recomputed from the values and
-the hierarchy after every evaluation; a setting that you have chosen is recorded as such in
-the globals file and is kept until you return it to automatic.
+The hierarchy of global interdependencies is then used to work out the automatic expansion
+settings described in :ref:`usage:How expansion works`. A list that is derived from globals
+on several axes is put on the axis of the alphabetically first of them, and gets an error
+naming the others. The automatic settings are recomputed from the values and the
+hierarchy after every evaluation.
 
 We believe that this complex evaluation of global variables is only possible due to the
 use of an interpreted language that has tools for parsing its own syntax. As such, the
