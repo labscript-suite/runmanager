@@ -18,6 +18,24 @@ import math
 import random
 
 
+def axis_names(expansions):
+    """Returns a dict mapping the name of each global that has an expansion setting to
+    the name of its axis. expansions maps global names to their expansion settings. A
+    global in zip group key is on the axis 'zip key'. An 'outer' global is on the axis
+    'outer name', unless a zip group has the name of the global, in which case the
+    global is on the axis of that zip group."""
+    zip_keys = {expansion for expansion in expansions.values() if expansion not in ('', 'outer')}
+    result = {}
+    for global_name, expansion in expansions.items():
+        if expansion == 'outer' and global_name not in zip_keys:
+            result[global_name] = 'outer ' + global_name
+        elif expansion == 'outer':
+            result[global_name] = 'zip ' + global_name
+        elif expansion:
+            result[global_name] = 'zip ' + expansion
+    return result
+
+
 def _make_axes(sequence_globals, evaled_globals, expansion_config=None):
     """Constructs the expansion axes. Returns (axes, global_names, shuffle). axes maps
     each axis name to its list of value tuples, in the order given by the 'order'
@@ -41,44 +59,44 @@ def _make_axes(sequence_globals, evaled_globals, expansion_config=None):
             values[global_name] = value
             expansions[global_name] = expansion
 
-    # Get a list of the zip keys in use:
-    zip_keys = set(expansions.values())
-    try:
-        zip_keys.remove('outer')
-    except KeyError:
-        pass
+    # The globals of each zip group axis, including the axis 'zip ' of the globals
+    # with no expansion:
+    members = {}
+    axis_of = axis_names(expansions)
+    for global_name, expansion in expansions.items():
+        axis_name = axis_of.get(global_name, 'zip ')
+        if axis_name.startswith('zip '):
+            members.setdefault(axis_name, []).append(global_name)
 
     axes = {}
     global_names = {}
-    for zip_key in zip_keys:
+    for axis_name, names in members.items():
         axis = []
         zip_global_names = []
-        for global_name, expansion in expansions.items():
-            if expansion == zip_key:
-                value = values[global_name]
-                if isinstance(value, Exception):
-                    continue
-                if not zip_key:
-                    # Wrap up non-iterating globals (with zip_key = '') in a
-                    # one-element list. When zipped and then outer product'ed,
-                    # this will give us the result we want:
-                    value = [value]
-                axis.append(value)
-                zip_global_names.append(global_name)
-        axes['zip '+zip_key] = list(zip(*axis, strict=True))
-        global_names['zip '+zip_key] = zip_global_names
+        for global_name in names:
+            value = values[global_name]
+            if isinstance(value, Exception):
+                continue
+            if axis_name == 'zip ':
+                # Wrap up non-iterating globals in a one-element list. When zipped and
+                # then outer product'ed, this will give us the result we want:
+                value = [value]
+            axis.append(value)
+            zip_global_names.append(global_name)
+        axes[axis_name] = list(zip(*axis, strict=True))
+        global_names[axis_name] = zip_global_names
 
     # Give each global being outer-product'ed its own axis. It gets
     # wrapped up in a list and zipped with itself so that it is in the
     # same format as the zipped globals, ready for outer-producting
     # together:
-    for global_name, expansion in expansions.items():
-        if expansion == 'outer':
+    for global_name, axis_name in axis_of.items():
+        if axis_name.startswith('outer '):
             value = values[global_name]
             if isinstance(value, Exception):
                 continue
-            axes['outer '+global_name] = list(zip(*[value]))
-            global_names['outer '+global_name] = [global_name]
+            axes[axis_name] = list(zip(*[value]))
+            global_names[axis_name] = [global_name]
 
     # add any missing items to order and shuffle
     for key in axes:

@@ -602,7 +602,7 @@ class GroupTab:
             if new_expansion == global_name:
                 reason = 'other globals are derived from it'
             else:
-                reason = f'it is derived from {new_expansion}'
+                reason = f"it is derived from a global in the '{new_expansion}' zip group"
         else:
             effect = 'This global will be interpreted as a single value and passed to compilation as-is.'
             reason = 'the value is not a list, array or range'
@@ -2310,16 +2310,7 @@ class RunManager:
             
     @inmain_decorator()  # Is called by preparser thread
     def update_axes_tab(self, expansions, dimensions):
-        # get set of expansions
-        expansion_list = []
-        for global_name, expansion in expansions.items():
-            if expansion:
-                if expansion == 'outer':
-                    expansion_list.append('outer '+global_name)
-                else:
-                    expansion_list.append('zip '+expansion)
-                
-        expansion_list = set(expansion_list)
+        expansion_list = set(expander.axis_names(expansions).values())
                 
         # find items to delete
         for i in reversed(range(self.axes_model.rowCount())):
