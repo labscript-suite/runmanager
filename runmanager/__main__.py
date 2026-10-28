@@ -71,12 +71,12 @@ from runmanager import tokenizer
 from runmanager import group_manager
 from runmanager.exceptions import ExpansionError
 from runmanager.widgets import (
-    RunmanagerColors,
     FingerTabWidget,
     TableView,
     TreeView,
     TabToolButton,
     AlternatingColorModel,
+    engage_button_style_sheet,
     ItemDelegate,
     CommentDelegate,
     HistoryPopup,
@@ -269,7 +269,6 @@ class GroupTab:
         self.logger = setup_logging('runmanager.groupTab')
 
         self.tabWidget = tabWidget
-        self.colorConfig = RunmanagerColors()
 
         loader = UiLoader()
         loader.registerCustomWidget(TableView)
@@ -845,19 +844,19 @@ class GroupTab:
             # Value was not set interactively by the user, it is up to us to set it:
             with self.globals_model_item_changed_disconnected:
                 item.setText(new_value)
-        previous_background = item.background()
+        previous_cell_color = item.data(AlternatingColorModel.ROLE_CELL_COLOR)
         previous_icon = item.icon()
         item.setData(new_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         item.setData(new_value, self.GLOBALS_ROLE_SORT_DATA)
-        item.setData(None, QtCore.Qt.BackgroundRole)
+        item.setData(None, AlternatingColorModel.ROLE_CELL_COLOR)
         item.setIcon(Icon(':qtutils/fugue/hourglass'))
-        args = global_name, previous_value, new_value, item, previous_background, previous_icon
+        args = global_name, previous_value, new_value, item, previous_cell_color, previous_icon
         if interactive:
             QtCore.QTimer.singleShot(1, lambda: self.complete_change_global_value(*args))
         else:
             self.complete_change_global_value(*args, interactive=False)
 
-    def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon, interactive=True):
+    def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_cell_color, previous_icon, interactive=True):
         try:
             group_manager.set_value(self.globals_file, self.group_name, global_name, new_value)
         except Exception as e:
@@ -868,7 +867,7 @@ class GroupTab:
                 item.setText(previous_value)
                 item.setData(previous_value, self.GLOBALS_ROLE_PREVIOUS_TEXT)
                 item.setData(previous_value, self.GLOBALS_ROLE_SORT_DATA)
-                item.setData(previous_background, QtCore.Qt.BackgroundRole)
+                item.setData(previous_cell_color, AlternatingColorModel.ROLE_CELL_COLOR)
                 item.setIcon(previous_icon)
             if not interactive:
                 raise
@@ -946,21 +945,21 @@ class GroupTab:
             units_item.setData('!1', self.GLOBALS_ROLE_SORT_DATA)
             units_item.setEditable(False)
             units_item.setCheckState(QtCore.Qt.Checked)
-            units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_BOOL_ON)))
+            units_item.setData('true', AlternatingColorModel.ROLE_CELL_COLOR)
         elif value == 'False':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
             units_item.setData('!0', self.GLOBALS_ROLE_SORT_DATA)
             units_item.setEditable(False)
             units_item.setCheckState(QtCore.Qt.Unchecked)
-            units_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_BOOL_OFF)))
+            units_item.setData('false', AlternatingColorModel.ROLE_CELL_COLOR)
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL)
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setEditable(True)
             # Checkbox still visible unless we do the following:
             units_item.setData(None, QtCore.Qt.CheckStateRole)
-            units_item.setData(None, QtCore.Qt.BackgroundRole)
+            units_item.setData(None, AlternatingColorModel.ROLE_CELL_COLOR)
             if was_bool:
                 # If the item was a bool and now isn't, clear the
                 # units and go into editing so the user can enter a
@@ -968,13 +967,6 @@ class GroupTab:
                 units_item.setText('')
                 self.ui.tableView_globals.setCurrentIndex(units_item.index())
                 self.ui.tableView_globals.edit(units_item.index())
-
-    def redraw_boolean_values(self):
-        """Called during theme changes to ensure boolean values get repainted with new colors"""
-
-        for r in range(self.globals_model.rowCount()-1): # don't parse add-global row
-            item = self.globals_model.item(r, self.GLOBALS_COL_VALUE)
-            self.check_for_boolean_values(item)
 
     def globals_changed(self):
         """Called whenever something about a global has changed. call
@@ -1039,13 +1031,13 @@ class GroupTab:
                     # a change to the setting, because the previous roles match.
                     self.on_globals_model_expansion_changed(expansion_item)
                 if isinstance(value, Exception):
-                    value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_ERROR)))
+                    value_item.setData('error', AlternatingColorModel.ROLE_CELL_COLOR)
                     value_item.setIcon(Icon(':qtutils/fugue/exclamation'))
                     tooltip = f'{value.__class__.__name__}: {value!s}'
                     self.tab_contains_errors = True
                 else:
-                    if value_item.background().color().name().lower() != self.colorConfig.COLOR_OK.lower():
-                        value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_OK)))
+                    if value_item.data(AlternatingColorModel.ROLE_CELL_COLOR) != 'ok':
+                        value_item.setData('ok', AlternatingColorModel.ROLE_CELL_COLOR)
                     if not value_item.icon().isNull():
                         # self.logger.info('clearing icon')
                         value_item.setData(None, QtCore.Qt.DecorationRole)
@@ -1066,7 +1058,7 @@ class GroupTab:
                     continue
                 item.setData(None, QtCore.Qt.DecorationRole)
                 item.setToolTip('Group inactive')
-                item.setData(None, QtCore.Qt.BackgroundRole)
+                item.setData(None, AlternatingColorModel.ROLE_CELL_COLOR)
 
 
 class RunmanagerMainWindow(QtWidgets.QMainWindow):
@@ -1076,7 +1068,6 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         QtWidgets.QMainWindow.__init__(self, *args, **kwargs)
         self._previously_painted = False
-        self.logger = logging.getLogger('runmanager')
 
     def closeEvent(self, event):
         if app.on_close_event():
@@ -1092,27 +1083,14 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
         return result
     
     def changeEvent(self, event):
-        
-        # theme update only for PySide6
-        if (QT_ENV.endswith('6')
-            and (event.type() == QtCore.QEvent.Type.ApplicationPaletteChange
-            or event.type() == QtCore.QEvent.Type.StyleChange)):
-
-            self.logger.info('Theme change event')
-            # update group tab color themes
-            RunmanagerColors().update_colors_from_scheme()
+        if event.type() == QtCore.QEvent.Type.PaletteChange:
+            # Widgets under a style sheet keep their palette until their style sheet
+            # is set again, even if it is empty:
             for widget in self.findChildren(QtWidgets.QWidget):
-                # Complex widgets, like TreeView and TableView require triggering styleSheet and palette updates
-                widget.setPalette(widget.palette())
                 widget.setStyleSheet(widget.styleSheet())
-
-            for tab in app.currently_open_groups.values():
-                tab.globals_model.bg_brushes = {}  # reset pre-calculated brushes
-                tab.redraw_boolean_values()
-
-            # refresh globals model colors
-            app.globals_changed()
-
+            self.pushButton_engage.setStyleSheet(
+                engage_button_style_sheet(QtWidgets.QApplication.palette(self.pushButton_engage))
+            )
         return super().changeEvent(event)
 
 
@@ -1172,6 +1150,9 @@ class RunManager:
         )
 
         self.ui.label_non_default_folder.setIcon(Icon(':/qtutils/fugue/exclamation-white'))
+        self.ui.pushButton_engage.setStyleSheet(
+            engage_button_style_sheet(QtWidgets.QApplication.palette(self.ui.pushButton_engage))
+        )
 
         self.output_box = OutputBox(self.ui.verticalLayout_output_tab)
 
