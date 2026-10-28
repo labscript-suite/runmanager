@@ -278,6 +278,9 @@ class GroupTab:
         # Add the ui to the parent tabWidget:
         self.tabWidget.addTab(self.ui, group_name, closable=True)
 
+        # Descriptions of the globals of this group that are scanned over, for the tab
+        # tooltip:
+        self.scanned_descriptions = []
         self.set_file_and_group_name(globals_file, group_name)
 
         self.globals_model = AlternatingColorModel(view=self.ui.tableView_globals)
@@ -370,7 +373,15 @@ class GroupTab:
         self.ui.label_group_name.setText(group_name)
         index = self.tabWidget.indexOf(self.ui)
         self.tabWidget.setTabText(index, group_name)
-        self.tabWidget.setTabToolTip(index, f'{group_name}\n({globals_file})')
+        self.update_tab_tooltip()
+
+    def update_tab_tooltip(self):
+        tooltip = f'{self.group_name}\n({self.globals_file})'
+        if self.scanned_descriptions:
+            tooltip += '\n\nScanned over:\n' + '\n'.join(self.scanned_descriptions)
+        index = self.tabWidget.indexOf(self.ui)
+        if self.tabWidget.tabToolTip(index) != tooltip:
+            self.tabWidget.setTabToolTip(index, tooltip)
 
     def set_tab_icon(self, icon_string):
         index = self.tabWidget.indexOf(self.ui)
@@ -995,7 +1006,9 @@ class GroupTab:
         self.globals_model.removeRow(name_item.row())
         self.globals_changed()
 
-    def update_parse_indication(self, active_groups, sequence_globals, evaled_globals, custom_expansions):
+    def update_parse_indication(
+        self, active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions
+    ):
         # Check that we are an active group:
         if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
             self.tab_contains_errors = False
@@ -1053,13 +1066,31 @@ class GroupTab:
                 if value_item.toolTip() != tooltip:
                     # self.logger.info('tooltip_changed')
                     value_item.setToolTip(tooltip)
+            axes = {name: scanned_globals[name] for name in sequence_globals[self.group_name]
+                    if name in scanned_globals}
+            self.scanned_descriptions = []
+            for global_name, axis_name in sorted(axes.items()):
+                expansion_type, zip_key = axis_name.split(' ', 1)
+                n_values = dimensions[axis_name]
+                values = '1 value' if n_values == 1 else f'{n_values} values'
+                if expansion_type == 'outer':
+                    self.scanned_descriptions.append(f'{global_name} (outer, {values})')
+                else:
+                    self.scanned_descriptions.append(f"{global_name} (zip group '{zip_key}', {values})")
+            self.update_tab_tooltip()
             if self.tab_contains_errors:
                 self.set_tab_icon(':qtutils/fugue/exclamation')
+            elif any(axis_name.startswith('outer ') for axis_name in axes.values()):
+                self.set_tab_icon(':qtutils/custom/outer')
+            elif axes:
+                self.set_tab_icon(':qtutils/custom/zip')
             else:
                 self.set_tab_icon(None)
         else:
             # Clear everything:
             self.set_tab_icon(None)
+            self.scanned_descriptions = []
+            self.update_tab_tooltip()
             for row in range(self.globals_model.rowCount()):
                 item = self.globals_model.item(row, self.GLOBALS_COL_VALUE)
                 if item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
@@ -2363,9 +2394,13 @@ class RunManager:
         self.axes_model.appendRow(items)
     
     @inmain_decorator()  # Is called by preparser thread
-    def update_tabs_parsing_indication(self, active_groups, sequence_globals, evaled_globals, custom_expansions, n_shots):
+    def update_tabs_parsing_indication(
+        self, active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions, n_shots
+    ):
         for group_tab in self.currently_open_groups.values():
-            group_tab.update_parse_indication(active_groups, sequence_globals, evaled_globals, custom_expansions)
+            group_tab.update_parse_indication(
+                active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions
+            )
         self.ui.pushButton_engage.setEnabled(True)
         if n_shots == 1:
             n_shots_string = '(1 shot)'
@@ -2394,8 +2429,10 @@ class RunManager:
                     sequence_globals, evaled_globals, return_dimensions=True
                 )
                 break
+        scanned_globals = expander.scanned_globals(sequence_globals, evaled_globals, global_hierarchy)
         self.update_tabs_parsing_indication(
-            active_groups, sequence_globals, evaled_globals, custom_expansions, self.n_shots)
+            active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions,
+            self.n_shots)
         self.update_axes_tab(expansions, dimensions)
         self.logger.info('Globals parsed')
 

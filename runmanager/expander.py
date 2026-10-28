@@ -108,6 +108,35 @@ def count_shots(sequence_globals, evaled_globals, expansion_config=None, return_
         return n_shots
 
 
+def scanned_globals(sequence_globals, evaled_globals, global_hierarchy):
+    """Returns a dict mapping the name of each global that is scanned over to the name
+    of its axis. A global is scanned over if it is on an 'outer' axis or a zip group
+    axis, of any length, and does not depend, directly or through other globals, on
+    another global on the same axis. global_hierarchy is as returned by
+    evaluate_globals."""
+    _, global_names, _ = _make_axes(sequence_globals, evaled_globals)
+
+    def dependencies(global_name):
+        result = set()
+        to_visit = [global_name]
+        while to_visit:
+            for name in global_hierarchy.get(to_visit.pop(), []):
+                if name not in result:
+                    result.add(name)
+                    to_visit.append(name)
+        return result
+
+    scanned = {}
+    for axis_name, names in global_names.items():
+        if axis_name == 'zip ':
+            # The globals with no expansion
+            continue
+        for global_name in names:
+            if not dependencies(global_name) & (set(names) - {global_name}):
+                scanned[global_name] = axis_name
+    return scanned
+
+
 def expand_globals(sequence_globals, evaled_globals, expansion_config = None, return_dimensions = False):
     """Expands iterable globals according to their expansion
     settings. Creates a number of 'axes' which are to be outer product'ed
