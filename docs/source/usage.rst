@@ -147,29 +147,30 @@ pull those globals from a separate file.
 
 Each group of globals can be opened for editing in a new tab. We provide columns
 for the global name, value and units. The global name must be a :doc:`valid Python variable
-name <python:reference/lexical_analysis>`, and must not conflict with any member of the pylab library, python keywords,
-or existing items in the Python `__builtin__` module. This ensures that it can be injected
-into the labscript experiment logic (see :doc:`labscript <labscript:index>`) without conflicting with existing Python
-functionality. The global name must also be unique across all active groups, as global
-groups are joined into a single set before passing the globals into the labscript experiment
-logic.
+name <python:reference/lexical_analysis>` that is not a Python keyword, and must not be the
+name of a Python builtin or a name defined in the `labscript.labscript` module, which
+includes every name that `from labscript import *` provides. labscript checks this when it
+compiles a shot, so that the globals can be injected into the labscript experiment logic
+(see :doc:`labscript <labscript:index>`) without replacing existing names. The global name
+must also be unique across all active groups, as global groups are joined into a single set
+before passing the globals into the labscript experiment logic.
 
 The value of a global can be any Python expression (including the use of functions from
-the numpy module), that evaluates to a datatype supported by hdf5, such as, but not
+the numpy module, as `np`), that evaluates to a datatype supported by hdf5, such as, but not
 limited to:
 
 * a number: `1234` or `780e-9`,
 * a string: `'N_atoms'`,
 * a list or numpy array (which will be treated as an axis of a parameter space to scan,
   where the global variable will contain only one of the elements of the list or array in
-  each shot): `[1, 2, 3]` or `array([1, 2, 3])`,
+  each shot): `[1, 2, 3]` or `np.array([1, 2, 3])`,
 * a tuple (which despite being list like, will not be treated as an axis of a parameter
   space to scan and will instead be passed into labscript as the tuple specified): `(1, 2, 3)`,
 * a Boolean: `True` or `False`
 * an equation: `1+2`
-* a Python inbuilt, or numpy, function call that returns a valid value: `linspace(0, 10, 10)`,
+* a Python inbuilt, or numpy, function call that returns a valid value: `np.linspace(0, 10, 10)`,
 * an expression that references another defined global variable by name (the value
-  of this global variable is used in its place): `2*other_global` or `linspace(0, 10, other_global)`,
+  of this global variable is used in its place): `2*other_global` or `np.linspace(0, 10, other_global)`,
 * a Boolean expression: `(other_global1 and other_global2)` or `(other_global3 == 7)` 
   or `(other_global4)`, or
 * any of the above plus a Python comment: `780e-9 #This was previously 781e-9`.
@@ -179,6 +180,27 @@ Comments are shown in grey, both in the table and while a value is being edited.
 .. figure:: img/runmanager_value_comments.png
 
     Comments in grey in the values of globals and in the editor.
+
+The expressions are evaluated in a namespace that holds the other globals and the
+following names. A global takes precedence over all of them, and each item of the list
+takes precedence over the items after it:
+
+* the names of the file given by `globals_namespace` in the `[runmanager]` section of the
+  labconfig, if it is set: the names in its `__all__`, or if it has none, the names that do
+  not start with an underscore. Runmanager runs the file each time it evaluates the
+  globals. If the file cannot be run, every global holds the error,
+* numpy, as `np`, the units `ns`, `us`, `ms`, `s`, `Hz`, `kHz`, `MHz` and `GHz`, which are
+  the factors that convert a quantity in that unit to seconds or hertz, and the functions
+  `quadspace(t_min, t_max, n_points, randomise=False, repeats=1)`, which returns
+  `n_points` values from `t_min` to `t_max` that are equally spaced in their squares, and
+  `first()`, an iterator that yields `True` and then `False` forever,
+* the names of `from pylab import *`, unless `pylab_namespace` in the `[runmanager]` section
+  of the labconfig is `False`. Runmanager will stop providing these names in a future
+  version. A global that uses one of them is highlighted in amber, with a warning in its
+  tooltip that names the replacement, such as `np.linspace` for `linspace`, and the
+  warnings are printed in the output box when shots are compiled. `sum`, `any`, `all` and
+  `divmod` from pylab are the numpy functions; without pylab they are the Python builtins,
+* the Python builtins.
 
 Runmanager records, in the globals file, the values of each global that have been used to
 compile shots, and the time at which each was last used. The drop-down button at the right
@@ -440,10 +462,10 @@ of a scan can be computed in the experiment script, where each global has a sing
 To implement this, each expression is parsed with the Python ``ast`` module to find the
 names of the other globals that it refers to, and the expressions are then evaluated in an
 order in which every global comes after the globals it refers to, each in a namespace that
-also holds a specific set of functions that can be used from within the expressions (such
-as numpy functions like `linspace`). This gives a mapping of each global variable to the
-names of the global variables that it depends on, which is used for descriptive error
-messages and for automatically detecting which globals should be combined into zip groups.
+also holds the names described in :ref:`usage:Managing global variables`. This gives a
+mapping of each global variable to the names of the global variables that it depends on,
+which is used for descriptive error messages and for automatically detecting which globals
+should be combined into zip groups.
 Each expression is evaluated once. Globals that refer to each other in a cycle are reported
 as an error naming the cycle, and a global that refers to a global with an error gets an
 error of its own.

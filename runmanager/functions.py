@@ -11,7 +11,11 @@
 #                                                                   #
 #####################################################################
 
-from pylab import *
+import numpy as np
+
+__all__ = [
+    'np', 'ns', 'us', 'ms', 's', 'Hz', 'kHz', 'MHz', 'GHz', 'quadspace', 'drop_times', 'first',
+]
 
 ns = 1e-9
 us = 1e-6
@@ -23,11 +27,11 @@ MHz = 1e6
 GHz = 1e9
 
 def quadspace(t_min, t_max, n_points, randomise=False, repeats=1):
-    times = sqrt(linspace(t_min**2, t_max**2, n_points))
-    times = repeat(times, repeats)
+    times = np.sqrt(np.linspace(t_min**2, t_max**2, n_points))
+    times = np.repeat(times, repeats)
     
     if randomise:
-        return times[argsort(rand(n_points*repeats))]
+        return times[np.argsort(np.random.rand(n_points*repeats))]
     else:
         return times
        

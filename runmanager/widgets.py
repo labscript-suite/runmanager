@@ -37,11 +37,13 @@ def mix_colors(color0, color1, fraction):
 ENGAGE_RED = '#dc3232'
 ENGAGE_RED_FRACTION = 0.6
 # Colours that are mixed into the base colour of the globals table for the cells of
-# globals that are true, false, valid or cannot be evaluated, and their fractions:
+# globals that are true, false, valid, use deprecated names or cannot be evaluated, and
+# their fractions:
 CELL_COLORS = {
     'true': ('#3cdc28', 0.7),
     'false': ('#285a28', 0.7),
     'ok': ('#32e678', 0.4),
+    'deprecated': ('#e6b432', 0.5),
     'error': ('#e03030', 0.5),
 }
 # Fraction by which we mix the highlight colour into the colour of selected cells:

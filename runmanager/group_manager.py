@@ -29,7 +29,7 @@ import numpy as np
 from labscript_utils.ls_zprocess import Lock
 from labscript_utils.shared_drive import path_to_agnostic
 
-from runmanager.evaluator import evaluate_globals
+from runmanager.evaluator import _evaluate_globals
 from runmanager.exceptions import ExpansionError
 from runmanager.tokenizer import remove_comments_and_tokenify
 
@@ -195,7 +195,7 @@ def add_expansion_groups(filename):
                     subgroup.attrs[name] = ''
         groups = {group_name: filename for group_name in get_grouplist(filename)}
         sequence_globals = get_globals(groups)
-        evaled_globals, _, _ = evaluate_globals(sequence_globals, raise_exceptions=False)
+        evaled_globals, _, _, _ = _evaluate_globals(sequence_globals, raise_exceptions=False)
         for group_name in evaled_globals:
             for global_name in evaled_globals[group_name]:
                 value = evaled_globals[group_name][global_name]

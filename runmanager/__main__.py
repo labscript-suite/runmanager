@@ -1027,11 +1027,13 @@ class GroupTab:
         self.globals_changed()
 
     def update_parse_indication(
-        self, active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions
+        self, active_groups, sequence_globals, evaled_globals, deprecations, custom_expansions, scanned_globals,
+        dimensions
     ):
         # Check that we are an active group:
         if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
             self.tab_contains_errors = False
+            tab_contains_deprecations = False
             # for global_name, value in evaled_globals[self.group_name].items():
             for i in range(self.globals_model.rowCount()):
                 name_item = self.globals_model.item(i, self.GLOBALS_COL_NAME)
@@ -1076,6 +1078,11 @@ class GroupTab:
                     value_item.setIcon(Icon(':qtutils/fugue/exclamation'))
                     tooltip = f'{value.__class__.__name__}: {value!s}'
                     self.tab_contains_errors = True
+                elif global_name in deprecations:
+                    value_item.setData('deprecated', AlternatingColorModel.ROLE_CELL_COLOR)
+                    value_item.setIcon(Icon(':qtutils/fugue/exclamation-diamond'))
+                    tooltip = f'{value!r}\n\nWarning: {deprecations[global_name]} {evaluator.PYLAB_NAMESPACE_NOTE}'
+                    tab_contains_deprecations = True
                 else:
                     if value_item.data(AlternatingColorModel.ROLE_CELL_COLOR) != 'ok':
                         value_item.setData('ok', AlternatingColorModel.ROLE_CELL_COLOR)
@@ -1100,6 +1107,8 @@ class GroupTab:
             self.update_tab_tooltip()
             if self.tab_contains_errors:
                 self.set_tab_icon(':qtutils/fugue/exclamation')
+            elif tab_contains_deprecations:
+                self.set_tab_icon(':qtutils/fugue/exclamation-diamond')
             elif any(axis_name.startswith('outer ') for axis_name in axes.values()):
                 self.set_tab_icon(':qtutils/custom/outer')
             elif axes:
@@ -1650,9 +1659,15 @@ class RunManager:
                 expansion_order[name] = {'order':i, 'shuffle':shuffle_item.checkState() == QtCore.Qt.Checked}
             
             try:
-                sequenceglobals, shots, _, _, _ = self.parse_globals(active_groups, expansion_order=expansion_order)
+                sequenceglobals, shots, _, _, _, deprecations = self.parse_globals(
+                    active_groups, expansion_order=expansion_order
+                )
             except Exception as e:
                 raise Exception(f'Error parsing globals:\n{e!s}\nCompilation aborted.')
+            for global_name, message in deprecations.items():
+                self.output_box.output(f'Warning: global {global_name}: {message}\n', red=True)
+            if deprecations:
+                self.output_box.output(f'{evaluator.PYLAB_NAMESPACE_NOTE}\n', red=True)
             # Recorded in the history of each global once a shot compiles:
             history = active_groups, sequenceglobals
             self.logger.info('Making h5 files')
@@ -2395,11 +2410,13 @@ class RunManager:
     
     @inmain_decorator()  # Is called by preparser thread
     def update_tabs_parsing_indication(
-        self, active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions, n_shots
+        self, active_groups, sequence_globals, evaled_globals, deprecations, custom_expansions, scanned_globals,
+        dimensions, n_shots
     ):
         for group_tab in self.currently_open_groups.values():
             group_tab.update_parse_indication(
-                active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions
+                active_groups, sequence_globals, evaled_globals, deprecations, custom_expansions, scanned_globals,
+                dimensions
             )
         self.ui.pushButton_engage.setEnabled(True)
         if n_shots == 1:
@@ -2418,7 +2435,7 @@ class RunManager:
         # parse again so that the globals are evaluated with the new settings:
         while True:
             results = self.parse_globals(active_groups, raise_exceptions=False, expand_globals=False)
-            sequence_globals, _, evaled_globals, global_hierarchy, expansions = results
+            sequence_globals, _, evaled_globals, global_hierarchy, expansions, deprecations = results
             expansions_changed, custom_expansions = self.update_expansions(
                 active_groups, sequence_globals, evaled_globals, global_hierarchy, expansions)
             if not expansions_changed:
@@ -2431,8 +2448,8 @@ class RunManager:
                 break
         scanned_globals = expander.scanned_globals(sequence_globals, evaled_globals, global_hierarchy)
         self.update_tabs_parsing_indication(
-            active_groups, sequence_globals, evaled_globals, custom_expansions, scanned_globals, dimensions,
-            self.n_shots)
+            active_groups, sequence_globals, evaled_globals, deprecations, custom_expansions, scanned_globals,
+            dimensions, self.n_shots)
         self.update_axes_tab(expansions, dimensions)
         self.logger.info('Globals parsed')
 
@@ -3120,7 +3137,9 @@ class RunManager:
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True, expansion_order = None, return_dimensions = False):
         sequence_globals = group_manager.get_globals(active_groups)
         #logger.info('got sequence globals')
-        evaled_globals, global_hierarchy, expansions = evaluator.evaluate_globals(sequence_globals, raise_exceptions)
+        evaled_globals, global_hierarchy, expansions, deprecations = evaluator._evaluate_globals(
+            sequence_globals, raise_exceptions
+        )
         #logger.info('evaluated sequence globals')
         if expand_globals:
             if return_dimensions:
@@ -3132,9 +3151,9 @@ class RunManager:
             dimensions = {}
         #logger.info('expanded sequence globals')
         if return_dimensions:
-            return sequence_globals, shots, evaled_globals, global_hierarchy, expansions, dimensions
+            return sequence_globals, shots, evaled_globals, global_hierarchy, expansions, deprecations, dimensions
         else:
-            return sequence_globals, shots, evaled_globals, global_hierarchy, expansions
+            return sequence_globals, shots, evaled_globals, global_hierarchy, expansions, deprecations
 
     def update_expansions(self, active_groups, sequence_globals, evaled_globals, global_hierarchy, expansions):
         """Writes the automatic expansion setting of each global that has no custom
@@ -3274,7 +3293,7 @@ class RemoteServer(ZMQServer):
                 values_only = {name: val for name, (val, _, _) in group_globals.items()}
                 all_globals.update(values_only)
         else:
-            evaled_globals, _, _ = evaluator.evaluate_globals(
+            evaled_globals, _, _, _ = evaluator._evaluate_globals(
                 sequence_globals, raise_exceptions=False
             )
             for group_globals in evaled_globals.values():
@@ -3418,7 +3437,7 @@ class RemoteServer(ZMQServer):
             active_groups = inmain(self.app.get_active_groups, interactive=False)
             sequence_globals = group_manager.get_globals(active_groups)
             # This will raise an exception if any of the globals can't be evaluated:
-            evaluator.evaluate_globals(sequence_globals, raise_exceptions=True)
+            evaluator._evaluate_globals(sequence_globals, raise_exceptions=True)
         except Exception: # noqa: BLE001 convert all exceptions to a boolean
             return True
         return False

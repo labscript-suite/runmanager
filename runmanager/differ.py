@@ -15,7 +15,7 @@
 
 import numpy as np
 
-from runmanager.evaluator import evaluate_globals
+from runmanager.evaluator import _evaluate_globals
 from runmanager.group_manager import get_all_groups, get_globals
 from runmanager.tokenizer import remove_comments_and_tokenify
 
@@ -76,8 +76,8 @@ def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_strin
     other_sequence_globals = get_globals(other_groups)
 
     # evaluate globals
-    our_evaluated_sequence_globals, _, _ = evaluate_globals(our_sequence_globals, raise_exceptions=False)
-    other_evaluated_sequence_globals, _, _ = evaluate_globals(other_sequence_globals, raise_exceptions=False)
+    our_evaluated_sequence_globals, _, _, _ = _evaluate_globals(our_sequence_globals, raise_exceptions=False)
+    other_evaluated_sequence_globals, _, _, _ = _evaluate_globals(other_sequence_globals, raise_exceptions=False)
 
     # flatten globals dictionaries
     our_globals = flatten_globals(our_sequence_globals, evaluated=False)
