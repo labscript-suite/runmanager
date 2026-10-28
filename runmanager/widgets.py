@@ -14,7 +14,6 @@
 """
 
 import functools
-import logging
 import time
 
 from qtutils.qt import QT_ENV, QtCore, QtGui, QtWidgets
@@ -27,84 +26,71 @@ from runmanager.tokenizer import find_comments
 EXPANSION_NONE_TEXT = 'None'
 
 
-class RunmanagerColors:
-    """Singleton class that globally defines various colors for the globals view
-    
-    Colors are saved to class attributes as hex strings.
-    Available colors are:
+def mix_colors(color0, color1, fraction):
+    """The colour that is the given fraction of the way from color0 to color1 in RGB"""
+    return QtGui.QColor.fromRgbF(
+        *((1 - fraction) * a + fraction * b for a, b in zip(color0.getRgbF(), color1.getRgbF()))
+    )
 
-    :ivar COLOR_HIGHLIGHT: Item selection highlight color, fixed to semitransparent blue
-    :ivar COLOR_ERROR: Item has runtime error color
-    :ivar COLOR_OK: Item is normal
-    :ivar COLOR_BOOL_ON: Item is bool = True
-    :ivar COLOR_BOOL_OFF: Item is bool = False
-    """
-    _instance = None
 
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+# Colour that is mixed into the button colour for the engage button, and its fraction:
+ENGAGE_RED = '#dc3232'
+ENGAGE_RED_FRACTION = 0.6
+# Colours that are mixed into the base colour of the globals table for the cells of
+# globals that are true, false, valid or cannot be evaluated, and their fractions:
+CELL_COLORS = {
+    'true': ('#3cdc28', 0.7),
+    'false': ('#285a28', 0.7),
+    'ok': ('#32e678', 0.4),
+    'error': ('#e03030', 0.5),
+}
+# Fraction by which we mix the highlight colour into the colour of selected cells:
+SELECTION_FRACTION = 0.25
 
-        return cls._instance
-    
-    def __init__(self):
 
-        if not hasattr(self, '_initialized'):
-            self.logger = logging.getLogger('runmanager')
+def engage_button_style_sheet(palette):
+    """Style sheet for the engage button: the button colour of the palette mixed with
+    ENGAGE_RED, lighter on hover and darker when pressed. The palette must not be the
+    button's own, which has the background colour of the style sheet as its button
+    colour."""
+    background = mix_colors(
+        palette.color(QtGui.QPalette.ColorRole.Button),
+        QtGui.QColor(ENGAGE_RED),
+        ENGAGE_RED_FRACTION,
+    )
+    return f"""
+QPushButton {{
+    background-color: {background.name()};
+    border: 1px solid {background.darker(130).name()};
+    border-radius: 3px;
+    padding: 4px;
+}}
+QPushButton:hover {{
+    background-color: {background.lighter(115).name()};
+}}
+QPushButton:pressed {{
+    background-color: {background.darker(115).name()};
+}}
+"""
 
-            # init colors
-            self.update_colors_from_scheme()
 
-            # common color definitions
-            self.COLOR_HIGHLIGHT = "#40308CC6"  # semitransparent blue
+def set_selection_palette(widget):
+    """Give the widget the highlight colour of the application palette, partly
+    transparent, and the window text colour as the highlighted text colour"""
+    source = QtWidgets.QApplication.palette(widget)
+    highlight = source.color(QtGui.QPalette.Highlight)
+    highlight.setAlphaF(SELECTION_FRACTION)
+    text = source.color(QtGui.QPalette.WindowText)
+    palette = widget.palette()
+    if palette.color(QtGui.QPalette.Highlight) == highlight and palette.color(
+        QtGui.QPalette.HighlightedText
+    ) == text:
+        return
+    for group in [QtGui.QPalette.Active, QtGui.QPalette.Inactive]:
+        palette.setColor(group, QtGui.QPalette.Highlight, highlight)
+        palette.setColor(group, QtGui.QPalette.HighlightedText, text)
+    widget.setPalette(palette)
 
-            self._initialized = True
-    
-    def check_if_light(self):
-        """Helper method that return current light/dark theme state
-        
-        If using PyQt5, always returns True.
-        Otherwise, state is taken from `QGuiApplication` which follows OS.
-        """
-        
-        # pyqt5 defaults to light and doesn't have styleHints.colorScheme()
-        if QT_ENV.lower() == 'pyqt5':
-            return True
-        
-        style_hints = QtGui.QGuiApplication.styleHints()
-        if style_hints.colorScheme() == QtCore.Qt.ColorScheme.Dark:
-            return False
-        else:
-            return True
-        
-    def update_colors_from_scheme(self):
-        """Method updates colors depending on current color scheme"""
-
-        if self.check_if_light():
-            self.logger.info('Setting custom light theme colors')
-            # use light mode colors for GroupTabs
-            self.COLOR_ERROR = '#F79494'  # light red
-            self.COLOR_OK = '#A5F7C6'  # light green
-            self.COLOR_BOOL_ON = '#63F731'  # bright green
-            self.COLOR_BOOL_OFF = '#608060'  # dark green
-        else:
-            self.logger.info('Setting custom dark theme colors')
-            # use dark mode colors for GroupTabs
-            self.COLOR_ERROR = "#BC0000"  # red
-            self.COLOR_OK = "#2F4C00"  # green
-            self.COLOR_BOOL_ON = "#29A300"  # bright green
-            self.COLOR_BOOL_OFF = "#003900"  # dark green
-
-def composite_colors(r0, g0, b0, a0, r1, g1, b1, a1):
-    """composite a second colour over a first with given alpha values and return the
-    result"""
-    a0 /= 255
-    a1 /= 255
-    a = a0 + a1 - a0 * a1
-    r = (a1 * r1 + (1 - a1) * a0 * r0) / a
-    g = (a1 * g1 + (1 - a1) * a0 * g0) / a
-    b = (a1 * b1 + (1 - a1) * a0 * b0) / a
-    return [int(round(x)) for x in (r, g, b, 255 * a)]
 
 class FingerTabBarWidget(QtWidgets.QTabBar):
 
@@ -325,19 +311,12 @@ class ItemView:
         self._pressed_index = None
         self._double_click = False
         self.setAutoScroll(False)
-        palette = self.palette()
-        for group in [QtGui.QPalette.Active, QtGui.QPalette.Inactive]:
-            palette.setColor(
-                group,
-                QtGui.QPalette.Highlight,
-                QtGui.QColor(RunmanagerColors().COLOR_HIGHLIGHT)
-            )
-            palette.setColor(
-                group,
-                QtGui.QPalette.HighlightedText,
-                palette.color(QtGui.QPalette.WindowText)
-            )
-        self.setPalette(palette)
+        set_selection_palette(self)
+
+    def changeEvent(self, event):
+        if event.type() == QtCore.QEvent.PaletteChange:
+            set_selection_palette(self)
+        super().changeEvent(event)
 
     def mouseEventIndex(self, event):
         if QT_ENV == 'PyQt5':
@@ -448,78 +427,45 @@ class TableView(ItemView, QtWidgets.QTableView):
 
 
 class AlternatingColorModel(QtGui.QStandardItemModel):
+    """Model that gives each cell a background colour made from the palette of the view.
+    The colour is the base or alternate base colour of the cell's row, mixed with the
+    colour in CELL_COLORS that is named by the cell's ROLE_CELL_COLOR data, if it has
+    any. In a QTableView, the colour of a selected cell is also mixed with the highlight
+    colour."""
+
+    ROLE_CELL_COLOR = QtCore.Qt.UserRole + 100
 
     def __init__(self, view):
         QtGui.QStandardItemModel.__init__(self)
-        # How much darker in each channel is the alternate base color compared
-        # to the base color?
         self.view = view
+        self.brushes = {}
 
-        # A cache, store brushes so we don't have to recalculate them. Is faster.
-        self.bg_brushes = {}
-
-    def get_bgbrush(self, normal_brush, alternate, selected):
-        """Get cell colour as a function of its ordinary colour, whether it is on an odd
-        row, and whether it is selected."""
-        normal_rgb = normal_brush.color().getRgb() if normal_brush is not None else None
+    def background_brush(self, cell_color, alternate, selected):
+        palette = QtWidgets.QApplication.palette(self.view)
+        key = palette.cacheKey(), cell_color, alternate, selected
         try:
-            return self.bg_brushes[normal_rgb, alternate, selected]
+            return self.brushes[key]
         except KeyError:
             pass
-        # Get the colour of the cell with alternate row shading:
-        normal_color = self.view.palette().color(
-            QtGui.QPalette.ColorGroup.Disabled,
-            QtGui.QPalette.ColorRole.Base
-        )
-        alternate_color = self.view.palette().color(
-            QtGui.QPalette.ColorGroup.Disabled,
-            QtGui.QPalette.ColorRole.AlternateBase
-        )
-        if normal_rgb is None:
-            # No colour has been set. Use palette colours:
-            if alternate:
-                bg_color = alternate_color
-            else:
-                bg_color = normal_color
-        else:
-            bg_color = normal_brush.color()
-            if alternate:
-                # Modify alternate rows:
-                r, g, b, a = normal_rgb
-                nr, ng, nb, na = normal_color.getRgb()
-                ar, ag, ab, aa = alternate_color.getRgb()
-                alt_r = min(max(r + ar - nr, 0), 255)
-                alt_g = min(max(g + ag - ng, 0), 255)
-                alt_b = min(max(b + ab - nb, 0), 255)
-                alt_a = min(max(a + aa - na, 0), 255)
-                bg_color = QtGui.QColor(alt_r, alt_g, alt_b, alt_a)
-
-        # If parent is a TableView, we handle selection highlighting as part of the
-        # background colours:
-        if selected and isinstance(self.view, QtWidgets.QTableView):
-            # Overlay highlight colour:
-            r_s, g_s, b_s, a_s = QtGui.QColor(RunmanagerColors().COLOR_HIGHLIGHT).getRgb()
-            r_0, g_0, b_0, a_0 = bg_color.getRgb()
-            rgb = composite_colors(r_0, g_0, b_0, a_0, r_s, g_s, b_s, a_s)
-            bg_color = QtGui.QColor(*rgb)
-
-        brush = QtGui.QBrush(bg_color)
-        self.bg_brushes[normal_rgb, alternate, selected] = brush
+        role = QtGui.QPalette.AlternateBase if alternate else QtGui.QPalette.Base
+        color = palette.color(QtGui.QPalette.Disabled, role)
+        if cell_color is not None:
+            hue, fraction = CELL_COLORS[cell_color]
+            color = mix_colors(color, QtGui.QColor(hue), fraction)
+        if selected:
+            color = mix_colors(color, palette.color(QtGui.QPalette.Highlight), SELECTION_FRACTION)
+        brush = QtGui.QBrush(color)
+        self.brushes[key] = brush
         return brush
 
     def data(self, index, role):
-        """When background color data is being requested, returns modified colours for
-        every second row, according to the palette of the view. This has the effect of
-        making the alternate colours visible even when custom colors have been set - the
-        same shading will be applied to the custom colours. Only really looks sensible
-        when the normal and alternate colors are similar. Also applies selection
-        highlight colour (using RunmanagerColors().COLOR_HIGHLIGHT), similarly with alternate-row
-        shading, for the case of a QTableView."""
         if role == QtCore.Qt.BackgroundRole:
-            normal_brush = QtGui.QStandardItemModel.data(self, index, QtCore.Qt.BackgroundRole)
-            selected = index in self.view.selectedIndexes()
-            alternate = index.row() % 2
-            return self.get_bgbrush(normal_brush, alternate, selected)
+            return self.background_brush(
+                QtGui.QStandardItemModel.data(self, index, self.ROLE_CELL_COLOR),
+                index.row() % 2,
+                isinstance(self.view, QtWidgets.QTableView)
+                and index in self.view.selectedIndexes(),
+            )
         return QtGui.QStandardItemModel.data(self, index, role)
 
 
@@ -534,19 +480,12 @@ class Editor(QtWidgets.QTextEdit):
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.textChanged.connect(self.update_size)
         self.initial_height = None
-        palette = self.palette()
-        for group in [QtGui.QPalette.Active, QtGui.QPalette.Inactive]:
-            palette.setColor(
-                group,
-                QtGui.QPalette.Highlight,
-                QtGui.QColor(RunmanagerColors().COLOR_HIGHLIGHT)
-            )
-            palette.setColor(
-                group,
-                QtGui.QPalette.HighlightedText,
-                palette.color(QtGui.QPalette.WindowText)
-            )
-        self.setPalette(palette)
+        set_selection_palette(self)
+
+    def changeEvent(self, event):
+        if event.type() == QtCore.QEvent.PaletteChange:
+            set_selection_palette(self)
+        QtWidgets.QTextEdit.changeEvent(self, event)
 
     def update_size(self):
         if self.initial_height is not None:
