@@ -59,6 +59,7 @@ splash.update_text('importing labscript suite modules')
 from labscript_utils.ls_zprocess import zmq_get, ProcessTree, ZMQServer
 from labscript_utils.labconfig import LabConfig, save_appconfig, load_appconfig
 from labscript_utils.setup_logging import setup_logging
+from labscript_utils.programs import open_file
 from labscript_utils import shared_drive
 from zprocess import raise_exception_in_thread, port_in_use
 import runmanager
@@ -1568,27 +1569,14 @@ class RunManager:
         self.ui.lineEdit_labscript_file.setText(labscript_file)
 
     def on_edit_labscript_file_clicked(self, checked):
-        # get path to text editor
-        editor_path = self.exp_config.get('programs', 'text_editor')
-        editor_args = self.exp_config.get('programs', 'text_editor_arguments')
-        # Get the current labscript file:
         current_labscript_file = self.ui.lineEdit_labscript_file.text()
         # Ignore if no file selected
         if not current_labscript_file:
             return
-        if not editor_path:
-            error_dialog("No editor specified in the labconfig.")
-            return
-        if '{file}' in editor_args:
-            # Split the args on spaces into a list, replacing {file} with the labscript file
-            editor_args = [arg if arg != '{file}' else current_labscript_file for arg in editor_args.split()]
-        else:
-            # Otherwise if {file} isn't already in there, append it to the other args:
-            editor_args = [current_labscript_file] + editor_args.split()
         try:
-            subprocess.Popen([editor_path] + editor_args)
+            open_file(current_labscript_file, 'text_editor', self.exp_config)
         except Exception as e: # noqa: BLE001 send all errors to dialog box
-            error_dialog(f"Unable to launch text editor specified in {self.exp_config.config_path}. Error was: {e!s}")
+            error_dialog(f"Unable to launch text editor. Error was: {e!s}. The text editor is set in the [programs] section of {self.exp_config.config_path}.")
 
     def on_select_shot_output_folder_clicked(self, checked):
         shot_output_folder = QtWidgets.QFileDialog.getExistingDirectory(self.ui,
