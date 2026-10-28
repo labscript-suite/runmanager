@@ -1081,7 +1081,12 @@ class GroupTab:
                 elif global_name in deprecations:
                     value_item.setData('deprecated', AlternatingColorModel.ROLE_CELL_COLOR)
                     value_item.setIcon(Icon(':qtutils/fugue/exclamation-diamond'))
-                    tooltip = f'{value!r}\n\nWarning: {deprecations[global_name]} {evaluator.PYLAB_NAMESPACE_NOTE}'
+                    # Rich text, so that the tooltip wraps:
+                    tooltip = (
+                        f'<p style="white-space:pre">{html.escape(repr(value))}</p>'
+                        + f'<p>Warning: {html.escape(deprecations[global_name])}</p>'
+                        + f'<p>{html.escape(evaluator.PYLAB_NAMESPACE_NOTE)}</p>'
+                    )
                     tab_contains_deprecations = True
                 else:
                     if value_item.data(AlternatingColorModel.ROLE_CELL_COLOR) != 'ok':
