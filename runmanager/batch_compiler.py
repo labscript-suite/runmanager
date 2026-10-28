@@ -29,6 +29,7 @@ import threading
 import traceback
 from types import ModuleType
 
+import numpy as np
 from zprocess import interrupt_main_thread
 import labscript
 from labscript_utils.modulewatcher import ModuleWatcher
@@ -147,7 +148,12 @@ class BatchProcessor:
         except KeyboardInterrupt:
             sys.stderr.write('Compilation interrupted\n')
             return False
-        except (Exception, SystemExit): # noqa: BLE001 print errors for any exception and return failure
+        except (Exception, SystemExit) as e: # noqa: BLE001 print errors for any exception and return failure
+            if type(e) is NameError and e.name is not None and hasattr(np, e.name):
+                e.add_note(
+                    "labscript no longer provides numpy's names to experiment scripts. "
+                    "Import '%s' from numpy." % e.name
+                )
             traceback_lines = traceback.format_exception(*sys.exc_info())
             del traceback_lines[1:2]
             message = ''.join(traceback_lines)
