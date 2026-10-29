@@ -757,7 +757,7 @@ def style_expansion_item(item, expansion, custom, palette):
     if custom:
         item.setData(None, QtCore.Qt.ForegroundRole)
     else:
-        item.setForeground(palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text))
+        item.setForeground(comment_color(palette))
 
 
 def format_time_ago(t, now):
