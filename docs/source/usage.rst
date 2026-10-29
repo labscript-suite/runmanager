@@ -2,17 +2,15 @@ Usage
 =====
 
 Runmanager is the primary means of defining and managing the set of experiment parameters
-(global variables - see §5.1.3) used in the labscript experiment logic. Runmanager also
+(global variables, or globals) used in the labscript experiment logic. Runmanager also
 handles the creation of each hdf5 shot file, and the invocation of labscript via the execution
 of a user specified labscript experiment logic file.
 
 The graphical interface
 -----------------------
 
-We believe that the manipulation of parameters, along with controls
-for producing shots, are best implemented in a graphical interface. Critical information
-on the current runmanager configuration, along with controls for generating new shots, are
-located in a always visible toolbar at the top of the runmanager interface. These comprise
+The current runmanager configuration and the controls for generating new shots are
+in a toolbar at the top of the runmanager interface, which is always visible. These comprise
 (as labelled in :numref:`fig-overview`):
 
 .. _fig-overview:
@@ -47,45 +45,48 @@ located in a always visible toolbar at the top of the runmanager interface. Thes
     running once the first hdf5 file has been generated.
 #.  The labscript file: The Python file containing the experiment logic to be compiled
     into hardware instructions (see :doc:`labscript <labscript:index>`).
-#.  The shot output folder: The location to store the hdf5 shot files. By default, the
-    location in specified by the combination of a value in the laboratory PC configuration
-    file (see :doc:`labconfig <labscript-utils:labconfig>`), the name of the experiment logic Python file and
-    the current date. The location automatically updates, at midnight, to a new folder
-    for the day provided the folder location is left as the default.
+#.  The shot output folder: The location to store the hdf5 shot files. The default
+    folder is `<experiment_shot_storage>/<script name>/<subfolder>`, where
+    `experiment_shot_storage` is set in the laboratory PC configuration file (see
+    :doc:`labconfig <labscript-utils:labconfig>`), `<script name>` is the name of the
+    experiment logic file without its extension, and `<subfolder>` is given by
+    `output_folder_format` in the `[runmanager]` section of the labconfig, which is by
+    default `%Y/%m/%d/{sequence_index:05d}`: the date and the index of the sequence on that
+    day. The file name of each shot is `filename_prefix_format` from the same section, by
+    default `{sequence_timestamp}_{script_basename}`, followed by the shot number. While
+    the folder is the default, runmanager updates it when the date or the sequence index
+    changes, so that each sequence is in a folder of its own. If BLACS or lyse run on
+    another computer, the folder must be on a drive that is shared with that computer
+    (see `shared_drive` in :doc:`labconfig <labscript-utils:labconfig>`).
 #.  The BLACS hostname: The network hostname of the PC the hdf5 shot files are to
     be sent to if the ‘run shots’ checkbox is ticked. It is expected that BLACS is running
     on the specified PC, and that network access (including firewalls and other network
     access controls) is configured appropriately.
-#.  The open in editor button: This button open the specified labscript experiment logic
-    file in the text editor specified in the laboratory PC configuration file (see labconfig
-    in the glossary).
+#.  The open in editor button: This button opens the labscript experiment logic file in
+    the text editor given by `text_editor` in the `[programs]` section of the laboratory
+    PC configuration file (see :doc:`labconfig <labscript-utils:labconfig>`), or in the
+    operating system's default program if `text_editor` is empty.
 #.  The reset shot output folder button: This button resets the shot output folder to
-    the default. This will re-enable the auto incrementation of the folder (based on the
-    current date), which is disabled for custom locations.
+    the default. This re-enables the automatic update of the folder, which is disabled
+    for a folder that the user has chosen.
 
-These controls provide rapid access to the key functionality of runmanager (creating and
-distributing shot files) at all times, making for an efficient workflow.
-The rest of the runmanager interface exists within a set of tabs. The first 3 tabs contain
+The rest of the runmanager interface is a set of tabs. The first 3 tabs contain
 further runmanager specific controls:
 
 12. The output tab: This tab contains the terminal output of the shot creation process
     including the terminal output produced during the execution of the labscript experiment
     logic file. For example, Python `print` statements included in
-    the experiment logic code will appear here during shot creation. This makes it easy
-    to debug the experiment logic code using simple methods common to general purpose
-    programming. Warnings and error messages generated by the labscript API also appear
-    here in red text, so that any issues are immediately noticed and can be actioned.
-    As this output is useful for debugging purposes, we allow the tab to be ‘popped out’
-    into a separate window so it can be visible at the same time as another tab (to avoid
-    the need to frequently switch between the output and the tab containing the global
-    variable(s) you are currently modifying).
+    the experiment logic code will appear here during shot creation. Warnings and error
+    messages generated by the labscript API also appear here in red text. The button on
+    the tab moves the output into a separate window, so that it can be visible at the same
+    time as another tab, and back.
 13. The axes tab: This tab allows the user to control the iteration order of the parameters
     in the defined parameter space (see :numref:`fig-axes`). The length of each axis of the
     parameter space is displayed, as is a shuffle checkbox for determining whether the
     points along that axis should be shuffled before the parameter space is expanded into
     the set of shots to be created. The global shuffle control (see item 4 in this list) is
-    linked to the state of the shuffle checkboxes on the axes tab. This feature, along
-    with the many benefits, is detailed further in :ref:`usage:Ordering and shuffling`.
+    linked to the state of the shuffle checkboxes on the axes tab. This feature is
+    described further in :ref:`usage:Ordering and shuffling`.
 14. The groups tab: This tab manages the hdf5 files that store the globals (see :numref:`fig-groups`). 
     Further details on managing global variables will be discussed in :ref:`usage:Managing global variables`.
 
@@ -105,9 +106,9 @@ variables, which will be discussed further in :ref:`usage:Managing global variab
 
 In addition to this, runmanager can save and restore the entire GUI state via the
 relevant menu items in the ‘File’ menu. This allows rapid switching between different types
-of experiment logic and/or globals files. [2]_ This is particularly useful for shared experiment
+of experiment logic and/or globals files. [1]_ This is particularly useful for shared experiment
 apparatuses, where different users want to run different experiments, and for the cases
-where a user wishes to rapidly switch between one of more diagnostic configurations they
+where a user wishes to rapidly switch between one or more diagnostic configurations they
 have previously saved.
 
 Managing global variables
@@ -134,9 +135,16 @@ variables:
     for further details on managing globals.
 
 
-Globals groups are created from the ‘groups’ tab in runmanager and can have arbitrary
-names (including spaces and special symbols). The only requirement is that a group name
-is unique within its file (it can however have the same name as a group in a different file).
+The ‘New globals file’ and ‘Open globals file’ buttons on the groups tab create a globals
+file or load an existing one. The `<Click to add group>` row under a file creates a group
+in that file and opens a tab for it. The open/close button of a group opens or closes its
+tab, and the delete button deletes the group from the file after a confirmation. Closing a
+tab does not change the globals in it.
+In a group's tab, the `<Click to add global>` row adds a global.
+
+Globals groups can have arbitrary names (including spaces and special symbols). The only
+requirement is that a group name is unique within its file (it can however have the same
+name as a group in a different file).
 Globals within a group are then only used in the creation of shots if the ‘active’ checkbox
 for the group is checked on the groups tab (see :numref:`fig-groups`). This provides a simple way
 of switching between different groups of globals, allowing labs to maintain a common set
@@ -145,12 +153,13 @@ and/or experiments. For example, rather than modifying a set of globals in a gro
 could instead deactivate the group containing those globals, and instead ask runmanager to
 pull those globals from a separate file.
 
-Each group of globals can be opened for editing in a new tab. We provide columns
-for the global name, value and units. The global name must be a :doc:`valid Python variable
+Each group of globals can be opened for editing in a new tab, which has columns
+for the global name, value, units and expansion. The global name must be a :doc:`valid Python variable
 name <python:reference/lexical_analysis>` that is not a Python keyword, and must not be the
 name of a Python builtin or a name defined in the `labscript.labscript` module, which
-includes every name that `from labscript import *` provides. labscript checks this when it
-compiles a shot, so that the globals can be injected into the labscript experiment logic
+includes every name that `from labscript import *` provides. Runmanager checks only that
+the name is a valid identifier; labscript checks the rest when it compiles a shot, so
+that the globals can be injected into the labscript experiment logic
 (see :doc:`labscript <labscript:index>`) without replacing existing names. The global name
 must also be unique across all active groups, as global groups are joined into a single set
 before passing the globals into the labscript experiment logic.
@@ -265,9 +274,9 @@ global was expected to be of that magnitude and would not accidentally enter it 
 or Hz. In addition to this, globals whose values are explicitly specified as either `True` or
 `False`, optionally followed by a comment, have their units automatically set to ‘Bool’, and
 the value is drawn as a button, bright green for `True` and dark green for `False`, which
-toggles the value when clicked. Clicking elsewhere in the cell edits the value. We
-frequently use this functionality to enable/disable various stages of our experiment logic
-file (see :numref:`fig-bools`).
+toggles the value when clicked. Clicking elsewhere in the cell edits the value. Boolean
+globals can be used to enable or disable stages of the experiment logic (see
+:numref:`fig-bools`).
 
 .. _fig-evaluation-error:
 
@@ -278,35 +287,29 @@ file (see :numref:`fig-bools`).
     highlighted in red. The tooltip displays the cause of the error, in this case a Python syntax
     error.
 
-While we recommend storing globals in a dedicated set of files, the storage format for
-the globals is identical to that in any shot, which allows a user to easily load in globals from
-existing shots (even ones that have been executed and analysed). However, once pointed
-at an existing shot file, any modification to globals will modify that shot file, thus partially
-destroying the complete record of the experiment. [3]_ Thus, we encourage this feature to only
-be used for the cases where you wish to look at the globals from an old shot or where you
-wish to use the globals, without modification, to compile new shots.
+The storage format for the globals is identical to that in any shot, so a shot file can be
+loaded as a globals file (even one that has been executed and analysed). However, any
+modification to globals then modifies that shot file, and so partially destroys the record
+of the experiment. [2]_ Loading a shot file is therefore best used only to look at the
+globals of an old shot, or to compile new shots with its globals without modifying them.
 
 .. _fig-bools:
 
 .. figure:: img/runmanager_bools.png 
 
     An example of how a labscript experiment can be parameterised by a series
-    of Boolean global variables. Here we split up the production of a BEC into several stages.
-    We name each global with a prefix that increments in order to keep the globals in an
-    appropriate sort order. Runmanager detects the Boolean type of the global, and provides a
-    button in the value column that toggles it. By using these global variables in our labscript
-    experiment logic file, as the Boolean expression for an if statement, we can quickly turn
-    on/off various stages of the BEC production process (which is very useful when debugging
-    or optimising the BEC production process).
+    of Boolean global variables. Here the production of a BEC is split into several stages.
+    Each global has a prefix that increments, which keeps the globals in the order of the
+    stages. Runmanager detects the Boolean type of the global, and provides a
+    button in the value column that toggles it. With each global used in the labscript
+    experiment logic file as the condition of an if statement, each stage of the BEC
+    production process can be turned on or off.
 
 Parameter space scans
 ---------------------
 
-One of the key features of runmanager (and critical goals of our scientific control system)
-is the ability to easily automate the traversal of a large parameter space, an increasingly
-important requirement for performing modern ultracold atom experiments. Runmanager
-scans a parameter space by expanding the globals whose values are lists into the axes of
-that space.
+Runmanager scans a parameter space by expanding the globals whose values are lists into
+the axes of that space.
 
 How expansion works
 ~~~~~~~~~~~~~~~~~~~
@@ -335,7 +338,7 @@ as such in the globals file and is kept until you return the global to ‘auto�
 
 Runmanager works out the automatic settings after every evaluation of the globals:
 
-#.  A global whose value is a list, array or range [4]_ is ‘outer’. Any other value,
+#.  A global whose value is a list, array or range [3]_ is ‘outer’. Any other value,
     including a tuple, gives the setting ‘none’.
 #.  A list that is derived from a global on an axis, directly or through other lists with
     automatic settings, is put on the axis of that global: in its zip group if it is in
@@ -397,9 +400,6 @@ The axes tab sets the order in which the axes are combined when the shots are pr
 a per axis basis, and the whole set of shots that spans the parameter space can also be
 shuffled.
 
-Together, expansion, ordering and shuffling provide a powerful basis for performing
-complex experiments.
-
 Consider the following example. Many of the early stages of BEC production (for
 instance the MOT or magnetic trap stages) should be optimised for best phase-space density.
 Phase space density is calculated from several parameters; the most important being atom
@@ -432,8 +432,7 @@ layer in order to repeat each of the shots a prescribed number of times (by defi
 additional ‘dummy’ global variable as `range(N)` where `N` is the number of times to repeat
 each shot).
 
-While the above example may seem complicated, runmanager makes it trivial to implement.
-A user simply defines the list of values to scan over for each parameter, sets the order
+To run this in runmanager, the user defines the list of values to scan over for each parameter, sets the order
 in which the outer product should use each axis, and specifies whether the values for each
 axis should be shuffled. Once done, clicking the engage button generates the sequence of
 shots and sends them to BLACS to be executed on the experiment.
@@ -444,13 +443,11 @@ Evaluation of globals
 All global variable expressions are automatically evaluated after a change to any global
 variable. This serves to both update the tooltip with the result of the expression, detect
 axes of a parameter space to scan (and group them into zip groups if appropriate) and
-warn the user of any errors during the evaluation of the globals. As discussed previously,
-runmanager allows these global variable expressions to reference other global variables. This
-allows a user to maintain a record of a set of parameters, and all relevant quantities derived
-from one or more of those parameters, without ever storing a parameter more than once.
-This ensures that important quantities need not be derived (from globals) in the labscript
-experiment logic script, and that they are accessible directly during the analysis stage (see
-:doc:`lyse <lyse:index>`).
+warn the user of any errors during the evaluation of the globals. Global variable
+expressions can reference other global variables, so a set of parameters and the
+quantities derived from them can be recorded without storing any parameter more than once.
+The derived quantities are then saved in each shot file, where they are available to
+analysis (see :doc:`lyse <lyse:index>`).
 
 Each global is evaluated once for the whole sequence, not once per shot: in the expression
 of a global that refers to a list, the name of the list has the whole list as its value. A
@@ -477,79 +474,53 @@ on several axes is put on the axis of the alphabetically first of them, and gets
 naming the others. The automatic settings are recomputed from the values and the
 hierarchy after every evaluation.
 
-We believe that this complex evaluation of global variables is only possible due to the
-use of an interpreted language that has tools for parsing its own syntax. As such, the
-choice of Python as our programming language has allowed us to implement extremely
-useful, advanced features that might otherwise be too difficult to produce in more low level
-languages such as C++.
-
 Shot creation
 -------------
 
-The internal process for generating shot files is quite complex. This is primarily motivated
-by the desire for modularity (for example, to separate shot file generation from hardware
-instruction generation) and the desire for robustness. As runmanager ultimately initiates the
-execution of user code (the labscript experiment logic file), there is a risk that problems in the
-user code could crash runmanager. We mitigate this by using a multi-process architecture.
-
-We originally spawned a new Python process for each shot (in order to guarantee the
-internal state of labscript was fresh). However the time required to start a Python process
-(especially on Windows) was a considerable fraction of the entire shot generation time. As
-such we now use a single, long-lived, Python process and clean-up the internal state of
-labscript and Python explicitly after each shot.
+Runmanager runs the labscript experiment logic file in a separate Python process, the
+‘compilation subprocess’, so that errors in the experiment logic do not affect runmanager.
+The subprocess is started with runmanager and is used for every shot; the ‘Restart’ button
+starts a new one. Modules that the experiment logic imports stay imported between shots,
+and are reloaded when their files change.
 
 To generate shot files, runmanager:
 
 #.  Re-evaluates all globals (see :ref:`usage:Evaluation of globals`). This both determines the number of shots to
     produce, and generates the evaluated set of global variables for each shot.
-#.  The globals are then written to hdf5 files, one file for each shot. We also write
-    the unevaluated globals into every hdf5 file, in order to provide a complete record
+#.  Writes the globals to hdf5 files, one file for each shot. The unevaluated globals are
+    also written into every hdf5 file, in order to provide a complete record
     of the experiment (the unevaluated globals contain information about the parameter
     space that is not available when looking at the single point of parameter space in the
     evaluated globals of a single shot file).
-#.  In a thread (in order to keep the GUI responsive), we iterate over the set of files
-    and send their file paths to a long-running subprocess (launched by runmanager at
-    startup) that is used to execute labscript code in an isolated environment. We call
-    this process the ‘compilation subprocess’.
-#.  The subprocess, which has the labscript API imported, calls an initialisation method
-    to inform the labscript API of the hdf5 file to write hardware instructions to.
-#.  The subprocess loads the global variables from runmanager into the `__builtin__`
-    dictionary.
-#.  The subprocess then executes the labscript experiment logic file (using the Python
-    function `exec`) in an isolated namespace, which invokes the labscript API via the
-    users experiment logic and generates the required hardware instructions and saves
-    them in the hdf5 file. Terminal output (for example, `print` statements) are sent
-    back to the parent runmanager process and placed in the output tab.
-#.  The subprocess restores the `__builtin__` dictionary to its original state to prevent
-    globals from polluting subsequent shots. A clean-up method from the labscript API
-    is also called so that the internal state of the labscript Python module is also reset.
+#.  In a thread, which keeps the GUI responsive, sends the file paths one at a time to the
+    compilation subprocess.
+
+For each shot file, the compilation subprocess:
+
+#.  Calls `labscript.labscript_init`, which tells labscript the hdf5 file to write hardware
+    instructions to, saves the state of the Python builtins, and adds the globals of the
+    shot to the builtins.
+#.  Executes the labscript experiment logic file (using the Python function `exec`) as
+    the `__main__` module, with the directory of the file as the working directory. The
+    experiment logic calls the labscript API, which generates the hardware instructions
+    and saves them in the hdf5 file. Terminal output (for example, `print` statements) is
+    sent back to runmanager and shown in the output tab.
+#.  Calls `labscript.labscript_cleanup`, which restores the Python builtins, so that the
+    globals of one shot are not present in the next, and resets the internal state of
+    labscript. The namespace of the `__main__` module is also cleared.
 
 Once shot files are created, the file paths are sent to runviewer or BLACS, as determined by
 the checkboxes in the runmanager GUI, for viewing and/or executing the shots respectively.
-This architecture also has several unrealised benefits:
-
-#.  If the need arose, we could easily parallelise the generation of hardware instructions
-    by instantiating multiple instances of the compilation subprocess.
-#.  We could use runmanager as a generic parameter (space) management software by
-    replacing the compilation subprocess with something else. For example, runmanager
-    could be used to manage parameters for simulations, producing one shot file per
-    simulation to be run in the same way we do for real experiments. These files could
-    then be sent to a scheduling program (like BLACS) that feeds them to the simulation
-    software.
 
 .. rubric:: Footnotes
 
-.. [1] Documentation taken from Phillip T. Starkey *A software framework for control and automation of precisely timed experiments*
-    Thesis, Monash University (2019) https://doi.org/10.26180/5d1db8ffe29ef
-
-.. [2] For clarity, the values of the globals are not saved in this configuration file, but simply the location
+.. [1] For clarity, the values of the globals are not saved in this configuration file, but simply the location
     of the hdf5 file containing the globals. This means that any globals in files shared between saved
     runmanager configurations will share their values. For cases where global values should differ between
     runmanager configurations, separate globals files should be used.
 
-.. [3] Note that in an executed shot file, globals exist in two formats: the evaluated format (one point in the
+.. [2] Note that in an executed shot file, globals exist in two formats: the evaluated format (one point in the
     parameter space) used by labscript, and the raw strings as displayed in runmanager. Only the latter
-    would be overwritten if globals were edited in the manor described in the main body text.
+    are overwritten if the globals are edited in this way.
 
-.. [4] Runmanager considers both Python lists and numpy arrays to be what we refer to as ‘lists’ in this
-    section.
+.. [3] Python lists and numpy arrays are both called ‘lists’ in this section.
