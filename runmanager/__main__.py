@@ -80,6 +80,7 @@ from runmanager.widgets import (
     ItemDelegate,
     CommentDelegate,
     HistoryPopup,
+    paint_bool_button,
     EXPANSION_NONE_TEXT,
     blank_icon,
     expansion_text,
@@ -255,20 +256,75 @@ class ExpansionDelegate(DropDownButtonDelegate, ItemDelegate):
 class ValueDelegate(DropDownButtonDelegate, CommentDelegate):
     """Delegate for the value column of a group tab. Comments are drawn in grey, and
     the hovered or current cell has a drop-down button that shows the history of the
-    global's values."""
+    global's values. A global with the value True or False is drawn as a button that
+    shows and toggles the value, followed by any comments."""
+
+    BOOL_BUTTON_HEIGHT = 18
+    # Horizontal padding on each side of the text of a bool button:
+    BOOL_BUTTON_PADDING = 5
+    BOOL_BUTTON_SPACING = 6
 
     def __init__(self, group_tab):
         CommentDelegate.__init__(self, group_tab.ui.tableView_globals)
         self.group_tab = group_tab
 
-    def has_button(self, index):
-        if not DropDownButtonDelegate.has_button(self, index):
+    def bool_value(self, index):
+        """The value of the global if it is True or False, otherwise None"""
+        return tokenizer.bool_literal(index.data() or '')
+
+    def font(self, index):
+        """The font of the text of the cell"""
+        font = index.data(QtCore.Qt.FontRole)
+        if font is None:
+            return self.parent().font()
+        return font.resolve(self.parent().font())
+
+    def bool_button_width(self, font):
+        metrics = QtGui.QFontMetrics(font)
+        text_width = max(metrics.horizontalAdvance(str(value)) for value in [True, False])
+        return text_width + 2 * self.BOOL_BUTTON_PADDING
+
+    def reserved_left_width(self, index):
+        if self.bool_value(index) is None:
+            return 0
+        return self.bool_button_width(self.font(index)) + self.BOOL_BUTTON_SPACING
+
+    def display_text(self, index):
+        """The text of the cell, without the literal True or False and the whitespace
+        around it if the global has a bool button"""
+        text = CommentDelegate.display_text(self, index)
+        value = self.bool_value(index)
+        if value is None:
+            return text
+        end = text.index(str(value)) + len(str(value))
+        return text[end:].lstrip()
+
+    def bool_button_rect(self, option):
+        text_rect = self.text_rect(option)
+        top = text_rect.top() + (text_rect.height() - self.BOOL_BUTTON_HEIGHT) // 2
+        return QtCore.QRect(
+            text_rect.left(), top, self.bool_button_width(option.font), self.BOOL_BUTTON_HEIGHT
+        )
+
+    def bool_button_contains(self, index, global_pos):
+        """Whether the given point in global coordinates is on the bool button of the
+        cell"""
+        if self.bool_value(index) is None:
             return False
-        units_index = index.sibling(index.row(), GroupTab.GLOBALS_COL_UNITS)
-        return not index.model().data(units_index, GroupTab.GLOBALS_ROLE_IS_BOOL)
+        view = self.parent()
+        option = view.viewItemOption()
+        option.rect = view.visualRect(index)
+        self.initStyleOption(option, index)
+        pos = view.viewport().mapFromGlobal(global_pos)
+        return self.bool_button_rect(option).contains(pos)
 
     def paint(self, painter, option, index):
         CommentDelegate.paint(self, painter, option, index)
+        value = self.bool_value(index)
+        if value is not None:
+            opt = QtWidgets.QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            paint_bool_button(painter, self.bool_button_rect(opt), opt.palette, opt.font, value)
         self.paint_button(painter, option, index)
 
 
@@ -375,9 +431,9 @@ class GroupTab:
         self.ui.tableView_globals.leftClicked.connect(self.on_tableView_globals_leftClicked)
         self.ui.tableView_globals.customContextMenuRequested.connect(self.on_tableView_globals_context_menu_requested)
         self.action_globals_set_selected_true.triggered.connect(
-            lambda: self.on_globals_set_selected_bools_triggered('True'))
+            lambda: self.on_globals_set_selected_bools_triggered(True))
         self.action_globals_set_selected_false.triggered.connect(
-            lambda: self.on_globals_set_selected_bools_triggered('False'))
+            lambda: self.on_globals_set_selected_bools_triggered(False))
         self.action_globals_delete_selected.triggered.connect(self.on_globals_delete_selected_triggered)
         self.action_globals_reset_expansion.triggered.connect(self.on_globals_reset_expansion_triggered)
         self.action_globals_previous_value.triggered.connect(self.on_globals_previous_value_triggered)
@@ -517,18 +573,12 @@ class GroupTab:
             # the name item so they can enter a name for the new global:
             self.ui.tableView_globals.setCurrentIndex(name_index)
             self.ui.tableView_globals.edit(name_index)
-        elif item.data(self.GLOBALS_ROLE_IS_BOOL):
-            # It's a bool indicator. Toggle it
-            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
-            if value_item.text() == 'True':
-                value_item.setText('False')
-            elif value_item.text() == 'False':
-                value_item.setText('True')
-            else:
-                raise AssertionError('expected boolean value')
         elif item.column() == self.GLOBALS_COL_DELETE:
             # They clicked a delete button.
             self.delete_global(global_name)
+        elif item.column() == self.GLOBALS_COL_VALUE and self.value_delegate.bool_button_contains(
+                index, QtGui.QCursor.pos()):
+            item.setText(tokenizer.set_bool_literal(item.text(), not self.value_delegate.bool_value(index)))
         elif item.column() == self.GLOBALS_COL_VALUE and self.value_delegate.button_contains(
                 index, QtGui.QCursor.pos()):
             self.ui.tableView_globals.setCurrentIndex(index)
@@ -593,15 +643,6 @@ class GroupTab:
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
-        # If it's a boolean value, ensure the check state matches the bool state:
-        if item.data(self.GLOBALS_ROLE_IS_BOOL):
-            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
-            if value_item.text() == 'True':
-                item.setCheckState(QtCore.Qt.Checked)
-            elif value_item.text() == 'False':
-                item.setCheckState(QtCore.Qt.Unchecked)
-            else:
-                raise AssertionError('expected boolean value')
         # Ensure the value actually changed, rather than something else about
         # the item:
         if new_units != previous_units:
@@ -681,7 +722,7 @@ class GroupTab:
         units_items = [item for item in selected_items if item.column() == self.GLOBALS_COL_UNITS]
         for value_item, units_item in zip(value_items, units_items):
             if units_item.data(self.GLOBALS_ROLE_IS_BOOL):
-                value_item.setText(state)
+                value_item.setText(tokenizer.set_bool_literal(value_item.text(), state))
 
     def on_globals_reset_expansion_triggered(self):
         selected_indexes = self.ui.tableView_globals.selectedIndexes()
@@ -969,38 +1010,25 @@ class GroupTab:
             scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def check_for_boolean_values(self, item):
-        """Checks if the value is 'True' or 'False'. If either, makes the
-        units cell checkable, uneditable, and coloured to indicate the state.
-        The units cell can then be clicked to toggle the value."""
+        """Checks if the value is True or False. If either, sets the units to 'Bool'
+        and makes the units cell uneditable."""
         index = item.index()
-        value = item.text()
+        value = tokenizer.bool_literal(item.text())
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
         units_index = index.sibling(index.row(), self.GLOBALS_COL_UNITS)
         name_item = self.globals_model.itemFromIndex(name_index)
         units_item = self.globals_model.itemFromIndex(units_index)
         global_name = name_item.text()
         self.logger.debug('%s:%s - check for boolean values: %s', self.globals_file, self.group_name, global_name)
-        if value == 'True':
+        if value is not None:
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
-            units_item.setData('!1', self.GLOBALS_ROLE_SORT_DATA)
+            units_item.setData('!1' if value else '!0', self.GLOBALS_ROLE_SORT_DATA)
             units_item.setEditable(False)
-            units_item.setCheckState(QtCore.Qt.Checked)
-            units_item.setData('true', AlternatingColorModel.ROLE_CELL_COLOR)
-        elif value == 'False':
-            units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
-            units_item.setText('Bool')
-            units_item.setData('!0', self.GLOBALS_ROLE_SORT_DATA)
-            units_item.setEditable(False)
-            units_item.setCheckState(QtCore.Qt.Unchecked)
-            units_item.setData('false', AlternatingColorModel.ROLE_CELL_COLOR)
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL)
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setEditable(True)
-            # Checkbox still visible unless we do the following:
-            units_item.setData(None, QtCore.Qt.CheckStateRole)
-            units_item.setData(None, AlternatingColorModel.ROLE_CELL_COLOR)
             if was_bool:
                 # If the item was a bool and now isn't, clear the
                 # units and go into editing so the user can enter a

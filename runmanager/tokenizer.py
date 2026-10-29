@@ -13,6 +13,7 @@
 """Functions for parsing global expressions, especially for comments.
 """
 
+import functools
 import io
 import tokenize
 
@@ -76,3 +77,20 @@ def remove_comments_and_tokenify(src):
     except (tokenize.TokenError, SyntaxError):
         pass
     return src, tokens
+
+
+@functools.lru_cache(maxsize=4096)
+def bool_literal(src):
+    """Return True or False if the given Python source is the literal True or False,
+    with only whitespace and comments around it, otherwise None"""
+    code, _ = remove_comments_and_tokenify(src)
+    return {'True': True, 'False': False}.get(code.strip())
+
+
+def set_bool_literal(src, value):
+    """Return the given Python source, for which bool_literal() is not None, with its
+    literal replaced by the literal of the given bool. Whitespace and comments are
+    unchanged."""
+    literal = str(bool_literal(src))
+    start = src.index(literal)
+    return src[:start] + str(bool(value)) + src[start + len(literal):]
