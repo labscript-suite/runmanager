@@ -881,12 +881,9 @@ class GroupTab:
             self.globals_model.insertRow(last_index - 1, global_row)
             self.on_globals_model_expansion_changed(global_row[self.GLOBALS_COL_EXPANSION])
             self.do_model_sort()
-            # Go into edit mode on the 'value' item:
             value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE,
                                                       previous_name=global_name)
-            value_item_index = value_item.index()
-            self.ui.tableView_globals.setCurrentIndex(value_item_index)
-            self.ui.tableView_globals.edit(value_item_index)
+            self.ui.tableView_globals.edit_after_commit(value_item.index())
             self.globals_changed()
         finally:
             # Set the dummy row's text back ready for another group to be created:
@@ -910,15 +907,10 @@ class GroupTab:
             item.setToolTip(new_global_name)
             self.globals_changed()
             value_item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_VALUE)
-            value = value_item.text()
-            if not value and self.ui.tableView_globals.state() != QtWidgets.QAbstractItemView.EditingState:
-                # Go into editing the value item automatically if not already in edit mode:
-                value_item_index = value_item.index()
-                self.ui.tableView_globals.setCurrentIndex(value_item_index)
-                self.ui.tableView_globals.edit(value_item_index)
-            else:
-                # If this changed the sort order, ensure the item is still visible:
-                scroll_view_to_row_if_current(self.ui.tableView_globals, item)
+            # If this changed the sort order, ensure the item is still visible:
+            scroll_view_to_row_if_current(self.ui.tableView_globals, item)
+            if not value_item.text():
+                self.ui.tableView_globals.edit_after_commit(value_item.index())
 
     def change_global_value(self, global_name, previous_value, new_value, interactive=True):
         self.logger.info('%s:%s - change global value: %s = %s -> %s', self.globals_file, self.group_name, global_name, previous_value, new_value)
@@ -962,15 +954,10 @@ class GroupTab:
             if not interactive:
                 return
             units_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
-            units = units_item.text()
-            if not units and self.ui.tableView_globals.state() != QtWidgets.QAbstractItemView.EditingState:
-                # Go into editing the units item automatically if not already in edit mode:
-                units_item_index = units_item.index()
-                self.ui.tableView_globals.setCurrentIndex(units_item_index)
-                self.ui.tableView_globals.edit(units_item_index)
-            else:
-                # If this changed the sort order, ensure the item is still visible:
-                scroll_view_to_row_if_current(self.ui.tableView_globals, item)
+            # If this changed the sort order, ensure the item is still visible:
+            scroll_view_to_row_if_current(self.ui.tableView_globals, item)
+            if not units_item.text():
+                self.ui.tableView_globals.edit_after_commit(units_item.index())
 
     def change_global_units(self, global_name, previous_units, new_units):
         self.logger.info('%s:%s - change units: %s = %s -> %s', self.globals_file, self.group_name, global_name, previous_units, new_units)
@@ -1031,12 +1018,7 @@ class GroupTab:
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setEditable(True)
             if was_bool:
-                # If the item was a bool and now isn't, clear the
-                # units and go into editing so the user can enter a
-                # new units string:
                 units_item.setText('')
-                self.ui.tableView_globals.setCurrentIndex(units_item.index())
-                self.ui.tableView_globals.edit(units_item.index())
 
     def globals_changed(self):
         """Called whenever something about a global has changed. call
@@ -1502,6 +1484,12 @@ class RunManager:
         self.ui.toolButton_axis_up.clicked.connect(self.on_axis_up_clicked)
         self.ui.toolButton_axis_down.clicked.connect(self.on_axis_down_clicked)
         self.ui.toolButton_axis_to_bottom.clicked.connect(self.on_axis_to_bottom_clicked)
+        self.ui.treeView_axes.set_selection_controls([
+            self.ui.toolButton_axis_to_top,
+            self.ui.toolButton_axis_up,
+            self.ui.toolButton_axis_down,
+            self.ui.toolButton_axis_to_bottom,
+        ])
         # axes tab item changed handler
         self.axes_model.itemChanged.connect(self.on_axes_item_changed)
         self.axes_model.rowsRemoved.connect(self.update_global_shuffle_state)
