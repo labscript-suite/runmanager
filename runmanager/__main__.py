@@ -178,11 +178,11 @@ class DropDownButtonDelegate:
 
 class ExpansionDelegate(DropDownButtonDelegate, ItemDelegate):
     """Delegate for the expansion column of a group tab. The hovered or current cell has
-    a drop-down button. The editor is an editable combo box that offers 'Auto', 'None',
+    a drop-down button. The editor is an editable combo box that offers 'auto', 'none',
     'outer' and the zip groups in use, and takes a typed zip group name. An empty entry
-    means 'Auto'."""
+    means 'auto'. Typed entries of 'auto' and 'none' are not case sensitive."""
 
-    AUTO = 'Auto'
+    AUTO = 'auto'
 
     def __init__(self, group_tab):
         ItemDelegate.__init__(self, group_tab.ui.tableView_globals)
@@ -238,11 +238,13 @@ class ExpansionDelegate(DropDownButtonDelegate, ItemDelegate):
     def setModelData(self, combo, model, index):
         text = combo.currentText().strip()
         item = model.itemFromIndex(index)
-        if not text or text.lower() == self.AUTO.lower():
+        if not text or text.lower() == self.AUTO:
             custom = False
             text = item.text()
         else:
             custom = True
+            if text.lower() == EXPANSION_NONE_TEXT:
+                text = EXPANSION_NONE_TEXT
         # Set the setting and whether it is custom together, so that the change
         # handler sees both:
         with self.group_tab.globals_model_item_changed_disconnected:
@@ -338,7 +340,7 @@ class GroupTab:
         self.action_globals_set_selected_false = QtWidgets.QAction(
             Icon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected Booleans False',  self.ui)
         self.action_globals_reset_expansion = QtWidgets.QAction(
-            Icon(':qtutils/fugue/arrow-circle'), 'Reset expansion of selected global(s) to Auto', self.ui)
+            Icon(':qtutils/fugue/arrow-circle'), 'Reset expansion of selected global(s) to auto', self.ui)
         self.action_globals_previous_value = QtWidgets.QAction(
             Icon(':qtutils/fugue/arrow-circle-double'), 'Switch selected global(s) to previous value', self.ui)
         self.action_globals_value_history = QtWidgets.QAction(
@@ -635,7 +637,7 @@ class GroupTab:
             effect = 'This global will be interpreted as a single value and passed to compilation as-is.'
             reason = 'the value is not a list, array or range'
         if custom:
-            origin = "Chosen by you. Choose 'Auto' to let runmanager set the expansion."
+            origin = "Chosen by you. Choose 'auto' to let runmanager set the expansion."
         else:
             origin = f'Set automatically because {reason}.'
         # Don't want icon changing to recurse - which happens even if it is

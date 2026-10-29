@@ -23,7 +23,7 @@ from qtutils.icons import Icon, in_mode
 from runmanager.group_manager import history_entry_expansion
 from runmanager.tokenizer import find_comments
 
-EXPANSION_NONE_TEXT = 'None'
+EXPANSION_NONE_TEXT = 'none'
 
 
 def mix_colors(color0, color1, fraction):
