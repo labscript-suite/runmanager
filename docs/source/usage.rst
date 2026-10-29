@@ -243,7 +243,7 @@ coded to the successful evaluation of the expression, so that mistakes can be ea
     is determined by a separate global variable (a Boolean) and may contain a list of drop times if
     the user wishes to image multiple species. In the case of the expression generating a list, this
     global becomes an axis of a parameter space, running two shots for every other data point in the
-    parameter space (one shot to image each of the two species our experiment supports). Such an
+    parameter space (one shot to image each of the two species of the experiment). Such an
     expression could not be defined within experiment logic as parameter spaces must be defined within
     runmanager, not labscript. In order to simplify the view of globals with complex expressions, the
     tooltip (shown for the `central_image_rb` global) shows the value(s) the global will take in the next
