@@ -836,6 +836,7 @@ class GroupTab:
             last_index = self.globals_model.rowCount()
             # Insert it as the row before the last (dummy) row:
             self.globals_model.insertRow(last_index - 1, global_row)
+            self.on_globals_model_expansion_changed(global_row[self.GLOBALS_COL_EXPANSION])
             self.do_model_sort()
             # Go into edit mode on the 'value' item:
             value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE,
