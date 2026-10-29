@@ -593,10 +593,8 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
     def setEditorData(self, editor, index):
         editor.setPlainText(index.data())
         font = index.data(QtCore.Qt.FontRole)
-        default_font = QtWidgets.QApplication.instance().font(self.parent())
         if font is None:
-            font = default_font
-        font.setPointSize(default_font.pointSize())
+            font = QtWidgets.QApplication.instance().font(self.parent())
         editor.setFont(font)
         font_height = QtGui.QFontMetrics(font).height()
         padding = (self.MIN_ROW_HEIGHT - font_height) / 2 - 1
