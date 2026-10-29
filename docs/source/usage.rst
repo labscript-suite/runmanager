@@ -263,10 +263,11 @@ it was used (or the keyword argument `units="MHz"` was used everywhere), then yo
 type ‘MHz’ into the units column of runmanager so that a later user would know that the
 global was expected to be of that magnitude and would not accidentally enter it in kHz
 or Hz. In addition to this, globals whose values are explicitly specified as either `True` or
-`False` have their units automatically set to ‘Bool’, a checkbox is placed in the units column
-for easy toggling, and the units cell is colour coded to this checkbox for easy observation
-of the state. We frequently use this functionality to enable/disable various stages of our
-experiment logic file (see :numref:`fig-bools`).
+`False`, optionally followed by a comment, have their units automatically set to ‘Bool’, and
+the value is drawn as a button, bright green for `True` and dark green for `False`, which
+toggles the value when clicked. Clicking elsewhere in the cell edits the value. We
+frequently use this functionality to enable/disable various stages of our experiment logic
+file (see :numref:`fig-bools`).
 
 .. _fig-evaluation-error:
 
@@ -293,7 +294,7 @@ wish to use the globals, without modification, to compile new shots.
     of Boolean global variables. Here we split up the production of a BEC into several stages.
     We name each global with a prefix that increments in order to keep the globals in an
     appropriate sort order. Runmanager detects the Boolean type of the global, and provides a
-    simple checkbox toggle in the units column, By using these global variables in our labscript
+    button in the value column that toggles it. By using these global variables in our labscript
     experiment logic file, as the Boolean expression for an if statement, we can quickly turn
     on/off various stages of the BEC production process (which is very useful when debugging
     or optimising the BEC production process).

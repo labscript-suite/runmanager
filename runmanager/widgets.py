@@ -37,17 +37,29 @@ def mix_colors(color0, color1, fraction):
 ENGAGE_RED = '#dc3232'
 ENGAGE_RED_FRACTION = 0.6
 # Colours that are mixed into the base colour of the globals table for the cells of
-# globals that are true, false, valid, use deprecated names or cannot be evaluated, and
-# their fractions:
+# globals that are valid, use deprecated names or cannot be evaluated, and their
+# fractions:
 CELL_COLORS = {
-    'true': ('#3cdc28', 0.7),
-    'false': ('#285a28', 0.7),
     'ok': ('#32e678', 0.4),
     'deprecated': ('#e6b432', 0.5),
     'error': ('#e03030', 0.5),
 }
 # Fraction by which we mix the highlight colour into the colour of selected cells:
 SELECTION_FRACTION = 0.25
+# Colours that are mixed into the button colour for the buttons of globals that are False
+# and True, and their fractions:
+BOOL_BUTTON_COLORS = {
+    False: ('#053605', 0.85),
+    True: ('#20e020', 0.9),
+}
+# Text colours of the buttons of globals that are False and True:
+BOOL_BUTTON_TEXT_COLORS = {
+    False: '#ffffff',
+    True: '#000000',
+}
+# Fraction by which we mix the shadow colour into the colour of a bool button for its
+# border:
+BOOL_BUTTON_BORDER_FRACTION = 0.3
 
 
 def engage_button_style_sheet(palette):
@@ -74,6 +86,27 @@ QPushButton:pressed {{
     background-color: {background.darker(115).name()};
 }}
 """
+
+
+def paint_bool_button(painter, rect, palette, font, value):
+    """Paint the button that shows and toggles the value of a global that is True or
+    False"""
+    hue, fraction = BOOL_BUTTON_COLORS[value]
+    fill = mix_colors(
+        palette.color(QtGui.QPalette.ColorRole.Button), QtGui.QColor(hue), fraction
+    )
+    border = mix_colors(
+        fill, palette.color(QtGui.QPalette.ColorRole.Shadow), BOOL_BUTTON_BORDER_FRACTION
+    )
+    painter.save()
+    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    painter.setPen(border)
+    painter.setBrush(fill)
+    painter.drawRoundedRect(QtCore.QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), 3, 3)
+    painter.setFont(font)
+    painter.setPen(QtGui.QColor(BOOL_BUTTON_TEXT_COLORS[value]))
+    painter.drawText(rect, QtCore.Qt.AlignCenter, str(value))
+    painter.restore()
 
 
 def set_selection_palette(widget):
@@ -349,6 +382,15 @@ class ItemView:
         else:
             # Qt6 returns QPointF instead of QPoint
             return self.indexAt(event.position().toPoint())
+
+    def viewItemOption(self):
+        """The style option with which the view paints its items, without the
+        properties of any particular item"""
+        if QT_ENV == 'PyQt5':
+            return self.viewOptions()
+        option = QtWidgets.QStyleOptionViewItem()
+        self.initViewItemOption(option)
+        return option
 
     def mousePressEvent(self, event):
         result = super().mousePressEvent(event)
@@ -655,6 +697,23 @@ class CommentDelegate(ItemDelegate):
         """Width in pixels at the right of the cell in which no text is drawn"""
         return 0
 
+    def reserved_left_width(self, index):
+        """Width in pixels at the left of the text in which no text is drawn"""
+        return 0
+
+    def display_text(self, index):
+        """The text drawn in the cell"""
+        return index.data() or ''
+
+    def text_rect(self, option):
+        """The rectangle in which the text of the cell and the reserved widths are, for
+        a style option that has been initialised for the cell"""
+        widget = option.widget
+        style = widget.style() if widget is not None else QtWidgets.QApplication.style()
+        rect = style.subElementRect(QtWidgets.QStyle.SE_ItemViewItemText, option, widget)
+        margin = style.pixelMetric(QtWidgets.QStyle.PM_FocusFrameHMargin, None, widget) + 1
+        return rect.adjusted(margin, 0, -margin, 0)
+
     def initStyleOption(self, option, index):
         ItemDelegate.initStyleOption(self, option, index)
         if self._painting:
@@ -662,7 +721,7 @@ class CommentDelegate(ItemDelegate):
             option.text = ''
 
     def sizeHint(self, option, index):
-        reserved_width = self.reserved_width(index)
+        reserved_width = self.reserved_width(index) + self.reserved_left_width(index)
         option = QtWidgets.QStyleOptionViewItem(option)
         option.rect.setWidth(option.rect.width() - reserved_width)
         size = ItemDelegate.sizeHint(self, option, index)
@@ -671,17 +730,14 @@ class CommentDelegate(ItemDelegate):
     def paint(self, painter, option, index):
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
-        widget = opt.widget
-        style = widget.style() if widget is not None else QtWidgets.QApplication.style()
-        text_rect = style.subElementRect(QtWidgets.QStyle.SE_ItemViewItemText, opt, widget)
-        margin = style.pixelMetric(QtWidgets.QStyle.PM_FocusFrameHMargin, None, widget) + 1
-        text_rect.adjust(margin, 0, -margin - self.reserved_width(index), 0)
+        text_rect = self.text_rect(opt)
+        text_rect.adjust(self.reserved_left_width(index), 0, -self.reserved_width(index), 0)
         self._painting = True
         try:
             ItemDelegate.paint(self, painter, option, index)
         finally:
             self._painting = False
-        text = index.data() or ''
+        text = self.display_text(index)
         # Table views draw the selection as the background colour, with normal text:
         selected = (opt.state & QtWidgets.QStyle.State_Selected
                     and not isinstance(self.parent(), QtWidgets.QTableView))
