@@ -318,7 +318,7 @@ has no shots.
 
 The expansion column of each global holds its expansion setting, which is one of:
 
-* None (an empty cell): the value is passed to every shot as it is, even if it is a list.
+* ‘none’: the value is passed to every shot as it is, even if it is a list.
 * ‘outer’: the global is an axis of its own, and each shot gets one element of its value.
 * The name of a zip group, after the Python function `zip`: the global varies in lockstep
   with the other globals in the zip group, which together are one axis. The globals of a
@@ -327,15 +327,15 @@ The expansion column of each global holds its expansion setting, which is one of
 
 Each setting is either automatic, which is shown in grey italics, or chosen by you, which
 is shown in the normal text colour. Editing the expansion column gives a list of the
-choices: ‘Auto’, ‘None’, ‘outer’ and the zip groups in use, and a new zip group name can
-be typed. ‘Auto’ (or an empty entry) returns the global to the automatic setting, as does
-‘Reset expansion to Auto’ in the right-click menu. A setting that you choose is recorded
-as such in the globals file and is kept until you return the global to Auto.
+choices: ‘auto’, ‘none’, ‘outer’ and the zip groups in use, and a new zip group name can
+be typed. ‘auto’ (or an empty entry) returns the global to the automatic setting, as does
+‘Reset expansion of selected global(s) to auto’ in the right-click menu. A setting that you choose is recorded
+as such in the globals file and is kept until you return the global to ‘auto’.
 
 Runmanager works out the automatic settings after every evaluation of the globals:
 
 #.  A global whose value is a list, array or range [4]_ is ‘outer’. Any other value,
-    including a tuple, gives the setting None.
+    including a tuple, gives the setting ‘none’.
 #.  A list that is derived from a global on an axis, directly or through other lists with
     automatic settings, is put on the axis of that global: in its zip group if it is in
     one, and otherwise in a zip group named after it. If the global that it is derived
@@ -344,7 +344,7 @@ Runmanager works out the automatic settings after every evaluation of the global
     globals are in zip group ``amplitude``, and in each shot ``power`` is the square of
     ``amplitude``. This is the same when you have set ``amplitude`` to ‘outer’ or put it
     in a zip group: ``power`` follows it.
-#.  A global that you have set to None is not on an axis, so rule 2 does not apply to the
+#.  A global that you have set to ‘none’ is not on an axis, so rule 2 does not apply to the
     lists that are derived from it. Such a list is ‘outer’ by rule 1, and the lists that
     are derived from it follow it by rule 2.
 
@@ -375,18 +375,18 @@ counted as scanned over. A tab with an evaluation error shows the error icon ins
     A scan group. ``amplitude`` and the ``power`` derived from it are zipped
     automatically, ``detuning`` and the range ``n_pulses`` are outer automatically,
     ``freq_a`` and ``freq_b`` are in a zip group that the user chose, the list
-    ``pulse_shape`` is passed as a single value because the user chose ‘None’, and
+    ``pulse_shape`` is passed as a single value because the user chose ‘none’, and
     the single values have no expansion automatically.
 
 .. figure:: img/runmanager_expansion_editor.png
-    :alt: The expansion column editor, a drop-down list of Auto, None, outer and the zip groups in use
+    :alt: The expansion column editor, a drop-down list of auto, none, outer and the zip groups in use
 
     Editing an expansion setting.
 
 .. figure:: img/runmanager_expansion_menu.png
     :alt: The right-click menu of the globals table with the reset action
 
-    The right-click menu returns the selected globals to Auto.
+    The right-click menu returns the selected globals to auto.
 
 Ordering and shuffling
 ~~~~~~~~~~~~~~~~~~~~~~
