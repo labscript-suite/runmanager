@@ -11,6 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import copy
+import datetime
 import importlib.metadata
 import os
 from pathlib import Path
@@ -20,7 +21,7 @@ from jinja2 import Environment, FileSystemLoader
 # -- Project information (unique to each project) -------------------------------------
 
 project = "runmanager"
-copyright = "2020, labscript suite"
+copyright = f"2013–{datetime.date.today().year}, labscript suite contributors"
 author = "labscript suite contributors"
 
 # The full version, including alpha/beta/rc tags
@@ -44,7 +45,6 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
-    "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_rtd_theme",
     "myst_parser",
@@ -52,8 +52,10 @@ extensions = [
 
 autodoc_typehints = 'description'
 autosummary_generate = True
+autosummary_ignore_module_all = False
 numfig = True
-autodoc_mock_imports = ['labscript_utils']
+# Importing labscript_utils.h5_lock starts a zlock server
+autodoc_mock_imports = ['labscript_utils.h5_lock']
 
 # mock missing site package methods
 import site
@@ -71,37 +73,6 @@ for __name, __rval in mock_site_methods.items():
         setattr(site, __name, __fn)
 del __name
 del __rval
-del __fn
-
-# mock zprocess calls in batch_compiler
-from labscript_utils.ls_zprocess import ProcessTree
-
-mock_processtree_methods = {
-    # Format:
-    # method name: return value
-    'connect_to_parent': ProcessTree,
-}
-
-class __zlock_client:
-    def set_process_name(self,*args,**kwargs):
-        pass
-
-mock_processtree_attr = {
-    'to_parent': None,
-    'from_parent': None,
-    'kill_lock': None,
-    'zlock_client': __zlock_client,
-}
-
-__fn = None
-for __name, __rval in mock_processtree_methods.items():
-    __fn = lambda *args, __rval=copy.deepcopy(__rval), **kwargs: __rval
-    setattr(ProcessTree, __name, __fn)
-for __name, __val in mock_processtree_attr.items():
-    setattr(ProcessTree, __name, copy.deepcopy(__val))
-del __name
-del __rval
-del __val
 del __fn
 
 # Prefix each autosectionlabel with the name of the document it is in and a colon
@@ -133,21 +104,17 @@ intersphinx_mapping = {
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'qtutils': ('https://qtutils.readthedocs.io/en/stable/', None),
-    'pyqtgraph': (
-        'https://pyqtgraph.readthedocs.io/en/latest/',
-        None,
-    ),  # change to stable once v0.11 is published
+    'pyqtgraph': ('https://pyqtgraph.readthedocs.io/en/latest/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'h5py': ('https://docs.h5py.org/en/stable/', None),
-    'pydaqmx': ('https://pythonhosted.org/PyDAQmx/', None),
+    # An inventory of PyQt5, which has the same class and method names as PySide6.
+    # pyqt5-modified-objects.inv is made with
+    # https://github.com/MSLNZ/msl-qt/blob/master/docs/create_pyqt_objects.py
+    # (MIT License).
     'qt': (
         'https://riverbankcomputing.com/static/Docs/PyQt5/',
         'pyqt5-modified-objects.inv',
-    )  # from https://github.com/MSLNZ/msl-qt/blob/master/docs/create_pyqt_objects.py
-    # under MIT License
-    # TODO
-    # desktop-app
-    # spinapi/pynivision/etc
+    ),
 }
 
 # list of all labscript suite components that have docs
@@ -222,17 +189,6 @@ if project != "the labscript suite":
 # Make `some code` equivalent to :code:`some code`
 default_role = 'code'
 
-# hide todo notes if on readthedocs and not building the latest
-if os.environ.get('READTHEDOCS') and (
-    os.environ.get('READTHEDOCS_VERSION') != 'latest'
-    or (
-        os.environ.get('READTHEDOCS_PROJECT') == project
-        or os.environ.get('READTHEDOCS_PROJECT') == 'labscriptsuite'
-    )
-):
-    todo_include_todos = False
-else:
-    todo_include_todos = True
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -242,7 +198,7 @@ else:
 html_theme = "sphinx_rtd_theme"
 html_title = "labscript suite | {project}".format(
     project=project
-    if project != "labscript-suite"
+    if project != "the labscript suite"
     else "experiment control and automation"
 )
 html_short_title = "labscript suite"
