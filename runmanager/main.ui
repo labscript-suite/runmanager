@@ -515,9 +515,6 @@ subprocess</string>
       <property name="autoFillBackground">
        <bool>false</bool>
       </property>
-      <property name="styleSheet">
-       <string notr="true">QTabBar{ font-size: 9pt }</string>
-      </property>
       <property name="tabPosition">
        <enum>QTabWidget::West</enum>
       </property>
