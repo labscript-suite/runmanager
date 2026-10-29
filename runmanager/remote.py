@@ -112,7 +112,7 @@ class Client(ZMQClient):
         return self.request('error_in_globals')
 
     def is_output_folder_default(self):
-        """True if shot output folder is not the default path"""
+        """True if the shot output folder is the default path"""
         return self.request('is_output_folder_default')
 
     def reset_shot_output_folder(self):
