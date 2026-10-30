@@ -24,72 +24,6 @@
    <bool>false</bool>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <property name="styleSheet">
-    <string notr="true">QPushButton {
-     border: none;
-     padding: 4px;
- }
-
-QPushButton:hover {
-     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                       stop: 0 palette(light), stop: 1 palette(window));
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
- QPushButton:pressed {
-     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                       stop: 0 palette(window), stop: 1 palette(light));
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
-QPushButton:checked {
-     background-color: palette(window);
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
-QPushButton:hover:checked {
-     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                       stop: 0 palette(window), stop: 1 palette(light));
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
-QToolButton {
-     border: none;
-     padding: 2px;
- }
-
-QToolButton:hover {
-     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                       stop: 0 palette(light), stop: 1 palette(window));
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
- QToolButton:pressed {
-     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                       stop: 0 palette(window), stop: 1 palette(light));
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
-QToolButton:checked {
-     background-color: palette(window);
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-
-QToolButton:hover:checked {
-     background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                       stop: 0 palette(window), stop: 1 palette(light));
-     border: 1px solid palette(dark);
-     border-radius: 3px;
- }
-</string>
-   </property>
    <layout class="QVBoxLayout" name="verticalLayout">
     <property name="spacing">
      <number>0</number>
@@ -121,7 +55,7 @@ QToolButton:hover:checked {
           <number>0</number>
          </property>
          <item row="0" column="1">
-          <widget class="QPushButton" name="pushButton_abort">
+          <widget class="QToolButton" name="pushButton_abort">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -137,6 +71,12 @@ QToolButton:hover:checked {
            <property name="icon">
             <iconset>
              <normaloff>:/qtutils/fugue/cross-octagon.png</normaloff>:/qtutils/fugue/cross-octagon.png</iconset>
+           </property>
+           <property name="toolButtonStyle">
+            <enum>Qt::ToolButtonTextBesideIcon</enum>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -170,7 +110,7 @@ QToolButton:hover:checked {
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QPushButton" name="pushButton_restart_subprocess">
+          <widget class="QToolButton" name="pushButton_restart_subprocess">
            <property name="focusPolicy">
             <enum>Qt::NoFocus</enum>
            </property>
@@ -184,6 +124,12 @@ subprocess</string>
            <property name="icon">
             <iconset>
              <normaloff>:/qtutils/fugue/arrow-circle-135-left.png</normaloff>:/qtutils/fugue/arrow-circle-135-left.png</iconset>
+           </property>
+           <property name="toolButtonStyle">
+            <enum>Qt::ToolButtonTextBesideIcon</enum>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -319,6 +265,9 @@ subprocess</string>
             <iconset>
              <normaloff>:/qtutils/fugue/arrow-turn-180-left.png</normaloff>:/qtutils/fugue/arrow-turn-180-left.png</iconset>
            </property>
+           <property name="autoRaise">
+            <bool>true</bool>
+           </property>
           </widget>
          </item>
          <item row="1" column="0">
@@ -349,6 +298,9 @@ subprocess</string>
            <property name="icon">
             <iconset>
              <normaloff>:/qtutils/custom/python-document.png</normaloff>:/qtutils/custom/python-document.png</iconset>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -427,6 +379,9 @@ subprocess</string>
                <iconset>
                 <normaloff>:/qtutils/fugue/folder-horizontal-open.png</normaloff>:/qtutils/fugue/folder-horizontal-open.png</iconset>
               </property>
+              <property name="autoRaise">
+               <bool>true</bool>
+              </property>
              </widget>
             </item>
            </layout>
@@ -493,6 +448,9 @@ subprocess</string>
               <property name="icon">
                <iconset>
                 <normaloff>:/qtutils/fugue/folder-open-document-text.png</normaloff>:/qtutils/fugue/folder-open-document-text.png</iconset>
+              </property>
+              <property name="autoRaise">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
@@ -616,6 +574,9 @@ subprocess</string>
              <iconset>
               <normaloff>:/qtutils/fugue/arrow-stop-090.png</normaloff>:/qtutils/fugue/arrow-stop-090.png</iconset>
             </property>
+            <property name="autoRaise">
+             <bool>true</bool>
+            </property>
            </widget>
           </item>
           <item>
@@ -629,6 +590,9 @@ subprocess</string>
             <property name="icon">
              <iconset>
               <normaloff>:/qtutils/fugue/arrow-090.png</normaloff>:/qtutils/fugue/arrow-090.png</iconset>
+            </property>
+            <property name="autoRaise">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -644,6 +608,9 @@ subprocess</string>
              <iconset>
               <normaloff>:/qtutils/fugue/arrow-270.png</normaloff>:/qtutils/fugue/arrow-270.png</iconset>
             </property>
+            <property name="autoRaise">
+             <bool>true</bool>
+            </property>
            </widget>
           </item>
           <item>
@@ -657,6 +624,9 @@ subprocess</string>
             <property name="icon">
              <iconset>
               <normaloff>:/qtutils/fugue/arrow-stop-270.png</normaloff>:/qtutils/fugue/arrow-stop-270.png</iconset>
+            </property>
+            <property name="autoRaise">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -748,7 +718,7 @@ subprocess</string>
            <number>3</number>
           </property>
           <item>
-           <widget class="QPushButton" name="pushButton_open_globals_file">
+           <widget class="QToolButton" name="pushButton_open_globals_file">
             <property name="focusPolicy">
              <enum>Qt::NoFocus</enum>
             </property>
@@ -762,10 +732,16 @@ subprocess</string>
              <iconset>
               <normaloff>:/qtutils/fugue/folder-open-table.png</normaloff>:/qtutils/fugue/folder-open-table.png</iconset>
             </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonTextBesideIcon</enum>
+            </property>
+            <property name="autoRaise">
+             <bool>true</bool>
+            </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_new_globals_file">
+           <widget class="QToolButton" name="pushButton_new_globals_file">
             <property name="focusPolicy">
              <enum>Qt::NoFocus</enum>
             </property>
@@ -779,10 +755,16 @@ subprocess</string>
              <iconset>
               <normaloff>:/qtutils/fugue/table--plus.png</normaloff>:/qtutils/fugue/table--plus.png</iconset>
             </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonTextBesideIcon</enum>
+            </property>
+            <property name="autoRaise">
+             <bool>true</bool>
+            </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_diff_globals_file">
+           <widget class="QToolButton" name="pushButton_diff_globals_file">
             <property name="focusPolicy">
              <enum>Qt::NoFocus</enum>
             </property>
@@ -795,6 +777,12 @@ subprocess</string>
             <property name="icon">
              <iconset>
               <normaloff>:/qtutils/fugue/tables.png</normaloff>:/qtutils/fugue/tables.png</iconset>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonTextBesideIcon</enum>
+            </property>
+            <property name="autoRaise">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
