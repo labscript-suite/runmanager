@@ -2688,7 +2688,7 @@ class RunManager:
         # updated when the state changes:
         group_open_close_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
         group_open_close_item.setEditable(False)
-        group_open_close_item.setToolTip('Load globals group into runmananger.')
+        group_open_close_item.setToolTip('Load globals group into runmanager.')
 
         row = [group_name_item, group_active_item, group_delete_item, group_open_close_item]
         return row

@@ -25,8 +25,3 @@ of each zip group and any other parameters containing an array or list.
     the experiment logic defined using the labscript API in a Python file (2) and groups of
     parameters (3), for example those shown for the ‘MOT - K’ group (4). Further details on
     the runmanager interface can be found in :doc:`Usage <usage>`.
-
-.. rubric:: Footnotes
-
-.. [1] Documentation taken from Starkey, Phillip T. *A software framework for control and automation of precisely timed experiments*
-    PhD Thesis, Monash University (2019) https://doi.org/10.26180/5d1db8ffe29ef
