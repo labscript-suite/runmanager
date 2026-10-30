@@ -395,7 +395,8 @@ class ItemView:
     double click. Also has modified tab and arrow key behaviour and custom selection
     highlighting. The current index and selection are cleared when the user tabs out
     of the view or clicks elsewhere in its window, including on an empty area of the
-    view, except on the widgets passed to set_selection_controls()."""
+    view, except on the widgets passed to set_selection_controls(). Clicking the header
+    of a column passed to set_unsortable_columns() does not sort the view."""
     leftClicked = Signal(QtCore.QModelIndex)
     doubleLeftClicked = Signal(QtCore.QModelIndex)
 
@@ -410,6 +411,7 @@ class ItemView:
         # that is, with the keyboard:
         self._keyboard_commit = False
         self._pending_edit = None
+        self._unsortable_columns = set()
         self.setAutoScroll(False)
         set_selection_palette(self)
         ClickOffFilter.register(self)
@@ -417,6 +419,34 @@ class ItemView:
     def set_selection_controls(self, widgets):
         """Set the widgets that act on the selection, clicks on which do not clear it"""
         self._selection_controls = list(widgets)
+
+    def _header(self):
+        if isinstance(self, QtWidgets.QTreeView):
+            return self.header()
+        return self.horizontalHeader()
+
+    def set_unsortable_columns(self, columns):
+        """Set the columns by which clicking the header does not sort the view"""
+        self._unsortable_columns = set(columns)
+        self._header().viewport().installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        header = self._header()
+        if obj is header.viewport() and event.type() in [
+            QtCore.QEvent.HoverMove,
+            QtCore.QEvent.MouseButtonPress,
+            QtCore.QEvent.MouseButtonDblClick,
+        ]:
+            if QT_ENV == 'PyQt5':
+                pos = event.pos()
+            else:
+                pos = event.position().toPoint()
+            # The header sorts by a section that is clicked only if the sections are
+            # clickable when the mouse button is pressed. Resizing a section does not
+            # require them to be clickable:
+            column = header.logicalIndexAt(pos)
+            header.setSectionsClickable(column not in self._unsortable_columns)
+        return super().eventFilter(obj, event)
 
     def is_click_off(self, widget):
         """Whether a mouse press on the widget clears the current index and selection"""
@@ -601,7 +631,42 @@ class TableView(ItemView, QtWidgets.QTableView):
             self.resizeRowToContents(row)
 
 
-class AlternatingColorModel(QtGui.QStandardItemModel):
+class DummyRowModel(QtGui.QStandardItemModel):
+    """Model that sorts the dummy rows, which are the rows that have data True in
+    the role dummy_row_role, after the other rows with the same parent, in both sort
+    orders. Each item of the model must be a ModelItem."""
+
+    def __init__(self, dummy_row_role):
+        QtGui.QStandardItemModel.__init__(self)
+        self.dummy_row_role = dummy_row_role
+        self.sort_order = QtCore.Qt.AscendingOrder
+
+    def sort(self, column, order=QtCore.Qt.AscendingOrder):
+        self.sort_order = order
+        super().sort(column, order)
+
+
+class ModelItem(QtGui.QStandardItem):
+    """Item of a DummyRowModel"""
+
+    def __lt__(self, other):
+        model = self.model()
+        if self.data(model.dummy_row_role):
+            return model.sort_order == QtCore.Qt.DescendingOrder
+        if other.data(model.dummy_row_role):
+            return model.sort_order == QtCore.Qt.AscendingOrder
+        # QStandardItem.__lt__() calls this method in PySide6, so we compare the sort
+        # data here. As in Qt, items with no sort data are greater than all others:
+        left = self.data(model.sortRole())
+        right = other.data(model.sortRole())
+        if left is None:
+            return False
+        if right is None:
+            return True
+        return left < right
+
+
+class AlternatingColorModel(DummyRowModel):
     """Model that gives each cell a background colour made from the palette of the view.
     The colour is the base or alternate base colour of the cell's row, mixed with the
     colour in CELL_COLORS that is named by the cell's ROLE_CELL_COLOR data, if it has
@@ -610,8 +675,8 @@ class AlternatingColorModel(QtGui.QStandardItemModel):
 
     ROLE_CELL_COLOR = QtCore.Qt.UserRole + 100
 
-    def __init__(self, view):
-        QtGui.QStandardItemModel.__init__(self)
+    def __init__(self, view, dummy_row_role):
+        DummyRowModel.__init__(self, dummy_row_role)
         self.view = view
         self.brushes = {}
 

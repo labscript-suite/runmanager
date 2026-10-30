@@ -77,6 +77,8 @@ from runmanager.widgets import (
     TreeView,
     TabToolButton,
     AlternatingColorModel,
+    DummyRowModel,
+    ModelItem,
     engage_button_style_sheet,
     ItemDelegate,
     CommentDelegate,
@@ -363,7 +365,9 @@ class GroupTab:
         self.scanned_descriptions = []
         self.set_file_and_group_name(globals_file, group_name)
 
-        self.globals_model = AlternatingColorModel(view=self.ui.tableView_globals)
+        self.globals_model = AlternatingColorModel(
+            view=self.ui.tableView_globals, dummy_row_role=self.GLOBALS_ROLE_IS_DUMMY_ROW
+        )
         self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name', 'Value', 'Units', 'Expansion'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
 
@@ -371,6 +375,7 @@ class GroupTab:
         self.ui.tableView_globals.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
         self.ui.tableView_globals.setSelectionMode(QtWidgets.QTableView.ExtendedSelection)
         self.ui.tableView_globals.setSortingEnabled(True)
+        self.ui.tableView_globals.set_unsortable_columns([self.GLOBALS_COL_DELETE])
         # Make it so the user can just start typing on an item to edit:
         self.ui.tableView_globals.setEditTriggers(QtWidgets.QTableView.AnyKeyPressed |
                                                   QtWidgets.QTableView.EditKeyPressed)
@@ -484,33 +489,33 @@ class GroupTab:
             self.on_globals_model_expansion_changed(expansion_item)
 
         # Add the dummy item at the end:
-        dummy_delete_item = QtGui.QStandardItem()
+        dummy_delete_item = ModelItem()
         # This lets later code know that this row does not correspond to an
         # actual global:
         dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled)
+        dummy_delete_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_delete_item.setToolTip('Click to add global')
 
-        dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
+        dummy_name_item = ModelItem(self.GLOBALS_DUMMY_ROW_TEXT)
         dummy_name_item.setFont(monospace_font())
         dummy_name_item.setToolTip('Click to add global')
         dummy_name_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
         dummy_name_item.setData(self.GLOBALS_DUMMY_ROW_TEXT, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)  # Clears the 'selectable' flag
 
-        dummy_value_item = QtGui.QStandardItem()
+        dummy_value_item = ModelItem()
         dummy_value_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_value_item.setFlags(QtCore.Qt.ItemIsEnabled)
+        dummy_value_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_value_item.setToolTip('Click to add global')
 
-        dummy_units_item = QtGui.QStandardItem()
+        dummy_units_item = ModelItem()
         dummy_units_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_units_item.setFlags(QtCore.Qt.ItemIsEnabled)
+        dummy_units_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_units_item.setToolTip('Click to add global')
 
-        dummy_expansion_item = QtGui.QStandardItem()
+        dummy_expansion_item = ModelItem()
         dummy_expansion_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_expansion_item.setFlags(QtCore.Qt.ItemIsEnabled)
+        dummy_expansion_item.setFlags(QtCore.Qt.NoItemFlags)
         dummy_expansion_item.setToolTip('Click to add global')
 
         self.globals_model.appendRow(
@@ -525,32 +530,31 @@ class GroupTab:
         # self.update_parse_indication after runmanager has a chance to parse
         # everything and get back to us about what that data should be.
 
-        delete_item = QtGui.QStandardItem()
+        delete_item = ModelItem()
         delete_item.setIcon(Icon(':qtutils/fugue/minus'))
-        # Must be set to something so that the dummy row doesn't get sorted first:
-        delete_item.setData(False, self.GLOBALS_ROLE_SORT_DATA)
         delete_item.setEditable(False)
+        delete_item.setSelectable(False)
         delete_item.setToolTip('Delete global from group.')
 
-        name_item = QtGui.QStandardItem(name)
+        name_item = ModelItem(name)
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         name_item.setToolTip(name)
         name_item.setFont(monospace_font())
 
-        value_item = QtGui.QStandardItem(value)
+        value_item = ModelItem(value)
         value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
         value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
         value_item.setFont(monospace_font())
 
-        units_item = QtGui.QStandardItem(units)
+        units_item = ModelItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
         units_item.setToolTip('')
 
-        expansion_item = QtGui.QStandardItem(expansion_text(expansion))
+        expansion_item = ModelItem(expansion_text(expansion))
         expansion_item.setData(expansion, self.GLOBALS_ROLE_SORT_DATA)
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         expansion_item.setData(bool(custom), self.GLOBALS_ROLE_EXPANSION_CUSTOM)
@@ -1397,13 +1401,14 @@ class RunManager:
         self.ui.treeView_axes.header().setSectionResizeMode(self.AXES_COL_NAME, QtWidgets.QHeaderView.Stretch)
 
     def setup_groups_tab(self):
-        self.groups_model = QtGui.QStandardItemModel()
+        self.groups_model = DummyRowModel(dummy_row_role=self.GROUPS_ROLE_IS_DUMMY_ROW)
         self.groups_model.setHorizontalHeaderLabels(['File/group name', 'Active', 'Delete', 'Open/Close'])
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
         self.ui.treeView_groups.setModel(self.groups_model)
         self.ui.treeView_groups.setAnimated(True)  # Pretty
         self.ui.treeView_groups.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
         self.ui.treeView_groups.setSortingEnabled(True)
+        self.ui.treeView_groups.set_unsortable_columns([self.GROUPS_COL_DELETE])
         self.ui.treeView_groups.sortByColumn(self.GROUPS_COL_NAME, QtCore.Qt.AscendingOrder)
         # Set column widths:
         self.ui.treeView_groups.setColumnWidth(self.GROUPS_COL_NAME, 400)
@@ -2580,25 +2585,24 @@ class RunManager:
         # Get the groups:
         groups = group_manager.get_grouplist(globals_file)
         # Add the parent row:
-        file_name_item = QtGui.QStandardItem(globals_file)
+        file_name_item = ModelItem(globals_file)
         file_name_item.setEditable(False)
         file_name_item.setToolTip(globals_file)
         # Sort column by name:
         file_name_item.setData(globals_file, self.GROUPS_ROLE_SORT_DATA)
 
-        file_active_item = QtGui.QStandardItem()
+        file_active_item = ModelItem()
         file_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated when checkstate changes:
         file_active_item.setData(self.GROUPS_ACTIVE_SORT_DATA[QtCore.Qt.Unchecked], self.GROUPS_ROLE_SORT_DATA)
         file_active_item.setEditable(False)
         file_active_item.setToolTip('Check to set all the file\'s groups as active.')
 
-        file_delete_item = QtGui.QStandardItem()  # Blank, only groups have a delete button
+        file_delete_item = ModelItem()  # Blank, only groups have a delete button
         file_delete_item.setEditable(False)
-        # Must be set to something so that the dummy row doesn't get sorted first:
-        file_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
+        file_delete_item.setSelectable(False)
 
-        file_close_item = QtGui.QStandardItem()
+        file_close_item = ModelItem()
         file_close_item.setIcon(Icon(':qtutils/fugue/cross'))
         file_close_item.setEditable(False)
         file_close_item.setToolTip('Close globals file.')
@@ -2611,7 +2615,7 @@ class RunManager:
             file_name_item.appendRow(row)
 
         # Finally, add the <Click to add group> row at the bottom:
-        dummy_name_item = QtGui.QStandardItem(self.GROUPS_DUMMY_ROW_TEXT)
+        dummy_name_item = ModelItem(self.GROUPS_DUMMY_ROW_TEXT)
         dummy_name_item.setToolTip('Click to add group')
         # This lets later code know that this row does
         # not correspond to an actual globals group:
@@ -2619,22 +2623,17 @@ class RunManager:
         dummy_name_item.setData(self.GROUPS_DUMMY_ROW_TEXT, self.GROUPS_ROLE_PREVIOUS_NAME)
         dummy_name_item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)  # Clears the 'selectable' flag
 
-        dummy_active_item = QtGui.QStandardItem()
+        dummy_active_item = ModelItem()
         dummy_active_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
-        dummy_active_item.setFlags(QtCore.Qt.ItemIsEnabled)
+        dummy_active_item.setFlags(QtCore.Qt.NoItemFlags)
 
-        dummy_delete_item = QtGui.QStandardItem('')
+        dummy_delete_item = ModelItem('')
         dummy_delete_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
-        dummy_delete_item.setFlags(QtCore.Qt.ItemIsEnabled)
+        dummy_delete_item.setFlags(QtCore.Qt.NoItemFlags)
 
-        dummy_open_close_item = QtGui.QStandardItem()
+        dummy_open_close_item = ModelItem()
         dummy_open_close_item.setData(True, self.GROUPS_ROLE_IS_DUMMY_ROW)
-        dummy_open_close_item.setFlags(QtCore.Qt.ItemIsEnabled)
-
-        # Not setting anything as the above items' sort role has the effect of
-        # ensuring this row is always sorted to the end of the list, without
-        # us having to implement any custom sorting methods or subclassing
-        # anything, yay.
+        dummy_open_close_item.setFlags(QtCore.Qt.NoItemFlags)
 
         file_name_item.appendRow([dummy_name_item, dummy_active_item, dummy_delete_item, dummy_open_close_item])
         # Expand the child items to be visible:
@@ -2647,13 +2646,13 @@ class RunManager:
     def make_group_row(self, group_name):
         """Returns a new row representing one group in the groups tab, ready to be
         inserted into the model."""
-        group_name_item = QtGui.QStandardItem(group_name)
+        group_name_item = ModelItem(group_name)
         # We keep the previous name around so that we can detect what changed:
         group_name_item.setData(group_name, self.GROUPS_ROLE_PREVIOUS_NAME)
         # Sort column by name:
         group_name_item.setData(group_name, self.GROUPS_ROLE_SORT_DATA)
 
-        group_active_item = QtGui.QStandardItem()
+        group_active_item = ModelItem()
         group_active_item.setCheckState(QtCore.Qt.Unchecked)
         # Sort column by CheckState - must keep this updated whenever the
         # checkstate changes:
@@ -2662,14 +2661,13 @@ class RunManager:
         group_active_item.setToolTip(
             'Whether or not the globals within this group should be used by runmanager for compilation.')
 
-        group_delete_item = QtGui.QStandardItem()
+        group_delete_item = ModelItem()
         group_delete_item.setIcon(Icon(':qtutils/fugue/minus'))
-        # Must be set to something so that the dummy row doesn't get sorted first:
-        group_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
         group_delete_item.setEditable(False)
+        group_delete_item.setSelectable(False)
         group_delete_item.setToolTip('Delete globals group from file.')
 
-        group_open_close_item = QtGui.QStandardItem()
+        group_open_close_item = ModelItem()
         group_open_close_item.setIcon(Icon(':qtutils/fugue/plus'))
         group_open_close_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
         # Sort column by whether group is open - must keep this manually
