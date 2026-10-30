@@ -3513,6 +3513,10 @@ if __name__ == "__main__":
     logger = setup_logging('runmanager')
     labscript_utils.excepthook.set_logger(logger)
     logger.info('\n\n===============starting===============\n')
+    qapplication = QtWidgets.QApplication.instance()
+    if qapplication is None:
+        qapplication = QtWidgets.QApplication(sys.argv)
+    setup_application(qapplication)
     port = LabConfig().getint(
         'ports', 'runmanager', fallback=runmanager.remote.DEFAULT_PORT
     )
@@ -3526,20 +3530,12 @@ if __name__ == "__main__":
         splash.hide()
         QtWidgets.QMessageBox.critical(None, 'runmanager', message)
         sys.exit(1)
-    qapplication = QtWidgets.QApplication.instance()
-    if qapplication is None:
-        qapplication = QtWidgets.QApplication(sys.argv)
-    setup_application(qapplication)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
     app = RunManager()
     splash.update_text('Starting remote server')
     remote_server = RemoteServer(app)
     splash.hide()
 
-    # Let the interpreter run every 500ms so it sees Ctrl-C interrupts:
-    timer = QtCore.QTimer()
-    timer.start(500)
-    timer.timeout.connect(lambda: None)
     # Upon seeing a ctrl-c interrupt, quit the event loop
     signal.signal(signal.SIGINT, lambda *args: qapplication.exit())
 
