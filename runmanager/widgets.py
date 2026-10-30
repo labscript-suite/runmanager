@@ -159,14 +159,17 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
             return self._movable
         return self.tab_movable.get(index, self._movable)
 
-    def setTabIconOnRight(self, index, on_right):
-        """Draw the tab's icon at the right of the tab, to the left of its button,
-        instead of to the left of its text"""
-        self.setTabData(index, bool(on_right))
-        self.update()
+    def setTabStatusIcon(self, index, icon):
+        """Set an icon to draw at the right of the tab, to the left of its button"""
+        self.setTabData(index, icon)
+        # Lay out the tabs again for the new tab size hint:
+        self.setIconSize(self.iconSize())
 
-    def tabIconOnRight(self, index):
-        return bool(self.tabData(index))
+    def tabStatusIcon(self, index):
+        icon = self.tabData(index)
+        if icon is None:
+            return QtGui.QIcon()
+        return icon
 
     def indexAtPos(self, point):
         for index in range(self.count()):
@@ -223,13 +226,15 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
             if not self.tabIcon(index).isNull():
                 icon_rect = QtCore.QRect(QtCore.QPoint(0, 0), self.iconSize())
                 icon_rect.moveCenter(tabRect.center())
-                if self.tabIconOnRight(index):
-                    icon_rect.moveRight(text_right)
-                    text_right = icon_rect.left() - 5
-                else:
-                    icon_rect.moveLeft(text_left)
-                    text_left = icon_rect.right() + 6
+                icon_rect.moveLeft(text_left)
+                text_left = icon_rect.right() + 6
                 self.tabIcon(index).paint(painter, icon_rect)
+            if not self.tabStatusIcon(index).isNull():
+                icon_rect = QtCore.QRect(QtCore.QPoint(0, 0), self.iconSize())
+                icon_rect.moveCenter(tabRect.center())
+                icon_rect.moveRight(text_right)
+                text_right = icon_rect.left() - 5
+                self.tabStatusIcon(index).paint(painter, icon_rect)
             textRect = QtCore.QRect(tabRect)
             textRect.setLeft(text_left)
             textRect.setRight(text_right)
@@ -256,6 +261,8 @@ class FingerTabBarWidget(QtWidgets.QTabBar):
         height = max(self.minheight, height)
         width = text_width + 15
         if not self.tabIcon(index).isNull():
+            width += self.iconSize().width() + 5
+        if not self.tabStatusIcon(index).isNull():
             width += self.iconSize().width() + 5
 
         button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
@@ -329,10 +336,8 @@ class FingerTabWidget(QtWidgets.QTabWidget):
 
     def addTab(self, *args, **kwargs):
         closeable = kwargs.pop('closable', False)
-        icon_on_right = kwargs.pop('icon_on_right', False)
         index = QtWidgets.QTabWidget.addTab(self, *args, **kwargs)
         self.setTabClosable(index, closeable)
-        self.tabBar().setTabIconOnRight(index, icon_on_right)
         return index
 
     def setTabClosable(self, index, closable):
