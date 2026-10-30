@@ -1266,6 +1266,9 @@ class RunManager:
         self.output_popout_button.setIcon(Icon(':/qtutils/fugue/arrow-out'))
         self.output_popout_button.setToolTip('Toggle whether the output box is in a separate window')
         self.ui.tabWidget.tabBar().setTabButton(output_tab_index, QtWidgets.QTabBar.RightSide, self.output_popout_button)
+        # The output tab's icon and tooltip when it shows no error:
+        self.output_tab_icon = self.ui.tabWidget.tabIcon(output_tab_index)
+        self.output_tab_tooltip = self.ui.tabWidget.tabToolTip(output_tab_index)
         # Fix the first three tabs in place:
         for index in range(3):
             self.ui.tabWidget.tabBar().setMovable(False, index=index)
@@ -1312,6 +1315,8 @@ class RunManager:
 
         # A flag telling the compilation thread to abort:
         self.compilation_aborted = threading.Event()
+        # Set while the compiler subprocess is being restarted:
+        self.compiler_restarting = threading.Event()
 
         # The prospective number of shots resulting from compilation
         self.n_shots = None
@@ -1657,8 +1662,23 @@ class RunManager:
         self.ui.label_non_default_folder.setVisible(self.non_default_folder)
         self.ui.lineEdit_shot_output_folder.setToolTip(text)
 
+    @inmain_decorator()  # Can be called from the compilation thread
+    def set_output_tab_error(self, message):
+        """Show an error icon on the output tab, with the message as its tooltip. If
+        message is None, show the output tab's usual icon and tooltip."""
+        index = self.ui.tabWidget.indexOf(self.ui.tab_output)
+        if message is None:
+            self.ui.tabWidget.setTabIcon(index, self.output_tab_icon)
+            self.ui.tabWidget.setTabToolTip(index, self.output_tab_tooltip)
+        else:
+            self.ui.tabWidget.setTabIcon(index, Icon(':qtutils/fugue/exclamation'))
+            self.ui.tabWidget.setTabToolTip(
+                index, f'<p style="white-space:pre-wrap">{html.escape(message)}</p>'
+            )
+
     def on_engage_clicked(self):
         self.logger.info('Engage')
+        self.set_output_tab_error(None)
         try:
             send_to_BLACS = self.ui.checkBox_run_shots.isChecked()
             send_to_runviewer = self.ui.checkBox_view_shots.isChecked()
@@ -1700,6 +1720,7 @@ class RunManager:
             self.compile_queue.put([labscript_file, run_files, len(shots), send_to_BLACS, BLACS_host, send_to_runviewer, history])
         except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'{e!s}\n\n', red=True)
+            self.set_output_tab_error(str(e))
         self.logger.info('end engage')
 
     def on_abort_clicked(self):
@@ -1714,6 +1735,7 @@ class RunManager:
         seconds, exits when it has no HDF5 file open for writing, or after
         batch_compiler.KILL_LOCK_TIMEOUT seconds. Then start a new compiler."""
         self.ui.pushButton_restart_subprocess.setEnabled(False)
+        self.compiler_restarting.set()
         self.to_child.put(['quit', None])
         self.from_child.put(['done', False])
         self.output_box.output('Asking subprocess to quit...')
@@ -1735,6 +1757,7 @@ class RunManager:
             os.path.join(runmanager_dir, 'batch_compiler.py'),
             output_redirection_port=self.output_box.port,
         )
+        self.compiler_restarting.clear()
         self.output_box.output('done.\n')
         self.output_box.output('Ready.\n\n')
         self.ui.pushButton_restart_subprocess.setEnabled(True)
@@ -3115,6 +3138,11 @@ class RunManager:
                             signal, success = self.from_child.get()
                             assert signal == 'done'
                             if not success:
+                                if not (self.compilation_aborted.is_set() or self.compiler_restarting.is_set()):
+                                    self.set_output_tab_error(
+                                        f'Compilation of {os.path.basename(run_file)} failed. '
+                                        + 'The output shows the error.'
+                                    )
                                 self.compilation_aborted.set()
                                 continue
                             if shot_number == 1:
@@ -3125,6 +3153,7 @@ class RunManager:
                                 self.send_to_runviewer(run_file)
                     except Exception as e: # noqa: BLE001 send all errors to dialog box
                         self.output_box.output(str(e) + '\n', red=True)
+                        self.set_output_tab_error(str(e))
                         self.compilation_aborted.set()
                 if self.compile_queue.empty():
                     inmain(self.ui.pushButton_abort.setEnabled, False)
@@ -3262,6 +3291,9 @@ class RunManager:
                 raise Exception(response)
         except Exception as e: # noqa: BLE001 send all errors to dialog box
             self.output_box.output(f'Couldn\'t submit job to control server: {e!s}\n', red=True)
+            self.set_output_tab_error(
+                f'Submission of {os.path.basename(run_file)} to BLACS at {BLACS_hostname} failed:\n{e!s}'
+            )
             self.compilation_aborted.set()
 
     def send_to_runviewer(self, run_file):
