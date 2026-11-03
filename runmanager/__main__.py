@@ -1198,6 +1198,13 @@ class RunManager:
     # batch_compiler.KILL_LOCK_TIMEOUT = 65 seconds unless it is unresponsive.
     QUIT_TIMEOUT = 70
 
+    # Duration in seconds for which runmanager waits to send a request to the compiler.
+    # Only a send to a compiler that has exited takes this long.
+    SEND_TIMEOUT = 1
+    COMPILER_NOT_RUNNING_MESSAGE = (
+        'The compiler subprocess is not running. Click Restart subprocess to start a new one.'
+    )
+
     # Constants for the model in the axes tab:
     AXES_COL_NAME = 0
     AXES_COL_LENGTH = 1
@@ -1303,6 +1310,9 @@ class RunManager:
         self.compilation_aborted = threading.Event()
         # Set while the compiler subprocess is being restarted:
         self.compiler_restarting = threading.Event()
+        # Held while sending a request to the compiler, and while starting a restart, so
+        # that a compile request is not sent to a compiler that is being restarted:
+        self.compiler_lock = threading.Lock()
 
         # The prospective number of shots resulting from compilation
         self.n_shots = None
@@ -1546,7 +1556,7 @@ class RunManager:
                 return False
             if reply == QtWidgets.QMessageBox.Yes:
                 self.save_configuration(self.last_save_config_file)
-        self.to_child.put(['quit', None])
+        self.send_to_compiler(['quit', None])
         return True
 
     def close_current_tab(self):
@@ -1721,7 +1731,12 @@ class RunManager:
     def on_abort_clicked(self):
         self.discard_queued_sequences()
         self.compilation_aborted.set()
-        self.to_child.put(['abort', None])
+        with self.compiler_lock:
+            if self.compiler_restarting.is_set():
+                return
+            sent = self.send_to_compiler(['abort', None])
+        if not sent:
+            self.output_box.output(self.COMPILER_NOT_RUNNING_MESSAGE + '\n\n', red=True)
 
     def on_restart_subprocess_clicked(self):
         """Tell the compiler to quit, and kill it if it has not exited after
@@ -1730,12 +1745,35 @@ class RunManager:
         seconds, exits when it has no HDF5 file open for writing, or after
         batch_compiler.KILL_LOCK_TIMEOUT seconds. Then start a new compiler."""
         self.ui.pushButton_restart_subprocess.setEnabled(False)
-        self.compiler_restarting.set()
-        self.to_child.put(['quit', None])
-        self.from_child.put(['done', False])
+        with self.compiler_lock:
+            self.compiler_restarting.set()
+            self.send_to_compiler(['quit', None])
+            self.from_child.put(['done', False])
         self.output_box.output('Asking subprocess to quit...')
         timeout_time = time.time() + self.QUIT_TIMEOUT
         QtCore.QTimer.singleShot(50, lambda: self.check_child_exited(timeout_time))
+
+    def send_to_compiler(self, request):
+        """Send a request to the compiler. Return False if the compiler has exited."""
+        try:
+            self.to_child.put(request, timeout=self.SEND_TIMEOUT)
+        except TimeoutError:
+            return False
+        return True
+
+    def send_compile_request(self, labscript_file, run_file):
+        """Send a compile request to the compiler, after waiting for a restart of the
+        compiler to finish. Return the queue from which to read the result, or None if
+        the compilation is aborted while waiting."""
+        while True:
+            with self.compiler_lock:
+                if self.compilation_aborted.is_set():
+                    return None
+                if not self.compiler_restarting.is_set():
+                    if not self.send_to_compiler(['compile', [labscript_file, run_file]]):
+                        raise RuntimeError(self.COMPILER_NOT_RUNNING_MESSAGE)
+                    return self.from_child
+            time.sleep(0.05)
 
     def check_child_exited(self, timeout_time):
         self.child.poll()
@@ -3122,8 +3160,10 @@ class RunManager:
                                 f'Compiling {os.path.basename(run_file)} (shot {shot_number} of {n_shots})\n',
                                 bold=True,
                             )
-                            self.to_child.put(['compile', [labscript_file, run_file]])
-                            signal, success = self.from_child.get()
+                            from_child = self.send_compile_request(labscript_file, run_file)
+                            if from_child is None:
+                                continue
+                            signal, success = from_child.get()
                             assert signal == 'done'
                             if not success:
                                 if not (self.compilation_aborted.is_set() or self.compiler_restarting.is_set()):
