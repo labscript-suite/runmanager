@@ -39,7 +39,7 @@ dependencies = [
     "pandas>=0.13",
     "qtutils>=4.4.3",
     "matplotlib",
-    "zprocess>=3.0.1",
+    "zprocess>=3.0.2",
 ]
 dynamic = ["version"]
 
