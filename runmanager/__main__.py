@@ -3568,6 +3568,8 @@ if __name__ == "__main__":
         )
         logger.error(message)
         splash.hide()
+        # Upon seeing a ctrl-c interrupt, close the message box:
+        signal.signal(signal.SIGINT, lambda *args: qapplication.exit())
         QtWidgets.QMessageBox.critical(None, 'runmanager', message)
         sys.exit(1)
     qapplication.setAttribute(QtCore.Qt.AA_DontShowIconsInMenus, False)
