@@ -133,7 +133,7 @@ class BatchProcessor:
                 try:
                     self.compiling = True
                     labscript.labscript_init(run_file, labscript_file=labscript_file)
-                    with open(labscript_file) as f:
+                    with open(labscript_file, 'rb') as f:
                         source = f.read()
                     if (labscript_file, source) != (self.script_path, self.script_source):
                         self.script_code = compile(
